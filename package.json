@@ -2,7 +2,7 @@
   "name": "cortico-world-postcard",
   "version": "0.1.0",
   "type": "module",
-  "description": "桌宠旅行明信片：持久旅行计时、取消、恢复及收藏核心",
+  "description": "桌宠旅行明信片：云端旅行来信、永久收藏与标准面板",
   "license": "MIT",
   "keywords": [
     "cortico-world",
@@ -20,27 +20,37 @@
       "experimental"
     ],
     "describe": "describe.json",
-    "displayName": "旅行明信片"
+    "displayName": "旅行明信片",
+    "webUiClient": "dist/webui.js",
+    "webUiStyle": "dist/webui.css"
   },
   "files": [
     "src",
     "README.md",
     "CHANGELOG.md",
-    "describe.json"
+    "describe.json",
+    "dist"
   ],
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:webui": "node scripts/build-webui.mjs",
+    "typecheck:web": "tsc -p tsconfig.web.json --noEmit",
+    "prepack": "pnpm build:webui"
   },
   "devDependencies": {
+    "@types/jsdom": "21.1.7",
     "@types/node": "^22.10.0",
     "@types/pngjs": "6.0.5",
     "cortico": "0.2.7",
+    "esbuild": "0.28.2",
+    "jsdom": "26.1.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   },
   "dependencies": {
+    "fflate": "0.8.3",
     "pngjs": "7.0.0",
     "undici": "7.29.1"
   }

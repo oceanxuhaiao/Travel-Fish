@@ -6,14 +6,17 @@ Contracts: world v6 / provider v6 / bot v7
   ✓ Entry: E:\项目\桌面宠物\扩展\长时间异步任务\.cortina-reference\state\packages\cortico-world-postcard\src\index.ts
   ✓ Default export has the world shape; id = postcard
     The World id must be unique in the deployment; an id that matches a built-in or another extension does not load.
-  ✓ No browser bundle declared (cortico.webUiClient); the WebUI shows the generic panel.
+  ✓ Browser bundle: dist/webui.js
+    WebUI page id: world:postcard
+    Published URL: /assets/extensions/cortico-world-postcard/0.1.0/webui.js
+  ✓ Browser style: dist/webui.css
 
 Construction check (temporary deployment, default config, no secrets, start() not called):
   ✓ defaults() returns a config section.
   ✓ create() returns a World instance, id = postcard.
   ✓ tools(): postcard_start, postcard_status, postcard_list, postcard_read, postcard_cancel, postcard_retry
   ✓ envPromptVars(): placeholder values: 1.
-  ✓ webUi(): panels: 0, config groups: 1, prompt docs: 1.
+  ✓ webUi(): panels: 1, config groups: 1, prompt docs: 1.
 
 Self-description check (describe in the code against the file cortico.describe points to):
   ✓ tools(): every tool is declared in describe.tools.

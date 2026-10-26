@@ -1,0 +1,86 @@
+[
+  {
+    "id": "cortico-world-postcard@0.1.0",
+    "name": "cortico-world-postcard",
+    "version": "0.1.0",
+    "size": 25635,
+    "unpackedSize": 71023,
+    "shasum": "428662a596554a36a72253432667113c7632580d",
+    "integrity": "sha512-BKP82M886EtLPnkb9EGNl1FAj6flsNNFfCpeAHmZLhuHYDw8/a7iXq4ZUFjsadn0hLAFhrk4ZuvZN1Vzbd+0Gg==",
+    "filename": "cortico-world-postcard-0.1.0.tgz",
+    "files": [
+      {
+        "path": "CHANGELOG.md",
+        "size": 466,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 4654,
+        "mode": 420
+      },
+      {
+        "path": "describe.json",
+        "size": 5012,
+        "mode": 420
+      },
+      {
+        "path": "dist/webui.css",
+        "size": 5916,
+        "mode": 420
+      },
+      {
+        "path": "dist/webui.js",
+        "size": 10165,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 1323,
+        "mode": 420
+      },
+      {
+        "path": "src/config.ts",
+        "size": 1535,
+        "mode": 420
+      },
+      {
+        "path": "src/definition.ts",
+        "size": 1897,
+        "mode": 420
+      },
+      {
+        "path": "src/ENV_PROMPT.md",
+        "size": 635,
+        "mode": 420
+      },
+      {
+        "path": "src/generation.ts",
+        "size": 18642,
+        "mode": 420
+      },
+      {
+        "path": "src/index.ts",
+        "size": 90,
+        "mode": 420
+      },
+      {
+        "path": "src/panel.ts",
+        "size": 3381,
+        "mode": 420
+      },
+      {
+        "path": "src/travel.ts",
+        "size": 11170,
+        "mode": 420
+      },
+      {
+        "path": "src/world.ts",
+        "size": 6137,
+        "mode": 420
+      }
+    ],
+    "entryCount": 14,
+    "bundled": []
+  }
+]

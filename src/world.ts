@@ -4,6 +4,7 @@ import type { World, WorldHost, ToolDef, WorldWebUiDecl } from 'cortico/core/typ
 import type { PostcardConfigSection } from './config.ts';
 import { POSTCARD_CONFIG_GROUP } from './config.ts';
 import { TravelService, TravelStore, type Generator, type Scene } from './travel.ts';
+import { PostcardPanel } from './panel.ts';
 
 const ENV_PROMPT_FILE = fileURLToPath(new URL('./ENV_PROMPT.md', import.meta.url));
 const idParam = { type: 'object', additionalProperties: false, properties: { tripId: { type: 'string', description: 'Trip id from postcard_status.' } }, required: ['tripId'] };
@@ -22,8 +23,10 @@ export class PostcardWorld implements World {
   private timer?: ReturnType<typeof setInterval>;
   private host?: WorldHost;
   private pulseFlight?: Promise<void>;
+  readonly panel:PostcardPanel;
   constructor(private opts: { cfg: PostcardConfigSection; dataDir: string; generator?: Generator; now?:()=>number }) {
     this.service = new TravelService(new TravelStore(join(opts.dataDir,'postcard')), opts.generator, opts.now);
+    this.panel=new PostcardPanel(this.service,()=>({minutes:this.opts.cfg.minutes,generatorConnected:!!this.opts.generator}));
   }
   envPromptVars(): Record<string,string> { return { 'postcard.availability': this.opts.generator ? '已接入生成服务' : '旅行核心预览，生成服务尚未接入，不会实际生图' }; }
   tools(): ToolDef[] {
@@ -41,7 +44,7 @@ export class PostcardWorld implements World {
     } }));
   }
   webUi(): WorldWebUiDecl {
-    return { label: '旅行明信片', config: [POSTCARD_CONFIG_GROUP], promptDocs: [{ key:'worlds.postcard.envPrompt', title:'旅行环境说明', description:'旅行状态、费用与生成服务边界。', path:ENV_PROMPT_FILE, role:'envPrompt', vars:[{name:'postcard.availability',description:'当前生成服务接入情况'}] }] };
+    return { label: '旅行明信片', panels:[{id:'album',title:'远方来信',description:'旅行、翻看明信片与保存收藏。'}],invoke:(panel,method,args)=>this.panel.invoke(panel,method,args),config: [POSTCARD_CONFIG_GROUP], promptDocs: [{ key:'worlds.postcard.envPrompt', title:'旅行环境说明', description:'旅行状态、费用与生成服务边界。', path:ENV_PROMPT_FILE, role:'envPrompt', vars:[{name:'postcard.availability',description:'当前生成服务接入情况'}] }] };
   }
   async start(host: WorldHost): Promise<void> {
     this.host = host; this.service.open();
