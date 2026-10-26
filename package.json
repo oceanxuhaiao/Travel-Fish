@@ -1,0 +1,42 @@
+{
+  "name": "cortico-world-postcard",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "桌宠旅行明信片：持久旅行计时、取消、恢复及收藏核心",
+  "license": "MIT",
+  "keywords": [
+    "cortico-world",
+    "cortico"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.28.6",
+  "main": "./src/index.ts",
+  "cortico": {
+    "kind": "world",
+    "api": 6,
+    "tags": [
+      "experimental"
+    ],
+    "describe": "describe.json",
+    "displayName": "旅行明信片"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "describe.json"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "cortico": "0.2.7",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

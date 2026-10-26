@@ -1,0 +1,160 @@
+{
+  "tools": [
+    {
+      "name": "postcard_start",
+      "description": "Start one virtual pet trip when the user asks. Duration is real waiting time; generation may take additional time. Only one unfinished trip is allowed.",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "scene": {
+            "type": "string",
+            "enum": [
+              "forest",
+              "coast",
+              "snow"
+            ]
+          }
+        },
+        "required": [
+          "scene"
+        ]
+      },
+      "tags": [
+        "write"
+      ],
+      "summary": {
+        "zh": "开始一趟现实时间等待的旅行。",
+        "en": "Start one timed trip."
+      }
+    },
+    {
+      "name": "postcard_status",
+      "description": "Read the current trip and availability. awaiting_service means a generator is not connected; do not claim a postcard exists.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "tags": [
+        "read"
+      ],
+      "summary": {
+        "zh": "查看旅行与服务连接状态。",
+        "en": "Read trip and generator availability."
+      }
+    },
+    {
+      "name": "postcard_list",
+      "description": "List permanently saved postcards.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "tags": [
+        "read"
+      ],
+      "summary": {
+        "zh": "列出已保存的明信片。",
+        "en": "List saved postcards."
+      }
+    },
+    {
+      "name": "postcard_read",
+      "description": "Read a completed postcard title and note by trip id.",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tripId": {
+            "type": "string",
+            "description": "Trip id from postcard_status."
+          }
+        },
+        "required": [
+          "tripId"
+        ]
+      },
+      "tags": [
+        "read"
+      ],
+      "summary": {
+        "zh": "读取一份已完成的旅行短笺。",
+        "en": "Read a completed postcard."
+      }
+    },
+    {
+      "name": "postcard_cancel",
+      "description": "Cancel a trip on user request. A remote request already sent may still incur a charge.",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tripId": {
+            "type": "string",
+            "description": "Trip id from postcard_status."
+          }
+        },
+        "required": [
+          "tripId"
+        ]
+      },
+      "tags": [
+        "write"
+      ],
+      "summary": {
+        "zh": "取消未结束的旅行。",
+        "en": "Cancel an unfinished trip."
+      }
+    },
+    {
+      "name": "postcard_retry",
+      "description": "Manually retry a failed trip only after the user requests it and the previous remote outcome has been checked; a retry may incur a charge.",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tripId": {
+            "type": "string",
+            "description": "Trip id from postcard_status."
+          }
+        },
+        "required": [
+          "tripId"
+        ]
+      },
+      "tags": [
+        "write"
+      ],
+      "summary": {
+        "zh": "按用户要求重试失败旅程。",
+        "en": "Retry a failed trip on user request."
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "postcard.started",
+      "description": {
+        "zh": "旅行核心已加载及生成服务可用情况。",
+        "en": "Travel core mounted and generator availability."
+      }
+    },
+    {
+      "type": "postcard.completed",
+      "description": {
+        "zh": "明信片已完整保存到收藏。",
+        "en": "A complete postcard was saved."
+      }
+    }
+  ],
+  "prompts": [
+    {
+      "key": "worlds.postcard.envPrompt",
+      "title": "旅行环境说明",
+      "role": "envPrompt",
+      "content": "你可以通过 postcard 工具管理虚拟旅行和明信片收藏。当前：{{postcard.availability}}。\n只在用户提出旅行需求时出发，不自行开始收费任务。到期时间是旅行等待结束，图片准备还需要时间。\n只有 postcard_read/list 确认存在的收藏才可描述为已收到。awaiting_service 不能说成正在实际生图。\n失败不会自动重新收费；用户要求重试前，要先确认上次远端结果。取消可能无法撤销已提交远端请求。\n工具提供的旅程是外部环境状态，不表示你获得了新的关系记忆，不编造与用户的共同经历。\n"
+    }
+  ]
+}
