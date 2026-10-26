@@ -24,7 +24,7 @@ it('真实附两图、固定参考副本、缓存恢复不重复收费',async()=
   const result=await g(trip,new AbortController().signal);expect(result.title).toBe(note.title);
   const payload=t.mock.calls.find(c=>c[0]==='image')![1];expect((payload.image as string[])).toHaveLength(2);
   const count=t.mock.calls.length;await g(trip,new AbortController().signal);expect(t.mock.calls.length).toBe(count);
-  expect(result.generation?.policy).toBe('non-contradiction-cloud-v1');
+  expect(result.generation?.policy).toBe('non-contradiction-cloud-v2');
 });
 it('文案有明确冲突只改文字，不重新生成图片',async()=>{
   let checked=0;const base=transport(),t=vi.fn<Transport>(async(k,p,s)=>{
@@ -32,6 +32,20 @@ it('文案有明确冲突只改文字，不重新生成图片',async()=>{
     return base(k,p,s);
   });const g=make(t);prepare(g);const result=await g(trip,new AbortController().signal);
   expect(result.generation?.noteAttempt).toBe(2);expect(t.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);
+});
+it('兼容旧策略旅程恢复，不把升级变成重算旧图或改写旧提示',async()=>{
+ const t=vi.fn(transport()),g=make(t);prepare(g);
+ trip.generation!.policy='non-contradiction-cloud-v1';delete trip.generation!.scenePrompt;delete trip.generation!.sceneVariant;delete trip.generation!.noteVoice;
+ const result=await g(trip,new AbortController().signal);expect(result.generation?.policy).toBe('non-contradiction-cloud-v1');
+ const prompts=t.mock.calls.filter(c=>c[0]==='text').map(c=>promptOf(c[1]));expect(prompts.some(p=>p.includes('不要写自己坐'))).toBe(false);
+ const calls=t.mock.calls.length;await g(trip,new AbortController().signal);expect(t).toHaveBeenCalledTimes(calls);
+});
+it('构图和语气在出发时固定，后续近期列表变化不会改本趟输入',async()=>{
+ const t=vi.fn(transport());let recent:string[]=[];trip.scene='coast';
+ const g=createCloudGenerator({root,characterReference:ref,styleReference:ref,secret:()=> 'local-test-only',recentVariants:()=>recent},t);prepare(g);
+ const original=structuredClone(trip.generation!);recent=['tide-pools','lighthouse-meadow','coastal-boardwalk','shell-dunes','sunset-rock-arch','sheltered-cove'];
+ const result=await g(trip,new AbortController().signal);
+ expect(t.mock.calls.find(c=>c[0]==='image')![1].prompt).toBe(original.prompt);expect(result.generation?.sceneVariant).toBe(original.sceneVariant);
 });
 it('两版文案均拒绝，重复恢复也不能变相重生图',async()=>{
   const base=transport(),t=vi.fn<Transport>(async(k,p,s)=>k==='text'&&promptOf(p).startsWith('只检查短笺')?response({...clear,has_explicit_conflict:true,conflicts:['明确冲突']}):base(k,p,s));const g=make(t);prepare(g);

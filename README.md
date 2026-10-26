@@ -1,57 +1,37 @@
-# 旅行明信片 World · 云端流水线候选版
+# 旅行明信片 World
 
-本包已迁入Seedream/DeepSeek云端流水线，包含旅行计时、固定输入、阶段检查点、图片/文案审核及永久收藏。**标准旅行/收藏面板已实现并通过隔离验收；E自动回归达到门槛，开发者人工抽检待完成；F目标Coopanion安装验收未完成，不是最终交付版。** 默认扩展与云端生成均关闭。仅在用户明确出发且云端生成已配置时到期调用API；未启用云端时报告awaiting_service。
+0.1.1 · 实验版。让宠物在现实时间里去远方走走，自动带回整幅水彩明信片与旅行短笺，形成永久本地收藏。
 
-独立Python验证见 output/phase-a-cloud；正式TypeScript World的隔离真实API验收留在 output/stage-c-world-validation。后者使用可控时钟缩短旅行等待，但实际生图、读图、文案和入库调用都是真实的；不等于运行中宿主的第三级验收。
+支持森林、海岸、雪夜三类目的地，默认旅行30分钟，同时一趟。海岸包含六种构图，避开最近五种。图文由云端API自动生成并检查，正常使用不需要逐张人工审核。微风、声音、气味、感受和比喻允许保留，审核只拒绝明确文图矛盾。
 
-## 当前能力
+## 安装与配置
 
-- forest/coast/snow；默认30分钟；单趟旅行，固定tripId与dueAt，重启保留；停机到期启动后补推进。
-- 开放 postcard_start/status/list/read/cancel/retry；不直接访问 Persona Memory 或桌宠 World。
-- 独立命名空间 `<dataDir>/postcard`；state.json 保存旅行状态与通知确认，collection/<tripId> 保存图片、短笺、元数据和哈希。
-- 同一目录单写入者锁；原子提交完整收藏；已存在收藏不可覆盖；状态提交失败优先从已落盘收藏恢复。
-- 生成中取消阻止迟到结果入库；失败不自动重新收费，重启发现生成中断明确失败待确认，手动重试保留tripId。
-- 收藏独立于通知；通知确认持久保存，失败可稍后补发，跨进程不承诺严格一次投递。
-- 无云端凭据、无用户参考图、无私人配置进入包；角色与画风参考由用户明确指定，在出发时复制到每趟输入目录并固定SHA256、提示词与策略版本。
-- 图片最多两次候选，每张合格图最多两版文案；文案拒绝不会触发生图。微风、声音、感受和比喻等不确定内容不阻断，只有明确矛盾才拒绝。
-- 图像请求断连或保存不完整保留pendingImage；必须确认远端结果后通过postcard_retry的confirmUnknownOutcome显式确认。确认也不能突破两次图片上限。网络文字阶段最多两次请求；格式错误保留原响应并允许恢复同一张图。
+见[USAGE.md](USAGE.md)。需要火山方舟Seedream5.0Pro与DeepSeek flash API、明确选择的角色PNG/画风PNG，以及World API6宿主；不需要本地模型、Python或本聊天常开。
 
-## 开发验证
+密钥通过ctx.secret读取，放在部署.env或启动环境的POSTCARD_ARK_API_KEY、POSTCARD_VISION_API_KEY。参考图会传到火山方舟，成图会传到DeepSeek，按服务计费。包内不含密钥、参考图或私人配置。图片/视觉代理分别配置；留空强制直连，不继承宿主全局代理。
 
-```powershell
-corepack pnpm install
-corepack pnpm typecheck
-corepack pnpm test
-```
+本机目录安装包包含运行依赖，解压后选择其中的cortico-world-postcard目录安装；程序目录需保持原位。npm格式tgz也可安装。未向npm或扩展市场发布。
 
-在工作区选定 Cortico checkout 内执行 describe:extension 与 check:extension；详细记录见 VALIDATION.md。
+## 旅行与收藏
 
-测试使用可控时钟和注入的测试生成器，不调用任何云端API，不消耗用户额度；测试产物不宣称真实模型生成。46项测试覆盖状态推进、重启、取消、并发、收费重试边界、收藏提交故障恢复、损坏文件、单写入锁、通知与World契约。
+启用World后，在标准“远方来信”面板选目的地出发，或让Coo使用postcard_start。归来时间表示旅行等待结束，随后还需要生成时间。完成后自动入库，可筛选、翻面、保存PNG原图和单趟ZIP。
 
-## 下一阶段
+World拥有旅行与收藏，不直接访问Persona Memory或其他World内部接口，不伪造共同经历。参考图由用户明确配置，首版美术测试使用固定蓝发鲸鱼装女孩，不会自动转换当前桌宠造型。离场动画、换装、行囊、真实路线、多宠物、云同步与社交不在本版范围。
 
-阶段C及D各自验收已通过。E完成30趟（27自动完成、3次HTTP403失败保留）、40组对照（0漏放/0误拒）、故障与依赖自动回归；完整证据见output/stage-e-regression。海岸构图重复、两处蹲/坐措辞风险及表达套路已记录，未改写旧收藏。计划要求的开发者人工抽检尚待完成，之后进入F目标宿主实际验收。不得把C的成功当作整个扩展完成。当前不修改或重启用户宿主，不发布npm。
+## 数据与恢复
 
+ctx.dataDir/postcard使用独立命名空间。单写入者锁、固定tripId/dueAt、出发固定参考/构图/策略、阶段检查点、原子收藏和完整SHA256校验；旧收藏不因升级或换图重算。v1未完成旅程保留原提示和缓存恢复方式。
 
-## 云端配置
+图片最多两张候选，每张合格图最多两版短笺。文案失败只改文字；远端结果不明的图片请求不盲目重发，需用户检查后显式确认，仍受两图上限约束。取消阻止迟到结果入库，已发送请求可能产生费用。完成通知与收藏分开，不保证跨进程严格一次投递。
 
-在部署环境中配置 `POSTCARD_ARK_API_KEY`（火山方舟）和 `POSTCARD_VISION_API_KEY`（DeepSeek）；代码只通过ctx.secret读取，不读开发机密钥文件。
+列表按文件指纹缓存校验结果，变化即重新校验；显式读取和导出仍完整核对哈希。正式收藏离线可读；ZIP只包含图片、短笺和公开旅行元数据，不含提示词、服务记录或本机路径。
 
-World配置：cloudEnabled=true，characterReference与styleReference为明确选择的PNG路径；需要时设置imageProxyUrl/visionProxyUrl，不含用户名密码，留空直连。这些项标为重启生效；minutes热改。参考图片会发送至火山方舟；生成图片会发送至DeepSeek；两者均可能按量收费。
+备份、磁盘失败、请求不明及升级说明见[RECOVERY.md](RECOVERY.md)。
 
-当前支持已实测的 doubao-seedream-5-0-pro-260628 与 deepseek-flash 及对应官方接口，不默认支持任意OpenAI兼容端点或本地模型。单趟提示词、模型、参考图哈希及策略在出发时固定；更换参考图或升级不改写旧收藏。
+## 验证边界
 
-`postcard/trips/<tripId>/` 保存固定输入、阶段检查点、候选图与审核记录；完整成品提交到collection后才发完成事件。原始服务错误不包含在用户回执，记录仅保留安全HTTP状态、阶段与可能结果不确定的说明。
+开发记录见VALIDATION.md，完整证据保留在开发工作区，不进入npm包。E原批次30趟27完成、3次403失败留存；v2专项10/10完成，六种海岸各一次，最终44对照0漏放/0误拒，前轮失败保留。用户已完成开发抽检。包内51项测试通过。
 
-隔离验收脚本 `scripts/live-stage-c.ts` 仅是开发辅助：使用显式参数读取开发机凭据，再注入等价secret回调；不被生产入口调用，不随npm files打包，也不修改真实宿主。
+F已在Windows实际Coopanion0.2.11的独立数据目录加载，真实模型工具回执、等待到期生成、收藏/完成事件、重启恢复、关闭云生成后的阅读/导出已验证；未覆盖原有用户部署。第三级用户行为目击确认结果以最终验收记录为准。实验标签保留；有限样本不保证未来图文零错误，其他系统和宿主版本未经这次实测。
 
-阶段C实际验收：三类各一趟完成，每趟一次生图。雪夜正文超长先失败，自动保留完整原句到长度上限内后按原tripId恢复，继续同样的文图检查，原文与失败记录保留。不是30趟稳定性回归完成。
-
-
-## 标准面板
-
-World页的“远方来信”面板提供旅行与收藏：出发、等待、取消、失败恢复、目的地筛选、翻面、保存PNG原图和单趟ZIP。所有数据读写复用World服务；生成完成自动收藏，刷新不会重新出发。背面与筛选选择仅保留在本面板memo。
-
-JS/CSS随包交付：`corepack pnpm build:webui` 生成dist/webui.js/css；`corepack pnpm typecheck:web`检查浏览器代码。面板不直接请求宿主私有API，不访问document.body，轮询和对象URL随卸载释放。旧收藏阅读/导出只需本机WebUI，不依赖图片或视觉云服务在线。
-
-ZIP包含postcard.png、note.md、metadata.json，剔除密钥、内部路径、提示词和审核调试信息；PNG与存档保持相同SHA256。开发浏览器预览见scripts/preview-panel.ts，测试外层和模拟到期按钮不随包交付；本轮未修改真实Coopanion。
+开发命令：corepack pnpm typecheck、corepack pnpm typecheck:web、corepack pnpm test、corepack pnpm build:webui；在匹配Cortico checkout使用describe:extension/check:extension。包的运行时不调用开发脚本。

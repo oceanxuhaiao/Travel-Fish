@@ -10,6 +10,8 @@ const arg=(name:string)=>{const i=process.argv.indexOf('--'+name);if(i<0||!proce
 function credential(file:string,name:string){const text=readFileSync(file,'utf8').replace(/^\uFEFF/,'').trim();const line=text.split(/\r?\n/).find(s=>s.trim().startsWith(name+'='));const key=line?line.trim().slice(name.length+1).trim().replace(/^['"]|['"]$/g,''):text.split(/\r?\n/).length===1?text:'';if(!key||/\s/.test(key))throw Error('Invalid credential');return key;}
 const out=resolve(arg('out'));mkdirSync(out,{recursive:true});
 if(!existsSync(join(out,'pricing-estimate.md')))throw Error('Record pricing before billable run');
+const counts:Record<Scene,number>=process.argv.includes('--quality')?{coast:6,forest:2,snow:2}:{coast:10,forest:10,snow:10};
+atomicJson(join(out,'run-plan.json'),{counts,plannedTotal:Object.values(counts).reduce((a,b)=>a+b,0),qualityRevision:process.argv.includes('--quality')});
 const ark=credential(arg('ark-key-file'),'ARK_API_KEY'),vision=credential(arg('vision-key-file'),'DEEPSEEK_API_KEY');
 const secret=(name:string)=>name==='POSTCARD_ARK_API_KEY'?ark:name==='POSTCARD_VISION_API_KEY'?vision:'';
 const cfg={...POSTCARD_DEFAULTS,enabled:true,cloudEnabled:true,minutes:1,characterReference:resolve(arg('character')),styleReference:resolve(arg('style')),visionProxyUrl:arg('vision-proxy')};
@@ -19,12 +21,12 @@ async function worker(scene:Scene){
  const previousEvents=existsSync(join(folder,'events.json'))?JSON.parse(readFileSync(join(folder,'events.json'),'utf8')):[];
  const results:any[]=existsSync(resultsFile)?JSON.parse(readFileSync(resultsFile,'utf8')):[];
  let now=Date.now(),world:PostcardWorld;
- const generator=createCloudGenerator({root:join(folder,'data/postcard'),characterReference:cfg.characterReference,styleReference:cfg.styleReference,secret,visionProxyUrl:cfg.visionProxyUrl,recentTitles:()=>world.service.store.cards().map(c=>c.title)});
+ const generator=createCloudGenerator({root:join(folder,'data/postcard'),characterReference:cfg.characterReference,styleReference:cfg.styleReference,secret,visionProxyUrl:cfg.visionProxyUrl,recentTitles:()=>world.service.store.cards().map(c=>c.title),recentVariants:scene=>world.service.store.cards().filter(c=>c.scene===scene&&typeof c.generation?.sceneVariant==='string').map(c=>c.generation!.sceneVariant as string)});
  world=new PostcardWorld({cfg,dataDir:join(folder,'data'),generator,now:()=>now});const host=new FakeHost();await world.start(host);
  try{
   const prior=world.service.status();
   if(prior&&['traveling','generating','awaiting_service','failed'].includes(prior.status))throw Error('Prior unfinished run preserved: inspect manually');
-  for(let i=results.length;i<10;i++){
+  for(let i=results.length;i<counts[scene];i++){
    const trip=world.service.start(scene,1);now=trip.dueAt+1;
    atomicJson(join(folder,'in-flight.json'),{index:i+1,tripId:trip.id,started:new Date().toISOString()});
    console.log('START',scene,i+1,trip.id);const started=Date.now();await world.pulse();

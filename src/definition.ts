@@ -7,7 +7,7 @@ export const POSTCARD: WorldDefinition<PostcardConfigSection> = {
   id:'postcard', label:'旅行明信片', defaults:()=>({...POSTCARD_DEFAULTS}),
   create:ctx=>{
     let world:PostcardWorld;
-    const generator=ctx.cfg.cloudEnabled?createCloudGenerator({root:join(ctx.dataDir,'postcard'),characterReference:ctx.cfg.characterReference,styleReference:ctx.cfg.styleReference,secret:name=>ctx.secret(name),imageProxyUrl:ctx.cfg.imageProxyUrl,visionProxyUrl:ctx.cfg.visionProxyUrl,recentTitles:()=>world.service.store.cards().slice(0,12).map(c=>c.title)}):undefined;
+    const generator=ctx.cfg.cloudEnabled?createCloudGenerator({root:join(ctx.dataDir,'postcard'),characterReference:ctx.cfg.characterReference,styleReference:ctx.cfg.styleReference,secret:name=>ctx.secret(name),imageProxyUrl:ctx.cfg.imageProxyUrl,visionProxyUrl:ctx.cfg.visionProxyUrl,recentTitles:()=>world.service.store.cards().slice(0,12).map(c=>c.title),recentVariants:scene=>world.service.store.cards().filter(c=>c.scene===scene&&typeof c.generation?.sceneVariant==='string').map(c=>c.generation!.sceneVariant as string)}):undefined;
     world=new PostcardWorld({cfg:ctx.cfg,dataDir:ctx.dataDir,generator});return world;
   },
   describe:{tools:describeTools(POSTCARD_TOOL_DECLS,{

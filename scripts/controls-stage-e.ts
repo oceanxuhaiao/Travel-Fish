@@ -1,5 +1,5 @@
 /** 40 pre-labelled controls, official cloud transport and identical production review. */
-import {readFileSync,mkdirSync,existsSync} from 'node:fs';
+import {readFileSync,mkdirSync,existsSync,renameSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {cloudTransport,textReviewPrompt,textAccepted,VISION_MODEL,POLICY} from '../src/generation.ts';
@@ -25,15 +25,30 @@ const right={
  forest:['林间似乎有风，叶子低低说着只有自己才懂的话。','溪水的声音让我放松下来，好像所有牵挂都有了落脚处。','空气里带着草木的清香，想把这份安宁分一点给你。','树洞像一封没有写完的信，把我轻轻收在怀里。','不知道你现在在做什么，我在树影里偷偷想了你一会儿。','刚才似乎听见远处有鸟叫，心情也跟着亮起来。','苔藓仿佛很柔软，连停下来的片刻都变得温柔了。'],
  snow:['捧着杯子，仿佛连心里的小角落也暖了一点，想把温柔寄给你。','风有些凉，橱窗的光却让我想到回家时有人等待的安心。','似乎闻到了面包的香气，忽然想和你说一声，我很好。','雪夜像一条柔软的毯子，把小镇和我的想念一起盖住。','远处仿佛传来轻轻的脚步声，我开始期待下一段路。','热饮尝起来应该甜甜的，就像惦记着你的心情。'],
 };
-const cases=Object.keys(sources).flatMap(scene=>[
+const cases:any[]=Object.keys(sources).flatMap(scene=>[
  ...wrong[scene as keyof typeof wrong].map(([note,evidence])=>({scene,note,expectedConflict:true,evidence})),
  ...right[scene as keyof typeof right].map(note=>({scene,note,expectedConflict:false,evidence:'感受/比喻/风声气味温度或不确定细节，不与可见场景姿态道具相反'})),
 ]).map((c,i)=>({...c,id:String(i+1).padStart(2,'0')}));
+if(process.argv.includes('--pose-source')){
+ const regression=resolve(arg('pose-source'));
+ for(const [scene,index] of [['coast',6],['forest',3]] as const){
+  const rows=JSON.parse(readFileSync(join(regression,'runs',scene,'results.json'),'utf8'));
+  const row=rows.find((r:any)=>r.index===index);
+  const imageFile=join(regression,'runs',scene,'data/postcard/collection',row.tripId,'postcard.png');
+  cases.push({id:String(cases.length+1),scene,title:row.card.title,note:row.card.note,expectedConflict:true,evidence:'原E批次漏过的蹲/坐案例：图片清晰坐姿，短笺直接写我蹲在；原文与原图不修改',imageFile});
+ }
+ for(const note of ['我把一点小小的牵挂蹲守在这里，等一封来自你的消息。','想蹲在你的心里躲一会儿，把疲惫都交给这片温柔的蓝。'])cases.push({id:String(cases.length+1),scene:'coast',note,expectedConflict:false,evidence:'蹲守/心里躲一会儿为比喻，不能按姿态关键词拒绝'});
+}
 atomicJson(join(out,'labels-before-calls.json'),{policy:POLICY,labelMethod:'native visual inspection by development agent, independent of cloud reviewer; no end-user human approval',sources,cases});
 let next=0;const results:any[]=[];
-async function worker(){while(next<cases.length){const c=cases[next++],file=join(out,c.id+'-response.json');if(existsSync(file)){results.push(JSON.parse(readFileSync(file,'utf8')));continue;}
- const image=readFileSync(join(source,'data/postcard/collection',sources[c.scene as keyof typeof sources],'postcard.png'));
- const prompt=textReviewPrompt({title:'旅行途中的来信',note:c.note});
+async function worker(){while(next<cases.length){const c=cases[next++],file=join(out,c.id+'-response.json');if(existsSync(file)){
+ const prior=JSON.parse(readFileSync(file,'utf8'));
+ if(!prior.error||!process.argv.includes('--retry-errors')){results.push(prior);continue;}
+ const previousFile=join(out,c.id+'-response.failed-1.json');if(existsSync(previousFile)){results.push(prior);continue;}
+ renameSync(file,previousFile);
+}
+ const image=readFileSync(c.imageFile??join(source,'data/postcard/collection',sources[c.scene as keyof typeof sources],'postcard.png'));
+ const prompt=textReviewPrompt({title:c.title??'旅行途中的来信',note:c.note});
  atomicJson(join(out,c.id+'-request.json'),{model:VISION_MODEL,prompt,imageSha256:createHash('sha256').update(image).digest('hex')});
  const started=Date.now();let result:any;
  try{const response=await transport('text',{model:VISION_MODEL,stream:false,thinking:{type:'disabled'},response_format:{type:'json_object'},max_tokens:1800,messages:[{role:'user',content:[{type:'text',text:prompt},{type:'image_url',image_url:{url:'data:image/png;base64,'+image.toString('base64')}}]}]},new AbortController().signal);
