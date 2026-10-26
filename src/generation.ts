@@ -51,6 +51,8 @@ export function formatNote(raw:Json):Json {
   return note&&[...note].length<=120?{...raw,note}:raw;
 }
 export function textAccepted(review:Json):boolean {return review.has_explicit_conflict===false&&Array.isArray(review.conflicts)&&review.conflicts.length===0&&strings(review.uncertain_details);}
+/** Shared verbatim with the blind regression runner; labels never enter this prompt. */
+export function textReviewPrompt(note:Json):string {return '只检查短笺与此图是否有明确矛盾，不要求每句话被画面证明。感受比喻不检查，微风声音温度与静态无法确认的动作只列uncertain_details，不当反证。遮挡/细节不清不等于不存在。只拦截明确场景相反、明显姿态相反、清晰区域不可能兼容的大道具。返回JSON：has_explicit_conflict（布尔）、conflicts（反证说明数组）、uncertain_details（不阻断的未确认细节数组）。短笺：'+JSON.stringify(note);}
 
 /** Only official cloud endpoints; credentials never enter checkpoints or errors. */
 export function cloudTransport(options:CloudOptions):Transport {
@@ -147,7 +149,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
           atomicJson(imagePath()+'.json',{sha256:hash(bytes),...dims});binary(imagePath(),bytes);
           cp.pendingImage=false;atomicJson(cpFile(trip),cp);
         }catch(error){
-          if(error instanceof HttpError){cp.pendingImage=false;cp.imageAttempt--;atomicJson(cpFile(trip),cp);throw new PipelineError('图片服务返回HTTP '+error.status+'，请检查限额或服务配置后手动重试');}
+          if(error instanceof HttpError&&error.status>=400&&error.status<500&&error.status!==408){cp.pendingImage=false;cp.imageAttempt--;atomicJson(cpFile(trip),cp);throw new PipelineError('图片服务返回HTTP '+error.status+'，请检查限额或服务配置后手动重试');}
           // Connection loss, abort or malformed output may have incurred a charge.
           throw new PipelineError('图片请求未完整保存，远端结果或费用不确定；确认后才可显式重试');
         }
@@ -169,7 +171,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       atomicJson(join(folder,'image-'+cp.imageAttempt+'-note-'+attempt+'-formatted.json'),{policy:'sentence-boundary-length-v1',changed:note.note!==raw.note,note});
       if(!noteFormatted(note))continue;
       stage('reviewing_note');
-      const review=await textCall('image-'+cp.imageAttempt+'-note-'+attempt+'-review','只检查短笺与此图是否有明确矛盾，不要求每句话被画面证明。感受比喻不检查，微风声音温度与静态无法确认的动作只列uncertain_details，不当反证。遮挡/细节不清不等于不存在。只拦截明确场景相反、明显姿态相反、清晰区域不可能兼容的大道具。返回JSON：has_explicit_conflict（布尔）、conflicts（反证说明数组）、uncertain_details（不阻断的未确认细节数组）。短笺：'+JSON.stringify(note),[image]);
+      const review=await textCall('image-'+cp.imageAttempt+'-note-'+attempt+'-review',textReviewPrompt(note),[image]);
       if(textAccepted(review)){
         stage('committing');
         return {image,title:note.title as string,note:note.note as string,generation:{policy:spec.policy,noteFormatting:'sentence-boundary-length-v1',imageModel:spec.imageModel,visionModel:spec.visionModel,characterSha:spec.characterSha,styleSha:spec.styleSha,imageAttempt:cp.imageAttempt,noteAttempt:attempt}} satisfies Artifact;

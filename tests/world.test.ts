@@ -1,4 +1,4 @@
-import { describe,it,expect,beforeEach,afterEach } from 'vitest';
+import { describe,it,expect,beforeEach,afterEach,vi } from 'vitest';
 import { mkdtempSync,rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -6,10 +6,22 @@ import type { ToolCallContext } from 'cortico/core/types.ts';
 import { dryMountWorld,fakeWorldContext } from 'cortico/extensions/dry-mount.ts';
 import { POSTCARD } from '../src/definition.ts';
 import { FakeHost } from './helpers/fake-host.ts';
+import {PostcardWorld} from '../src/world.ts';
+import {POSTCARD_DEFAULTS} from '../src/config.ts';
 let scratchDir:string;
 beforeEach(()=>{scratchDir=mkdtempSync(join(tmpdir(),'postcard-world-'));});
 afterEach(()=>rmSync(scratchDir,{recursive:true,force:true}));
 describe('Postcard World',()=>{
+  it('完成事件实际投递失败后可补发，收藏不回滚也不重新生图',async()=>{
+    let now=0;const generator=vi.fn(async()=>({image:Buffer.from('89504e470d0a1a0a00000000','hex'),title:'通知测试',note:'测试成品'}));
+    const world=new PostcardWorld({cfg:POSTCARD_DEFAULTS,dataDir:scratchDir,generator,now:()=>now}),host=new FakeHost();
+    await world.start(host);const push=host.pushEvent.bind(host);let failed=false;
+    vi.spyOn(host,'pushEvent').mockImplementation(async(event,options)=>{if(event.type==='postcard.completed'&&!failed){failed=true;throw Error('event transport unavailable');}return push(event,options);});
+    try{const trip=world.service.start('forest',1);now=trip.dueAt;
+      await expect(world.pulse()).rejects.toThrow('event transport');expect(world.service.status()?.status).toBe('completed');expect(world.service.pendingNotifications()).toHaveLength(1);
+      await world.pulse();await world.pulse();expect(generator).toHaveBeenCalledTimes(1);expect(world.service.pendingNotifications()).toEqual([]);expect(host.events.filter(e=>e.type==='postcard.completed')).toHaveLength(1);
+    }finally{await world.stop();}
+  });
   it('真实契约干装载通过',async()=>{
     const result=await dryMountWorld(POSTCARD,{scratchDir});expect(result.failures).toEqual([]);
   });

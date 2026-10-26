@@ -7,13 +7,13 @@
 | 命令 | 结果 |
 |---|---|
 | 包内 corepack pnpm typecheck | 退出0 |
-| 包内 corepack pnpm test | 退出0，32/32通过 |
+| 包内 corepack pnpm test | 退出0，46/46通过 |
 | Cortico checkout内 corepack pnpm describe:extension ../packages/cortico-world-postcard | 退出0，6工具/2事件/1提示文档 |
 | Cortico checkout内 corepack pnpm check:extension ../packages/cortico-world-postcard | 退出0，Extension check passed |
 
 完整官方check输出见extension-check.txt。依赖仅安装到工作区的包和Cortico checkout，未安装到运行中的Coopanion。Cortico checkout安装使用--ignore-scripts；官方校验工具仍实际执行成功，不代表未使用的原生依赖已验证可运行。
 
-第一级和第二级完成；第三级目标Coopanion实际安装/加载/事件/工具目击未执行。本包已含生产云端生成适配，默认关闭云调用；隔离World三场景真实API、收藏与完成事件验证通过。标准面板及其隔离浏览器/导出验收已通过；E稳定性回归、F目标宿主验收未完成，不可宣称最终可发布。
+第一级和第二级完成；第三级目标Coopanion实际安装/加载/事件/工具目击未执行。本包已含生产云端生成适配，默认关闭云调用；隔离World三场景真实API、收藏与完成事件验证通过。标准面板及其隔离浏览器/导出验收已通过；E自动回归达到门槛，人工抽检待完成；F目标宿主验收未完成，不可宣称最终可发布。
 
 当前tag为experimental，未声明平台限制（核心代码跨平台设计，但本轮只在Windows测试），未发布npm或向市场提交申请。测试生成器为注入假服务，仅用于故障与状态测试，没有冒充真实AI图片。
 
@@ -21,3 +21,6 @@ C阶段实测报告位于工作区output/stage-c-world-validation，三场景各
 
 
 阶段D：typecheck:web、build:webui退出0；官方检查识别到JS/CSS及1个面板；npm pack dry-run包含预构建产物。真实浏览器验证面板流程与PNG/ZIP下载，哈希一致；完整记录output/stage-d-panel-validation。32项测试包括服务状态、云端预算、标准面板导出、离线云服务下旧卡阅读及浏览器生命周期。D没有调用付费云端接口。
+
+
+阶段E：Node22.23.4与24.14.1各46项测试通过，新增真实子进程退出、ENOSPC、休眠/倒退时钟、408/5xx不明结果防重发、文件变化缓存检测及真实通知失败补发。27/30自动完成，3次403失败留存，40对照零误放/误拒；同22张收藏列表平均208.150ms降至2.745ms。最终tgz隔离安装及官方check留在output/stage-e-regression。开发代理已独立视觉概览，非用户人工审校；姿态措辞及海岸重复等质量问题待开发抽检。F未执行。

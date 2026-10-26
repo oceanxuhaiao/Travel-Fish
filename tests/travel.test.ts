@@ -72,4 +72,14 @@ describe('旅行状态和收藏',()=>{
     const s=make(async()=>artifact),trip=s.start('forest',1);time=trip.dueAt;await s.tick();expect(s.pendingNotifications()).toHaveLength(1);s.acknowledge(trip.id);await s.close();
     const b=make(undefined);expect(b.pendingNotifications()).toEqual([]);expect(b.store.cards()).toHaveLength(1);
   });
+  it('列表缓存不泄漏可变对象，图片或记录变化立即重新校验，显式读取总验哈希',async()=>{
+    const s=make(async()=>artifact),trip=s.start('forest',1);time=trip.dueAt;await s.tick();
+    const card=s.store.cards()[0];card.title='caller mutation';expect(s.store.cards()[0].title).toBe(artifact.title);
+    const original=readFileSync(join(root,'collection',trip.id,'postcard.png'));const changed=Buffer.from(original);changed[changed.length-1]^=1;
+    writeFileSync(join(root,'collection',trip.id,'postcard.png'),changed);
+    expect(()=>s.store.cards()).toThrow('校验');expect(()=>s.store.card(trip.id)).toThrow('校验');
+    writeFileSync(join(root,'collection',trip.id,'postcard.png'),original);expect(s.store.cards()).toHaveLength(1);
+    const path=join(root,'collection',trip.id,'record.json'),record=JSON.parse(readFileSync(path,'utf8'));record.scene='not-a-scene';writeFileSync(path,JSON.stringify(record));
+    expect(()=>s.store.cards()).toThrow('校验');
+  });
 });

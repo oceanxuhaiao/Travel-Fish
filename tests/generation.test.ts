@@ -56,6 +56,21 @@ it('明确429不耗尽候选预算，解除限额后允许手动恢复',async()=
   await expect(g(trip,new AbortController().signal)).rejects.toThrow('HTTP 429');g.confirmRetry!(trip,false);
   const result=await g(trip,new AbortController().signal);expect(result.generation?.imageAttempt).toBe(1);
 });
+it.each([408,500,502,504])('图片HTTP %s保留远端不确定状态，不能当成未收费重发',async(status)=>{
+ const t=vi.fn<Transport>(async()=>{throw new HttpError(status);}),g=make(t);prepare(g);
+ await expect(g(trip,new AbortController().signal)).rejects.toThrow('不确定');
+ expect(()=>g.confirmRetry!(trip,false)).toThrow('确认');
+ await expect(g(trip,new AbortController().signal)).rejects.toThrow('不确定');expect(t).toHaveBeenCalledTimes(1);
+});
+it('图片超时或损坏输出不能入库或自动重新请求',async()=>{
+ const t=vi.fn<Transport>(async()=>({data:[{b64_json:Buffer.from('broken png').toString('base64')}]})),g=make(t);prepare(g);
+ await expect(g(trip,new AbortController().signal)).rejects.toThrow('不确定');
+ await expect(g(trip,new AbortController().signal)).rejects.toThrow('不确定');expect(t).toHaveBeenCalledTimes(1);
+});
+it('出发副本被修改则在任何网络调用前停止',async()=>{
+ const t=vi.fn(transport()),g=make(t);prepare(g);writeFileSync(join(root,'trips',trip.id,'input/character.png'),'tampered');
+ await expect(g(trip,new AbortController().signal)).rejects.toThrow('参考图校验');expect(t).not.toHaveBeenCalled();
+});
 it('审核格式错误不能通过，也不能据此重新收费生图',async()=>{
   const base=transport(),t=vi.fn<Transport>(async(k,p,s)=>k==='text'?response({}):base(k,p,s)),g=make(t);prepare(g);
   await expect(g(trip,new AbortController().signal)).rejects.toThrow('审核格式无效');expect(t.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);

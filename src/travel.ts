@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, openSync, closeSync, fsyncSync, unlinkSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, openSync, closeSync, fsyncSync, unlinkSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const SCENES = ['forest', 'coast', 'snow'] as const;
@@ -22,9 +22,11 @@ const png = Buffer.from('89504e470d0a1a0a', 'hex');
 export function atomicJson(path: string, value: unknown): void {
   const temporary = path + '.' + randomUUID() + '.tmp';
   const fd = openSync(temporary, 'wx');
-  try { writeFileSync(fd, JSON.stringify(value, null, 2)); fsyncSync(fd); }
-  finally { closeSync(fd); }
-  try { renameSync(temporary, path); }
+  try {
+    try { writeFileSync(fd, JSON.stringify(value, null, 2)); fsyncSync(fd); }
+    finally { closeSync(fd); }
+    renameSync(temporary, path);
+  }
   catch (error) { try { unlinkSync(temporary); } catch {} throw error; }
 }
 
@@ -32,8 +34,10 @@ export class TravelStore {
   readonly collection: string;
   private state: Snapshot = { schema: 1, trips: [], notified: [] };
   private lock = false;
+  private cardCache = new Map<string,{fingerprint:string;record:Card}>();
   constructor(readonly root: string) { this.collection = join(root, 'collection'); }
   open(): void {
+    this.cardCache.clear();
     mkdirSync(this.collection, { recursive: true });
     const lockPath = join(this.root, 'writer.lock');
     try {
@@ -75,16 +79,24 @@ export class TravelStore {
     atomicJson(join(this.root, 'state.json'), next); this.state = structuredClone(next);
   }
   persist(): void { this.save(this.state); }
-  card(id: string): Card | null {
+  /** Explicit reads/exports always hash; list polling reuses only unchanged files. */
+  card(id: string, verify = true): Card | null {
     if (!validId(id)) throw new Error('无效旅行编号');
     const folder = join(this.collection, id), file = join(folder, 'record.json');
-    if (!existsSync(file)) return null;
+    if (!existsSync(file)) { this.cardCache.delete(id); return null; }
+    const fingerprint=[file,join(folder,'postcard.png')].map(path=>{
+      const s=statSync(path,{bigint:true});return [s.dev,s.ino,s.size,s.mtimeNs,s.ctimeNs].join(':');
+    }).join('|');
+    const cached=this.cardCache.get(id);
+    if(!verify&&cached?.fingerprint===fingerprint)return structuredClone(cached.record);
     const record = JSON.parse(readFileSync(file, 'utf8')) as Card;
     const bytes = readFileSync(join(folder, 'postcard.png'));
     if (record.tripId !== id || !SCENES.includes(record.scene) || typeof record.title !== 'string' || typeof record.note !== 'string' || !Number.isFinite(record.completedAt) || record.sha256 !== createHash('sha256').update(bytes).digest('hex')) throw new Error('收藏文件校验失败');
+    this.cardCache.set(id,{fingerprint,record:structuredClone(record)});
+    if(this.cardCache.size>512)this.cardCache.delete(this.cardCache.keys().next().value!);
     return record;
   }
-  cards(): Card[] { return readdirSync(this.collection).filter(validId).map(id => this.card(id)!).filter(Boolean).sort((a,b) => b.completedAt-a.completedAt); }
+  cards(): Card[] { return readdirSync(this.collection).filter(validId).map(id => this.card(id,false)!).filter(Boolean).sort((a,b) => b.completedAt-a.completedAt); }
   commit(trip: Trip, artifact: Artifact, now: number): Card {
     const existing = this.card(trip.id); if (existing) return existing;
     const bytes = Buffer.from(artifact.image);
