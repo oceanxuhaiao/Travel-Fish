@@ -5,12 +5,16 @@ import { join } from 'node:path';
 export const SCENES = ['forest', 'coast', 'snow'] as const;
 export type Scene = typeof SCENES[number];
 export type Status = 'traveling' | 'awaiting_service' | 'generating' | 'failed' | 'cancelled' | 'completed';
-export interface Trip { id: string; scene: Scene; startedAt: number; dueAt: number; status: Status; error?: string; completedAt?: number; }
-export interface Card { tripId: string; scene: Scene; title: string; note: string; sha256: string; completedAt: number; }
+export interface Trip { id: string; scene: Scene; startedAt: number; dueAt: number; status: Status; error?: string; completedAt?: number; phase?: string; generation?: Record<string,unknown>; }
+export interface Card { tripId: string; scene: Scene; title: string; note: string; sha256: string; completedAt: number; generation?: Record<string,unknown>; }
 interface Snapshot { schema: 1; trips: Trip[]; notified: string[]; }
 /** Adapter must return an approved complete artifact, never a temporary URL. */
-export interface Artifact { image: Uint8Array; title: string; note: string; }
-export type Generator = (trip: Readonly<Trip>, signal: AbortSignal) => Promise<Artifact>;
+export interface Artifact { image: Uint8Array; title: string; note: string; generation?: Record<string,unknown>; }
+export interface Generator {
+  (trip: Readonly<Trip>, signal: AbortSignal, phase?: (value: string)=>void): Promise<Artifact>;
+  prepare?(trip: Readonly<Trip>): Record<string,unknown>;
+  confirmRetry?(trip: Readonly<Trip>, confirmUnknownOutcome: boolean): void;
+}
 const active = new Set<Status>(['traveling', 'awaiting_service', 'generating', 'failed']);
 const validId = (id: string) => /^[a-f0-9-]{36}$/.test(id);
 const png = Buffer.from('89504e470d0a1a0a', 'hex');
@@ -85,7 +89,7 @@ export class TravelStore {
     const existing = this.card(trip.id); if (existing) return existing;
     const bytes = Buffer.from(artifact.image);
     if (!bytes.subarray(0,8).equals(png) || !artifact.title || !artifact.note) throw new Error('生成产物不完整');
-    const record: Card = { tripId: trip.id, scene: trip.scene, title: artifact.title, note: artifact.note, sha256: createHash('sha256').update(bytes).digest('hex'), completedAt: now };
+    const record: Card = { tripId: trip.id, scene: trip.scene, title: artifact.title, note: artifact.note, sha256: createHash('sha256').update(bytes).digest('hex'), completedAt: now, ...(artifact.generation ? { generation:artifact.generation } : {}) };
     const pending = join(this.collection, trip.id+'.'+randomUUID()+'.pending');
     mkdirSync(pending);
     writeFileSync(join(pending,'postcard.png'), bytes, { flag: 'wx' });
@@ -102,7 +106,7 @@ export class TravelService {
   private stopped = true;
   constructor(readonly store: TravelStore, private generator: Generator | undefined, private now: () => number = Date.now) {}
   open(): void { this.store.open(); this.stopped = false; }
-  async close(): Promise<void> { this.stopped = true; this.controller?.abort(); await this.flight; this.store.close(); }
+  async close(): Promise<void> { this.stopped = true; this.controller?.abort(); try {await this.flight;} finally {this.store.close();} }
   status(): Trip | null { const trips = this.store.snapshot().trips; return trips.find(t => active.has(t.status)) ?? trips.at(-1) ?? null; }
   start(scene: Scene, minutes: number): Trip {
     if (this.stopped) throw new Error('旅行服务未启动');
@@ -110,6 +114,7 @@ export class TravelService {
     const state = this.store.snapshot();
     if (state.trips.some(t => active.has(t.status))) throw new Error('已有未结束旅行，请先完成或取消');
     const trip: Trip = { id: randomUUID(), scene, startedAt: this.now(), dueAt: this.now()+minutes*60000, status: 'traveling' };
+    if (this.generator?.prepare) trip.generation = this.generator.prepare(trip);
     state.trips.push(trip); this.store.save(state); return structuredClone(trip);
   }
   cancel(id: string): Trip {
@@ -117,11 +122,12 @@ export class TravelService {
     if (!trip || !active.has(trip.status)) throw new Error('这趟旅行不能取消');
     trip.status = 'cancelled'; this.store.save(state); this.controller?.abort(); return structuredClone(trip);
   }
-  retry(id: string): Trip {
+  retry(id: string, confirmUnknownOutcome = false): Trip {
     const state = this.store.snapshot(), trip = state.trips.find(t => t.id === id);
     if (!trip || trip.status !== 'failed') throw new Error('仅失败旅行可以重试');
     if (this.flight) throw new Error('上次生成尚未退出');
     if (this.store.card(id)) throw new Error('已有收藏，无需重新生成');
+    this.generator?.confirmRetry?.(trip, confirmUnknownOutcome);
     trip.status = 'traveling'; delete trip.error; this.store.save(state); return structuredClone(trip);
   }
   tick(): Promise<void> {
@@ -137,18 +143,21 @@ export class TravelService {
     if (!this.generator) { trip.status = 'awaiting_service'; this.store.save(state); return; }
     trip.status = 'generating'; this.store.save(state); this.controller = new AbortController();
     try {
-      const artifact = await this.generator(structuredClone(trip), this.controller.signal);
+      const artifact = await this.generator(structuredClone(trip), this.controller.signal, phase=>{
+        const snapshot = this.store.snapshot(), current = snapshot.trips.find(t=>t.id===trip.id)!;
+        if (current.status === 'generating') { current.phase = phase; this.store.save(snapshot); }
+      });
       const latest = this.store.snapshot(), current = latest.trips.find(t => t.id === trip.id)!;
       if (current.status === 'cancelled') return;
       if (this.stopped) { current.status = 'failed'; current.error = '生成被停止，确认服务状态后可手动重试'; this.store.save(latest); return; }
       const card = this.store.commit(current, artifact, this.now());
       current.status = 'completed'; current.completedAt = card.completedAt; delete current.error; this.store.save(latest);
-    } catch {
+    } catch (error) {
       const latest = this.store.snapshot(), current = latest.trips.find(t => t.id === trip.id)!;
       if (current.status !== 'cancelled') {
         const card = this.store.card(current.id);
         if (card) { current.status = 'completed'; current.completedAt = card.completedAt; }
-        else { current.status = 'failed'; current.error = '来信未准备好；可能涉及远端请求或保存失败，请检查后手动重试'; }
+        else { current.status = 'failed'; current.error = error instanceof Error && error.name === 'PostcardPipelineError' ? error.message : '来信未准备好；可能涉及远端请求或保存失败，请检查后手动重试'; }
         this.store.save(latest);
       }
     }

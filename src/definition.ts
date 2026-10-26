@@ -1,9 +1,15 @@
 import { describeTools, type WorldDefinition } from 'cortico/world.ts';
 import { POSTCARD_DEFAULTS, type PostcardConfigSection } from './config.ts';
 import { POSTCARD_TOOL_DECLS, PostcardWorld } from './world.ts';
+import { createCloudGenerator } from './generation.ts';
+import { join } from 'node:path';
 export const POSTCARD: WorldDefinition<PostcardConfigSection> = {
   id:'postcard', label:'旅行明信片', defaults:()=>({...POSTCARD_DEFAULTS}),
-  create:ctx=>new PostcardWorld({cfg:ctx.cfg,dataDir:ctx.dataDir}),
+  create:ctx=>{
+    let world:PostcardWorld;
+    const generator=ctx.cfg.cloudEnabled?createCloudGenerator({root:join(ctx.dataDir,'postcard'),characterReference:ctx.cfg.characterReference,styleReference:ctx.cfg.styleReference,secret:name=>ctx.secret(name),imageProxyUrl:ctx.cfg.imageProxyUrl,visionProxyUrl:ctx.cfg.visionProxyUrl,recentTitles:()=>world.service.store.cards().slice(0,12).map(c=>c.title)}):undefined;
+    world=new PostcardWorld({cfg:ctx.cfg,dataDir:ctx.dataDir,generator});return world;
+  },
   describe:{tools:describeTools(POSTCARD_TOOL_DECLS,{
     postcard_start:{zh:'开始一趟现实时间等待的旅行。',en:'Start one timed trip.'},
     postcard_status:{zh:'查看旅行与服务连接状态。',en:'Read trip and generator availability.'},

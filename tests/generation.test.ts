@@ -1,0 +1,89 @@
+import { beforeEach,afterEach,it,expect,vi } from 'vitest';
+import { mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { PNG } from 'pngjs';
+import { createCloudGenerator,textAccepted,formatNote,noteFormatted,HttpError, type Transport } from '../src/generation.ts';
+import type { Trip,Generator } from '../src/travel.ts';
+
+let root:string,ref:string,image:Buffer,trip:Trip;
+const note={title:'森林深处的一封来信',note:'在树影里停了一会儿，心也慢慢静下来。身旁的一点亮光像温柔的问候。忽然想把这份安宁寄给你，让它在你忙碌的一天里，留下一小段可以慢慢呼吸的时间。'};
+const good={scene_match:true,character_match:true,usable:true,background_conflicts:[],issues:[],facts:['蓝发鲸鱼装女孩','老树旁有溪流','周围有蕨叶']};
+const clear={has_explicit_conflict:false,conflicts:[],uncertain_details:['微风无法从静态图确认']};
+function response(value:unknown){return {model:'deepseek-flash',choices:[{finish_reason:'stop',message:{content:JSON.stringify(value)}}],usage:{total_tokens:10}};}
+const promptOf=(payload:Record<string,unknown>)=>(payload.messages as {content:{text:string}[]}[])[0].content[0].text;
+function transport():Transport{return async(kind,payload)=>{if(kind==='image')return {data:[{b64_json:image.toString('base64')}],usage:{input_images:2,generated_images:1}};const p=promptOf(payload);return response(p.startsWith('图1为候选')?good:p.startsWith('写桌宠旅行')?note:clear);};}
+function make(t:Transport):Generator{return createCloudGenerator({root,characterReference:ref,styleReference:ref,secret:()=> 'local-test-only'},t);}
+function prepare(g:Generator){trip.generation=g.prepare!(trip);}
+beforeEach(()=>{root=mkdtempSync(join(tmpdir(),'postcard-cloud-'));ref=join(root,'ref.png');const png=new PNG({width:512,height:768});png.data.fill(240);image=PNG.sync.write(png);writeFileSync(ref,image);trip={id:randomUUID(),scene:'forest',startedAt:0,dueAt:1,status:'generating'};});
+afterEach(()=>rmSync(root,{recursive:true,force:true}));
+
+it('真实附两图、固定参考副本、缓存恢复不重复收费',async()=>{
+  const t=vi.fn(transport()),g=make(t);prepare(g);writeFileSync(ref,'source changed');
+  const result=await g(trip,new AbortController().signal);expect(result.title).toBe(note.title);
+  const payload=t.mock.calls.find(c=>c[0]==='image')![1];expect((payload.image as string[])).toHaveLength(2);
+  const count=t.mock.calls.length;await g(trip,new AbortController().signal);expect(t.mock.calls.length).toBe(count);
+  expect(result.generation?.policy).toBe('non-contradiction-cloud-v1');
+});
+it('文案有明确冲突只改文字，不重新生成图片',async()=>{
+  let checked=0;const base=transport(),t=vi.fn<Transport>(async(k,p,s)=>{
+    if(k==='text'&&promptOf(p).startsWith('只检查短笺'))return response(++checked===1?{...clear,has_explicit_conflict:true,conflicts:['场景相反']}:clear);
+    return base(k,p,s);
+  });const g=make(t);prepare(g);const result=await g(trip,new AbortController().signal);
+  expect(result.generation?.noteAttempt).toBe(2);expect(t.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);
+});
+it('两版文案均拒绝，重复恢复也不能变相重生图',async()=>{
+  const base=transport(),t=vi.fn<Transport>(async(k,p,s)=>k==='text'&&promptOf(p).startsWith('只检查短笺')?response({...clear,has_explicit_conflict:true,conflicts:['明确冲突']}):base(k,p,s));const g=make(t);prepare(g);
+  await expect(g(trip,new AbortController().signal)).rejects.toThrow('两版文案');
+  await expect(g(trip,new AbortController().signal)).rejects.toThrow('两版文案');expect(t.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);
+});
+it('图片审核不合格最多两张候选，不无限重画',async()=>{
+  const base=transport(),t=vi.fn<Transport>(async(k,p,s)=>k==='text'&&promptOf(p).startsWith('图1为候选')?response({...good,scene_match:false}):base(k,p,s));const g=make(t);prepare(g);
+  await expect(g(trip,new AbortController().signal)).rejects.toThrow('两张候选');
+  await expect(g(trip,new AbortController().signal)).rejects.toThrow('两张候选');expect(t.mock.calls.filter(c=>c[0]==='image')).toHaveLength(2);
+});
+it('断连保存不确定状态，确认前阻止重复收费，确认后仍受两次上限约束',async()=>{
+  const t=vi.fn<Transport>(async()=>{throw new Error('sensitive raw error');}),g=make(t);prepare(g);
+  await expect(g(trip,new AbortController().signal)).rejects.toThrow('不确定');
+  await expect(g(trip,new AbortController().signal)).rejects.toThrow('不确定');expect(t).toHaveBeenCalledTimes(1);
+  expect(()=>g.confirmRetry!(trip,false)).toThrow('确认');g.confirmRetry!(trip,true);
+  await expect(g(trip,new AbortController().signal)).rejects.toThrow('不确定');g.confirmRetry!(trip,true);
+  await expect(g(trip,new AbortController().signal)).rejects.toThrow('两次上限');expect(t).toHaveBeenCalledTimes(2);
+});
+it('明确429不耗尽候选预算，解除限额后允许手动恢复',async()=>{
+  const base=transport();let first=true;const t=vi.fn<Transport>(async(k,p,s)=>{if(k==='image'&&first){first=false;throw new HttpError(429);}return base(k,p,s);});const g=make(t);prepare(g);
+  await expect(g(trip,new AbortController().signal)).rejects.toThrow('HTTP 429');g.confirmRetry!(trip,false);
+  const result=await g(trip,new AbortController().signal);expect(result.generation?.imageAttempt).toBe(1);
+});
+it('审核格式错误不能通过，也不能据此重新收费生图',async()=>{
+  const base=transport(),t=vi.fn<Transport>(async(k,p,s)=>k==='text'?response({}):base(k,p,s)),g=make(t);prepare(g);
+  await expect(g(trip,new AbortController().signal)).rejects.toThrow('审核格式无效');expect(t.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);
+});
+it('不确定细节允许，矛盾和损坏结构拒绝',()=>{
+  expect(textAccepted(clear)).toBe(true);expect(textAccepted({...clear,has_explicit_conflict:true})).toBe(false);expect(textAccepted({})).toBe(false);
+});
+it('审核结构损坏后保留原响应，修复服务可恢复同张图',async()=>{
+  const base=transport();let broken=true;const t=vi.fn<Transport>(async(k,p,s)=>{
+    if(k==='text'&&promptOf(p).startsWith('图1为候选')&&broken){broken=false;return response({});}
+    return base(k,p,s);
+  });const g=make(t);prepare(g);
+  await expect(g(trip,new AbortController().signal)).rejects.toThrow('审核格式无效');
+  const result=await g(trip,new AbortController().signal);expect(result.title).toBe(note.title);expect(t.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);
+});
+it('文字429恢复只重试相应文字阶段，复用已保存候选图',async()=>{
+  const base=transport();let first=true;const t=vi.fn<Transport>(async(k,p,s)=>{
+    if(k==='text'&&first){first=false;throw new HttpError(429);}return base(k,p,s);
+  });const g=make(t);prepare(g);
+  await expect(g(trip,new AbortController().signal)).rejects.toThrow('HTTP 429');
+  const result=await g(trip,new AbortController().signal);expect(result.title).toBe(note.title);expect(t.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);
+});
+it('超长正文仅保留完整原句，仍经文图审核，原文和缓存不覆盖',async()=>{
+  const long={...note,note:'亲爱的，今晚我坐在面包店外的长椅上，捧着一杯热饮，暖意从指尖漫到心里。雪落在屋顶和石板上，远处的山影模糊又安静。我戴着那顶鲸鱼兜帽，蓝白的绒毛边裹住耳朵，好像你就在身边轻轻呵气。街灯和小圣诞树亮着，面包香从橱窗里飘出来——我想你，想和你一起踩雪回家。'};
+  const formatted=formatNote(long);expect(noteFormatted(formatted)).toBe(true);expect(formatted.note).not.toBe(long.note);
+  for(const sentence of (formatted.note as string).match(/[^。！？]+[。！？]/gu)!)expect(long.note).toContain(sentence);
+  const base=transport(),t=vi.fn<Transport>(async(k,p,s)=>k==='text'&&promptOf(p).startsWith('写桌宠旅行')?response(long):base(k,p,s));const g=make(t);prepare(g);
+  const result=await g(trip,new AbortController().signal);expect(result.note).toBe(formatted.note);
+  expect(t.mock.calls.some(c=>c[0]==='text'&&promptOf(c[1]).startsWith('只检查短笺'))).toBe(true);
+  const saved=JSON.parse(readFileSync(join(root,'trips',trip.id,'image-1-note-1.json'),'utf8'));expect(saved.note).toBe(long.note);
+});

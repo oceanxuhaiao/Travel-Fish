@@ -13,7 +13,7 @@ export const POSTCARD_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
   { name: 'postcard_list', description: 'List permanently saved postcards.', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'postcard_read', description: 'Read a completed postcard title and note by trip id.', tags: ['read'], parameters: idParam },
   { name: 'postcard_cancel', description: 'Cancel a trip on user request. A remote request already sent may still incur a charge.', tags: ['write'], parameters: idParam },
-  { name: 'postcard_retry', description: 'Manually retry a failed trip only after the user requests it and the previous remote outcome has been checked; a retry may incur a charge.', tags: ['write'], parameters: idParam },
+  { name: 'postcard_retry', description: 'Manually retry a failed trip only after the user requests it. For an uncertain image outcome, set confirmUnknownOutcome only after the user has explicitly confirmed checking the previous result and possible charge.', tags: ['write'], parameters: { ...idParam,properties:{...idParam.properties,confirmUnknownOutcome:{type:'boolean',description:'True only after the user explicitly confirms the uncertain previous request and possible charge.'}} } },
 ];
 
 export class PostcardWorld implements World {
@@ -22,8 +22,8 @@ export class PostcardWorld implements World {
   private timer?: ReturnType<typeof setInterval>;
   private host?: WorldHost;
   private pulseFlight?: Promise<void>;
-  constructor(private opts: { cfg: PostcardConfigSection; dataDir: string; generator?: Generator }) {
-    this.service = new TravelService(new TravelStore(join(opts.dataDir,'postcard')), opts.generator);
+  constructor(private opts: { cfg: PostcardConfigSection; dataDir: string; generator?: Generator; now?:()=>number }) {
+    this.service = new TravelService(new TravelStore(join(opts.dataDir,'postcard')), opts.generator, opts.now);
   }
   envPromptVars(): Record<string,string> { return { 'postcard.availability': this.opts.generator ? '已接入生成服务' : '旅行核心预览，生成服务尚未接入，不会实际生图' }; }
   tools(): ToolDef[] {
@@ -35,7 +35,7 @@ export class PostcardWorld implements World {
         case 'postcard_list': result = this.service.store.cards(); break;
         case 'postcard_read': result = this.service.store.card(String(args.tripId)); if (!result) throw new Error('没有这份已完成收藏'); break;
         case 'postcard_cancel': result = this.service.cancel(String(args.tripId)); break;
-        case 'postcard_retry': result = this.service.retry(String(args.tripId)); break;
+        case 'postcard_retry': result = this.service.retry(String(args.tripId),args.confirmUnknownOutcome===true); break;
       }
       return JSON.stringify(result);
     } }));

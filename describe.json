@@ -110,7 +110,7 @@
     },
     {
       "name": "postcard_retry",
-      "description": "Manually retry a failed trip only after the user requests it and the previous remote outcome has been checked; a retry may incur a charge.",
+      "description": "Manually retry a failed trip only after the user requests it. For an uncertain image outcome, set confirmUnknownOutcome only after the user has explicitly confirmed checking the previous result and possible charge.",
       "parameters": {
         "type": "object",
         "additionalProperties": false,
@@ -118,6 +118,10 @@
           "tripId": {
             "type": "string",
             "description": "Trip id from postcard_status."
+          },
+          "confirmUnknownOutcome": {
+            "type": "boolean",
+            "description": "True only after the user explicitly confirms the uncertain previous request and possible charge."
           }
         },
         "required": [
