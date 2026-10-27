@@ -49,6 +49,14 @@ it('不展示场景目录、分类徽章或目的地控件，未知类别收藏�
 
 it('配置引导解释八项设置，密钥输入保存后清空且不缓存',async()=>{
  const f=fixture();f.ctx.invoke.mockImplementation(async(method)=>method==='snapshot'?{keys:{ark:false,vision:false},secureSaveAvailable:true,cloudEnabled:false,characterReference:'',styleReference:''}:{keys:{ark:true,vision:false}});
- await mountSetup(f.ctx);expect(f.ctx.root.querySelectorAll('dt')).toHaveLength(8);expect(f.ctx.root.textContent).toContain('不调用 API');
+ await mountSetup(f.ctx);expect(f.ctx.root.querySelectorAll('dt')).toHaveLength(7);expect(f.ctx.root.textContent).toContain('不调用 API');
  const input=f.ctx.root.querySelector('input');expect(input.type).toBe('password');input.value='mock-only-key';[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='保存此服务密钥').click();await flush();expect(input.value).toBe('');expect(f.memo.size).toBe(0);expect(f.ctx.root.textContent).not.toContain('mock-only-key');
+});
+
+it('旅行进度按保存的起止时间计算，制作阶段不冒充已收到',async()=>{
+ const f=fixture();vi.spyOn(Date,'now').mockReturnValue(3600000);
+ f.setState({trip:{id:'progress',scene:'forest',status:'traveling',startedAt:0,dueAt:7200000},cards:[],minutes:120,generatorConnected:true});await mountAlbum(f.ctx);
+ expect(f.ctx.root.querySelector('progress').value).toBe(50);expect(f.ctx.root.textContent).toContain('约 60 分钟');
+ Date.now.mockReturnValue(-100);f.timers[1]();expect(f.ctx.root.querySelector('progress').value).toBe(0);
+ f.setState({trip:{id:'progress',scene:'forest',status:'generating',startedAt:0,dueAt:7200000},cards:[],minutes:120,generatorConnected:true});await f.timers[0]();await flush();expect(f.ctx.root.querySelector('progress').value).toBe(100);expect(f.ctx.root.textContent).toContain('明信片尚未完成');
 });

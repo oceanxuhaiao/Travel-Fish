@@ -30,11 +30,10 @@ export async function mountSetup(ctx:WebUiPanelContext){
  ] as const){
   const label=el('p',state[key]||'尚未选择');root.append(el('h3',title),el('p',desc+' 图片需为可解码的PNG，宽高各512至4096像素，文件不超过40MB。'),label,button('选择'+title,async()=>{const path=await ctx.pickPath({kind:'file',title,extensions:['.png']});if(!path||ctx.signal.aborted)return;await ctx.setConfig('world:postcard',{['worlds.postcard.'+key]:path});label.textContent=path;say('路径已保存。请重启旅行明信片 World，再做本地检查。');}));
  }
- root.append(el('h2','3 · 理解配置选项，再开启生成'));
+ root.append(el('h2','3 · 理解配置选项，再开启生成'),el('p','每次新旅行固定为2小时，无法修改。旅行进度按真实经过时间计算；到达后还需制作明信片，生成耗时另计。旧旅程保留出发时的归来时间。'));
  const items=[
  ['允许宠物主动询问旅行','默认开启。到时给宠物一个询问机会，由宠物自然表达；用户明确同意才出发，沉默与拒绝都不会生图。保存后立即生效。'],
  ['主动询问间隔（分钟）','默认360分钟（6小时），范围1至43200。旅行未结束或服务未接入时暂停，恢复后重新计时；关机期间不会补发。询问可能消耗少量宿主对话模型用量，间隔不保证每次都说话。保存后立即生效。'],
- ['旅行时长（分钟）','默认30分钟，范围1至10080。这是出发后的现实等待时间，随后另需云生成时间；修改只影响下一趟，无需重启。'],
  ['启用云端明信片生成','默认关闭。两项密钥、参考图准备好后开启，并重启本World。角色图、画风图发送给方舟，成图发送给DeepSeek；云服务按各自用量计费。开关本身不发起旅行。'],
  ['角色参考PNG路径','本机角色图的绝对路径。出发时复制固定，本趟不会随原图修改而变化。修改后重启本World。'],
  ['画风参考PNG路径','本机画风图的绝对路径。用于保持画面风格；修改后重启本World。'],

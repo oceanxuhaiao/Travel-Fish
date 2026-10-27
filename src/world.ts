@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import type { World, WorldHost, ToolDef, WorldWebUiDecl } from 'cortico/core/types.ts';
 import type { PostcardConfigSection } from './config.ts';
-import { POSTCARD_CONFIG_GROUP } from './config.ts';
+import { TRAVEL_MINUTES, POSTCARD_CONFIG_GROUP } from './config.ts';
 import { TravelService, TravelStore, type Generator, type Scene } from './travel.ts';
 import {InvitationSchedule} from './invitations.ts';
 import { PostcardPanel } from './panel.ts';
@@ -11,7 +11,7 @@ import { PostcardPanel } from './panel.ts';
 const ENV_PROMPT_FILE = fileURLToPath(new URL('./ENV_PROMPT.md', import.meta.url));
 const idParam = { type: 'object', additionalProperties: false, properties: { tripId: { type: 'string', description: 'Trip id from postcard_status.' } }, required: ['tripId'] };
 export const POSTCARD_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
-  { name: 'postcard_start', description: 'Start one surprise virtual pet trip when the user asks. The pet chooses the scenery internally; do not ask the user to choose a destination. Duration is real waiting time; generation may take additional time. Only one unfinished trip is allowed. Start only for an explicit user request or affirmative reply to a travel invitation. An invitation event, silence or a refusal is never consent.', tags: ['write'], parameters: { type: 'object', additionalProperties: false, properties: {} } },
+  { name: 'postcard_start', description: 'Start one surprise virtual pet trip when the user asks. The pet chooses the scenery internally; do not ask the user to choose a destination. Duration is fixed at two hours of real waiting time and cannot be changed by user configuration; generation may take additional time. Only one unfinished trip is allowed. Start only for an explicit user request or affirmative reply to a travel invitation. An invitation event, silence or a refusal is never consent.', tags: ['write'], parameters: { type: 'object', additionalProperties: false, properties: {} } },
   { name: 'postcard_status', description: 'Read the current trip and availability. awaiting_service means a generator is not connected; do not claim a postcard exists.', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'postcard_list', description: 'List permanently saved postcards.', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'postcard_read', description: 'Read a completed postcard title and note by trip id.', tags: ['read'], parameters: idParam },
@@ -33,14 +33,14 @@ export class PostcardWorld implements World {
     this.setup=new SetupPanel(opts.cfg,opts.setup);
     this.service = new TravelService(new TravelStore(join(opts.dataDir,'postcard')), opts.generator, opts.now);
     this.invitations=new InvitationSchedule(join(opts.dataDir,'postcard'),opts.now);
-    this.panel=new PostcardPanel(this.service,()=>({minutes:this.opts.cfg.minutes,generatorConnected:!!this.opts.generator}));
+    this.panel=new PostcardPanel(this.service,()=>({minutes:TRAVEL_MINUTES,generatorConnected:!!this.opts.generator}));
   }
   envPromptVars(): Record<string,string> { return { 'postcard.availability': this.opts.generator ? '已接入生成服务' : '旅行核心预览，生成服务尚未接入，不会实际生图' }; }
   tools(): ToolDef[] {
     return POSTCARD_TOOL_DECLS.map(decl => ({ ...decl, handler: async (args) => {
       let result: unknown;
       switch (decl.name) {
-        case 'postcard_start': result = this.service.start('surprise', this.opts.cfg.minutes); break;
+        case 'postcard_start': result = this.service.start('surprise', TRAVEL_MINUTES); break;
         case 'postcard_status': result = { trip: this.service.status(), generatorConnected: !!this.opts.generator, invitation:{enabled:this.opts.cfg.proactiveEnabled??true,intervalMinutes:this.opts.cfg.proactiveIntervalMinutes??360,nextAt:this.invitations.snapshot()?.nextAt??null,...(!this.invitationsHealthy?{error:'主动询问日程损坏，已暂停'}:{})} }; break;
         case 'postcard_list': result = this.service.store.cards(); break;
         case 'postcard_read': result = this.service.store.card(String(args.tripId)); if (!result) throw new Error('没有这份已完成收藏'); break;

@@ -34,7 +34,7 @@ describe('Postcard World',()=>{
       const tool=(name:string)=>world.tools().find(t=>t.name===name)!;
       const trip=JSON.parse(await tool('postcard_start').handler({},call) as string);
       const status=JSON.parse(await tool('postcard_status').handler({},call) as string);
-      expect(status.trip.id).toBe(trip.id);expect(status.generatorConnected).toBe(false);
+      expect(trip.dueAt-trip.startedAt).toBe(7200000);expect(status.trip.id).toBe(trip.id);expect(status.generatorConnected).toBe(false);
       expect(JSON.parse(await tool('postcard_list').handler({},call) as string)).toEqual([]);
       await tool('postcard_cancel').handler({tripId:trip.id},call);
     } finally {await world.stop();}

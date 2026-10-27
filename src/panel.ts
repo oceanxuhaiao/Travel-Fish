@@ -1,3 +1,4 @@
+import {TRAVEL_MINUTES} from './config.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PNG } from 'pngjs';
@@ -15,12 +16,12 @@ const binary=(mime:string,bytes:Uint8Array)=>({$binary:{mime,base64:Buffer.from(
 export class PostcardPanel {
   private thumbnails=new Map<string,Buffer>();
   constructor(private service:TravelService,private settings:()=>{minutes:number;generatorConnected:boolean}){}
-  snapshot():PanelSnapshot {return {trip:tripView(this.service.status()),cards:this.service.store.cards().map(cardView),...this.settings()};}
+  snapshot():PanelSnapshot {return {trip:tripView(this.service.status()),cards:this.service.store.cards().map(cardView),...this.settings(),minutes:TRAVEL_MINUTES};}
   async invoke(panel:string,method:string,args:unknown[]):Promise<unknown>{
     if(panel!=='album')throw new Error('未知旅行面板');
     switch(method){
       case 'snapshot': return this.snapshot();
-      case 'start': this.service.start('surprise',this.settings().minutes);return this.snapshot();
+      case 'start': this.service.start('surprise',TRAVEL_MINUTES);return this.snapshot();
       case 'cancel': this.service.cancel(String(args[0]));return this.snapshot();
       case 'retry': this.service.retry(String(args[0]),args[1]===true);return this.snapshot();
       case 'image': case 'thumbnail': case 'png': case 'zip': {

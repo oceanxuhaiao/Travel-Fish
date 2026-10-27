@@ -40,3 +40,8 @@ it('重启后无需云端服务仍可读取与导出旧收藏',async()=>{
   service=new TravelService(new TravelStore(root),undefined,()=>now);service.open();panel=new PostcardPanel(service,()=>({minutes:30,generatorConnected:false}));
   expect(panel.snapshot().cards[0].tripId).toBe(trip.id);const bytes=await panel.invoke('album','png',[trip.id]) as {$binary:{base64:string}};expect(Buffer.from(bytes.$binary.base64,'base64')).toEqual(image);
 });
+
+it('面板忽略旧设置与额外参数，新旅行固定两小时',async()=>{
+ const state=await panel.invoke('album','start',[1]) as PanelSnapshot;
+ expect(state.minutes).toBe(120);expect(state.trip!.dueAt-state.trip!.startedAt).toBe(7200000);
+});
