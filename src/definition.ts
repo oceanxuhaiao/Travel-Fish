@@ -19,6 +19,7 @@ export const POSTCARD: WorldDefinition<PostcardConfigSection> = {
     postcard_retry:{zh:'按用户要求重试失败旅程。',en:'Retry a failed trip on user request.'},
   }),events:[
     {type:'postcard.started',description:{zh:'旅行核心已加载及生成服务可用情况。',en:'Travel core mounted and generator availability.'}},
+    {type:'postcard.invitation_due',description:{zh:'用户配置的主动旅行询问时机已到，尚未获得出发许可。',en:'Configured invitation time is due; departure is not approved.'}},
     {type:'postcard.completed',description:{zh:'明信片已完整保存到收藏。',en:'A complete postcard was saved.'}},
   ]},
 };

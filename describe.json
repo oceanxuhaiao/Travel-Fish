@@ -2,7 +2,7 @@
   "tools": [
     {
       "name": "postcard_start",
-      "description": "Start one surprise virtual pet trip when the user asks. The pet chooses the scenery internally; do not ask the user to choose a destination. Duration is real waiting time; generation may take additional time. Only one unfinished trip is allowed.",
+      "description": "Start one surprise virtual pet trip when the user asks. The pet chooses the scenery internally; do not ask the user to choose a destination. Duration is real waiting time; generation may take additional time. Only one unfinished trip is allowed. Start only for an explicit user request or affirmative reply to a travel invitation. An invitation event, silence or a refusal is never consent.",
       "parameters": {
         "type": "object",
         "additionalProperties": false,
@@ -134,6 +134,13 @@
       }
     },
     {
+      "type": "postcard.invitation_due",
+      "description": {
+        "zh": "用户配置的主动旅行询问时机已到，尚未获得出发许可。",
+        "en": "Configured invitation time is due; departure is not approved."
+      }
+    },
+    {
       "type": "postcard.completed",
       "description": {
         "zh": "明信片已完整保存到收藏。",
@@ -146,7 +153,7 @@
       "key": "worlds.postcard.envPrompt",
       "title": "旅行环境说明",
       "role": "envPrompt",
-      "content": "你可以通过 postcard 工具管理虚拟旅行和明信片收藏。当前：{{postcard.availability}}。\r\n只在用户提出旅行需求时出发，不自行开始收费任务。到期时间是旅行等待结束，图片准备还需要时间。\r\n只有 postcard_read/list 确认存在的收藏才可描述为已收到。awaiting_service 不能说成正在实际生图。\r\n失败不会自动重新收费；用户要求重试前，要先确认上次远端结果。取消可能无法撤销已提交远端请求。\r\n工具提供的旅程是外部环境状态，不表示你获得了新的关系记忆，不编造与用户的共同经历。\r\n\r\n旅行目的地是虚构环境，不对应真实省市或景区。内部场景目录只用于生成和避重，不代表一组供用户选择的固定地点。不要编造真实到访地点；具体取景归来后从成图了解。\r\n\r\n出发不接受目的地参数，由宠物内部选择风景。不要让用户从场景列表选择，不提前透露具体取景。收藏按收到时间翻看，不按地点分类；这些内部场景类别不是固定目的地。\r\n"
+      "content": "你可以通过 postcard 工具管理虚拟旅行和明信片收藏。当前：{{postcard.availability}}。\r\n只在用户明确提出旅行需求，或明确同意你刚提出的旅行请求后出发，不自行开始收费任务。到期时间是旅行等待结束，图片准备还需要时间。\r\n只有 postcard_read/list 确认存在的收藏才可描述为已收到。awaiting_service 不能说成正在实际生图。\r\n失败不会自动重新收费；用户要求重试前，要先确认上次远端结果。取消可能无法撤销已提交远端请求。\r\n工具提供的旅程是外部环境状态，不表示你获得了新的关系记忆，不编造与用户的共同经历。\r\n\r\n旅行目的地是虚构环境，不对应真实省市或景区。内部场景目录只用于生成和避重，不代表一组供用户选择的固定地点。不要编造真实到访地点；具体取景归来后从成图了解。\r\n\r\n出发不接受目的地参数，由宠物内部选择风景。不要让用户从场景列表选择，不提前透露具体取景。收藏按收到时间翻看，不按地点分类；这些内部场景类别不是固定目的地。\r\n\r\n收到 postcard.invitation_due 时，按你原有的性格和当前对话语气，简短表达自己想出去看看，并询问用户是否同意，例如“我想去远方走走，给你带封来信，可以吗？”不要把定时器、配置或后台事件说给用户听。这是主动询问机会，不是用户的出发许可。发问后等待用户明确回答；沉默、拒绝、含糊回应都不调用postcard_start，也不自行重试收费任务。用户明确答应这次请求才可调用postcard_start。用户拒绝就自然接受，不当场反复劝说；下次询问由用户设置的间隔控制，不自行绕开间隔另发催促。\r\n"
     }
   ]
 }

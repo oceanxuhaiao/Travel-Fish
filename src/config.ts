@@ -1,9 +1,11 @@
 import type { ConfigGroup } from 'cortico/core/types.ts';
-export interface PostcardConfigSection { enabled: boolean; minutes: number; cloudEnabled:boolean; characterReference:string; styleReference:string; imageProxyUrl:string; visionProxyUrl:string; }
-export const POSTCARD_DEFAULTS: PostcardConfigSection = { enabled: false, minutes: 30, cloudEnabled:false, characterReference:'',styleReference:'',imageProxyUrl:'',visionProxyUrl:'' };
+export interface PostcardConfigSection { enabled: boolean; proactiveEnabled:boolean; proactiveIntervalMinutes:number; minutes: number; cloudEnabled:boolean; characterReference:string; styleReference:string; imageProxyUrl:string; visionProxyUrl:string; }
+export const POSTCARD_DEFAULTS: PostcardConfigSection = { enabled: false, proactiveEnabled:true, proactiveIntervalMinutes:360, minutes: 30, cloudEnabled:false, characterReference:'',styleReference:'',imageProxyUrl:'',visionProxyUrl:'' };
 export const POSTCARD_CONFIG_GROUP: ConfigGroup = {
   id: 'world:postcard', owner: 'world:postcard',
   schema: { type: 'object', title: '旅行明信片', properties: {
+    'worlds.postcard.proactiveEnabled': {type:'boolean',title:'允许宠物主动询问旅行',description:'到间隔后由宠物询问是否可以旅行；收到明确同意才出发，不会自动生图。', 'x-hot':true},
+    'worlds.postcard.proactiveIntervalMinutes': {type:'number',title:'主动询问间隔（分钟）',description:'默认360分钟（6小时），可关闭主动询问。未结束旅行或生成服务未连接时暂停；重新可用后重新计时。关闭应用期间不补发积压询问。询问会触发宿主原有模型对话，可能产生少量文本用量。',minimum:1,maximum:43200,'x-hot':true},
     'worlds.postcard.minutes': { type: 'number', title: '旅行时长（分钟）', minimum: 1, maximum: 10080, 'x-hot': true },
     'worlds.postcard.cloudEnabled': { type:'boolean', title:'启用云端明信片生成',description:'参考图和成图将发送至火山方舟与DeepSeek，按服务计费；需配置POSTCARD_ARK_API_KEY和POSTCARD_VISION_API_KEY。', 'x-hot':false },
     'worlds.postcard.characterReference': { type:'string',title:'角色参考PNG路径',description:'明确选择的角色图；出发时复制固定，后续修改不影响本趟。', 'x-hot':false },

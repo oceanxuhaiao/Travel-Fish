@@ -4,12 +4,13 @@ import type { World, WorldHost, ToolDef, WorldWebUiDecl } from 'cortico/core/typ
 import type { PostcardConfigSection } from './config.ts';
 import { POSTCARD_CONFIG_GROUP } from './config.ts';
 import { TravelService, TravelStore, type Generator, type Scene } from './travel.ts';
+import {InvitationSchedule} from './invitations.ts';
 import { PostcardPanel } from './panel.ts';
 
 const ENV_PROMPT_FILE = fileURLToPath(new URL('./ENV_PROMPT.md', import.meta.url));
 const idParam = { type: 'object', additionalProperties: false, properties: { tripId: { type: 'string', description: 'Trip id from postcard_status.' } }, required: ['tripId'] };
 export const POSTCARD_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
-  { name: 'postcard_start', description: 'Start one surprise virtual pet trip when the user asks. The pet chooses the scenery internally; do not ask the user to choose a destination. Duration is real waiting time; generation may take additional time. Only one unfinished trip is allowed.', tags: ['write'], parameters: { type: 'object', additionalProperties: false, properties: {} } },
+  { name: 'postcard_start', description: 'Start one surprise virtual pet trip when the user asks. The pet chooses the scenery internally; do not ask the user to choose a destination. Duration is real waiting time; generation may take additional time. Only one unfinished trip is allowed. Start only for an explicit user request or affirmative reply to a travel invitation. An invitation event, silence or a refusal is never consent.', tags: ['write'], parameters: { type: 'object', additionalProperties: false, properties: {} } },
   { name: 'postcard_status', description: 'Read the current trip and availability. awaiting_service means a generator is not connected; do not claim a postcard exists.', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'postcard_list', description: 'List permanently saved postcards.', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'postcard_read', description: 'Read a completed postcard title and note by trip id.', tags: ['read'], parameters: idParam },
@@ -24,8 +25,11 @@ export class PostcardWorld implements World {
   private host?: WorldHost;
   private pulseFlight?: Promise<void>;
   readonly panel:PostcardPanel;
+  readonly invitations:InvitationSchedule;
+  private invitationsHealthy=true;
   constructor(private opts: { cfg: PostcardConfigSection; dataDir: string; generator?: Generator; now?:()=>number }) {
     this.service = new TravelService(new TravelStore(join(opts.dataDir,'postcard')), opts.generator, opts.now);
+    this.invitations=new InvitationSchedule(join(opts.dataDir,'postcard'),opts.now);
     this.panel=new PostcardPanel(this.service,()=>({minutes:this.opts.cfg.minutes,generatorConnected:!!this.opts.generator}));
   }
   envPromptVars(): Record<string,string> { return { 'postcard.availability': this.opts.generator ? '已接入生成服务' : '旅行核心预览，生成服务尚未接入，不会实际生图' }; }
@@ -34,7 +38,7 @@ export class PostcardWorld implements World {
       let result: unknown;
       switch (decl.name) {
         case 'postcard_start': result = this.service.start('surprise', this.opts.cfg.minutes); break;
-        case 'postcard_status': result = { trip: this.service.status(), generatorConnected: !!this.opts.generator }; break;
+        case 'postcard_status': result = { trip: this.service.status(), generatorConnected: !!this.opts.generator, invitation:{enabled:this.opts.cfg.proactiveEnabled??true,intervalMinutes:this.opts.cfg.proactiveIntervalMinutes??360,nextAt:this.invitations.snapshot()?.nextAt??null,...(!this.invitationsHealthy?{error:'主动询问日程损坏，已暂停'}:{})} }; break;
         case 'postcard_list': result = this.service.store.cards(); break;
         case 'postcard_read': result = this.service.store.card(String(args.tripId)); if (!result) throw new Error('没有这份已完成收藏'); break;
         case 'postcard_cancel': result = this.service.cancel(String(args.tripId)); break;
@@ -48,6 +52,7 @@ export class PostcardWorld implements World {
   }
   async start(host: WorldHost): Promise<void> {
     this.host = host; this.service.open();
+    try {this.invitations.open();} catch {this.invitationsHealthy=false;host.log.error('主动旅行询问日程损坏，已暂停询问；旅行和收藏仍可使用，请恢复日程备份');}
     this.timer = setInterval(() => { void this.pulse().catch(() => host.log.error('旅行状态推进失败，请检查存档')); }, 1000);
     this.timer.unref?.();
     try {
@@ -68,6 +73,12 @@ export class PostcardWorld implements World {
       if (!this.host) return;
       this.service.acknowledge(card.tripId);
     }
+    const trip=this.service.status(),busy=!!trip&&['traveling','generating','awaiting_service','failed'].includes(trip.status);
+    if(!this.invitationsHealthy)return;
+    await this.invitations.tick(this.opts.cfg.proactiveEnabled??true,this.opts.cfg.proactiveIntervalMinutes??360,!!this.opts.generator&&!busy,async()=>{
+      const host=this.host;if(!host)return;
+      await host.pushEvent({type:'postcard.invitation_due',ts:new Date((this.opts.now??Date.now)()).toISOString(),source:this.id,origin:'internal',senderKey:this.id,text:'用户设置的旅行主动询问间隔已到，本次等待间隔已满'+(this.opts.cfg.proactiveIntervalMinutes??360)+'分钟。目前没有未结束旅行，明信片生成服务已连接。用户尚未同意新的旅行。',meta:{intervalMinutes:this.opts.cfg.proactiveIntervalMinutes??360,userApproved:false}},{trigger:'debounce'});
+    });
   }
   async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
