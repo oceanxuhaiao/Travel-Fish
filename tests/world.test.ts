@@ -32,7 +32,7 @@ describe('Postcard World',()=>{
       expect(host.events.map(e=>e.type)).toEqual(['postcard.started']);
       const call={} as ToolCallContext;
       const tool=(name:string)=>world.tools().find(t=>t.name===name)!;
-      const trip=JSON.parse(await tool('postcard_start').handler({scene:'forest'},call) as string);
+      const trip=JSON.parse(await tool('postcard_start').handler({},call) as string);
       const status=JSON.parse(await tool('postcard_status').handler({},call) as string);
       expect(status.trip.id).toBe(trip.id);expect(status.generatorConnected).toBe(false);
       expect(JSON.parse(await tool('postcard_list').handler({},call) as string)).toEqual([]);

@@ -2,12 +2,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PNG } from 'pngjs';
 import { zipSync,strToU8 } from 'fflate';
-import {SCENE_LABELS,type Destination} from './scenes.ts';
 import type { Card,Scene,TravelService,Trip } from './travel.ts';
 
 export type PublicTrip=Omit<Trip,'generation'|'sceneSnapshot'>;
 export type PublicCard=Pick<Card,'tripId'|'scene'|'title'|'note'|'completedAt'|'sceneLabel'>;
-export interface PanelSnapshot { trip:PublicTrip|null; cards:PublicCard[]; minutes:number; generatorConnected:boolean; places:typeof SCENE_LABELS; }
+export interface PanelSnapshot { trip:PublicTrip|null; cards:PublicCard[]; minutes:number; generatorConnected:boolean; }
 function tripView(trip:Trip|null):PublicTrip|null {if(!trip)return null;const {generation,sceneSnapshot,...view}=trip;return view;}
 function cardView(card:Card):PublicCard {const {tripId,scene,title,note,completedAt,sceneLabel}=card;return {tripId,scene,title,note,completedAt,...(sceneLabel?{sceneLabel}:{})};}
 const binary=(mime:string,bytes:Uint8Array)=>({$binary:{mime,base64:Buffer.from(bytes).toString('base64')}});
@@ -16,12 +15,12 @@ const binary=(mime:string,bytes:Uint8Array)=>({$binary:{mime,base64:Buffer.from(
 export class PostcardPanel {
   private thumbnails=new Map<string,Buffer>();
   constructor(private service:TravelService,private settings:()=>{minutes:number;generatorConnected:boolean}){}
-  snapshot():PanelSnapshot {return {trip:tripView(this.service.status()),cards:this.service.store.cards().map(cardView),places:SCENE_LABELS,...this.settings()};}
+  snapshot():PanelSnapshot {return {trip:tripView(this.service.status()),cards:this.service.store.cards().map(cardView),...this.settings()};}
   async invoke(panel:string,method:string,args:unknown[]):Promise<unknown>{
     if(panel!=='album')throw new Error('未知旅行面板');
     switch(method){
       case 'snapshot': return this.snapshot();
-      case 'start': this.service.start(args[0] as Destination,this.settings().minutes);return this.snapshot();
+      case 'start': this.service.start('surprise',this.settings().minutes);return this.snapshot();
       case 'cancel': this.service.cancel(String(args[0]));return this.snapshot();
       case 'retry': this.service.retry(String(args[0]),args[1]===true);return this.snapshot();
       case 'image': case 'thumbnail': case 'png': case 'zip': {
