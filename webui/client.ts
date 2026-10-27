@@ -1,3 +1,4 @@
+import {mountSetup} from './setup.ts';
 import type {WebUiPanelContext} from 'cortico/web/shared/client-panel.ts';
 
 interface Card {tripId:string;scene:string;title:string;note:string;completedAt:number;}
@@ -85,4 +86,4 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
   async function refresh(){if(loading||busy||ctx.signal.aborted)return;loading=true;const version=revision;try{const next=await ctx.invoke<Snapshot>('snapshot');if(!ctx.signal.aborted&&version===revision){data=next;render();}}catch{if(!ctx.signal.aborted)tell('暂时联系不上旅行册，已打开的来信仍留在这里。',true);}finally{loading=false;}}
   await refresh();ctx.interval(()=>{void refresh();},5000);
 }
-export default {panels:{album:{mount:mountAlbum}}};
+export default {panels:{album:{mount:mountAlbum},setup:{mount:mountSetup}}};

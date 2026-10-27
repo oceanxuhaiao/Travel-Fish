@@ -8,7 +8,7 @@ export const POSTCARD: WorldDefinition<PostcardConfigSection> = {
   create:ctx=>{
     let world:PostcardWorld;
     const generator=ctx.cfg.cloudEnabled?createCloudGenerator({root:join(ctx.dataDir,'postcard'),characterReference:ctx.cfg.characterReference,styleReference:ctx.cfg.styleReference,secret:name=>ctx.secret(name),imageProxyUrl:ctx.cfg.imageProxyUrl,visionProxyUrl:ctx.cfg.visionProxyUrl,recentTitles:()=>world.service.store.cards().slice(0,12).map(c=>c.title),recentVariants:scene=>world.service.store.cards().filter(c=>c.scene===scene&&typeof c.generation?.sceneVariant==='string').map(c=>c.generation!.sceneVariant as string)}):undefined;
-    world=new PostcardWorld({cfg:ctx.cfg,dataDir:ctx.dataDir,generator});return world;
+    world=new PostcardWorld({cfg:ctx.cfg,dataDir:ctx.dataDir,generator,setup:{secret:name=>ctx.secret(name),storeSecret:(name,value)=>ctx.storeSecret(name,value)}});return world;
   },
   describe:{tools:describeTools(POSTCARD_TOOL_DECLS,{
     postcard_start:{zh:'开始一趟现实时间等待的旅行。',en:'Start one timed trip.'},

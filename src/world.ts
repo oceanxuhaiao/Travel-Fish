@@ -1,3 +1,4 @@
+import {SetupPanel,type SetupSecrets} from './setup.ts';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import type { World, WorldHost, ToolDef, WorldWebUiDecl } from 'cortico/core/types.ts';
@@ -25,9 +26,11 @@ export class PostcardWorld implements World {
   private host?: WorldHost;
   private pulseFlight?: Promise<void>;
   readonly panel:PostcardPanel;
+  readonly setup:SetupPanel;
   readonly invitations:InvitationSchedule;
   private invitationsHealthy=true;
-  constructor(private opts: { cfg: PostcardConfigSection; dataDir: string; generator?: Generator; now?:()=>number }) {
+  constructor(private opts: { cfg: PostcardConfigSection; dataDir: string; generator?: Generator; now?:()=>number; setup?:SetupSecrets }) {
+    this.setup=new SetupPanel(opts.cfg,opts.setup);
     this.service = new TravelService(new TravelStore(join(opts.dataDir,'postcard')), opts.generator, opts.now);
     this.invitations=new InvitationSchedule(join(opts.dataDir,'postcard'),opts.now);
     this.panel=new PostcardPanel(this.service,()=>({minutes:this.opts.cfg.minutes,generatorConnected:!!this.opts.generator}));
@@ -48,7 +51,7 @@ export class PostcardWorld implements World {
     } }));
   }
   webUi(): WorldWebUiDecl {
-    return { label: '旅行明信片', panels:[{id:'album',title:'远方来信',description:'旅行、翻看明信片与保存收藏。'}],invoke:(panel,method,args)=>this.panel.invoke(panel,method,args),config: [POSTCARD_CONFIG_GROUP], promptDocs: [{ key:'worlds.postcard.envPrompt', title:'旅行环境说明', description:'旅行状态、费用与生成服务边界。', path:ENV_PROMPT_FILE, role:'envPrompt', vars:[{name:'postcard.availability',description:'当前生成服务接入情况'}] }] };
+    return { label: '旅行明信片', panels:[{id:'album',title:'远方来信',description:'旅行、翻看明信片与保存收藏。'},{id:'setup',title:'配置引导',description:'配置云端 API、参考图及旅行选项。'}],invoke:async(panel,method,args)=>panel==='setup'?this.setup.invoke(method,args):this.panel.invoke(panel,method,args),config: [POSTCARD_CONFIG_GROUP], promptDocs: [{ key:'worlds.postcard.envPrompt', title:'旅行环境说明', description:'旅行状态、费用与生成服务边界。', path:ENV_PROMPT_FILE, role:'envPrompt', vars:[{name:'postcard.availability',description:'当前生成服务接入情况'}] }] };
   }
   async start(host: WorldHost): Promise<void> {
     this.host = host; this.service.open();

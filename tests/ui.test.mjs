@@ -1,3 +1,4 @@
+import {mountSetup} from '../webui/setup.ts';
 import {it,expect,vi,afterEach} from 'vitest';
 import {JSDOM} from 'jsdom';
 import {mountAlbum} from '../webui/client.ts';
@@ -44,4 +45,10 @@ it('结果不确定的重试需要确认，取消确认不会发出重试请求'
 it('不展示场景目录、分类徽章或目的地控件，未知类别收藏仍可看',async()=>{
  const f=fixture([card('x','future-category')]);f.setState({trip:null,cards:[card('x','future-category')],minutes:30,generatorConnected:true,places:{forest:'萤光森林',coast:'海岸',snow:'雪夜小镇',lake:'湖畔',valley:'山谷',dunes:'沙丘',flowers:'花田',waterside:'水边小镇'}});
  vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:test');await mountAlbum(f.ctx);expect(f.ctx.root.querySelectorAll('select')).toHaveLength(0);expect(f.ctx.root.querySelectorAll('.pc-filters,.pc-place')).toHaveLength(0);expect(f.ctx.root.textContent).not.toContain('水边小镇');expect(f.ctx.root.querySelector('img').alt).toContain('一封安静的来信');
+});
+
+it('配置引导解释八项设置，密钥输入保存后清空且不缓存',async()=>{
+ const f=fixture();f.ctx.invoke.mockImplementation(async(method)=>method==='snapshot'?{keys:{ark:false,vision:false},secureSaveAvailable:true,cloudEnabled:false,characterReference:'',styleReference:''}:{keys:{ark:true,vision:false}});
+ await mountSetup(f.ctx);expect(f.ctx.root.querySelectorAll('dt')).toHaveLength(8);expect(f.ctx.root.textContent).toContain('不调用 API');
+ const input=f.ctx.root.querySelector('input');expect(input.type).toBe('password');input.value='mock-only-key';[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='保存此服务密钥').click();await flush();expect(input.value).toBe('');expect(f.memo.size).toBe(0);expect(f.ctx.root.textContent).not.toContain('mock-only-key');
 });
