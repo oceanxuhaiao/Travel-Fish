@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, openSync, closeSync, fsyncSync, unlinkSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-import {SCENES,chooseScene,freezeScene,type Scene,type Destination,type SceneSnapshot} from './scenes.ts';
+import {SCENES,chooseScene,freezeScene,type Scene,type Destination,type SceneSnapshot,type VisualVariation} from './scenes.ts';
 export {SCENES,type Scene} from './scenes.ts';
 export type Status = 'traveling' | 'awaiting_service' | 'generating' | 'failed' | 'cancelled' | 'completed';
 export interface Trip { id: string; scene: Scene; sceneSnapshot?: SceneSnapshot; startedAt: number; dueAt: number; status: Status; error?: string; completedAt?: number; phase?: string; generation?: Record<string,unknown>; }
@@ -130,7 +130,7 @@ export class TravelService {
     const recentScenes=recent.map(t=>t.scene);
     const scene=destination==='surprise'?chooseScene(id,recentScenes):destination;
     const recentVariants=recent.filter(t=>t.scene===scene).map(t=>t.sceneSnapshot?.id??t.generation?.sceneVariant).filter((v):v is string=>typeof v==='string');
-    const trip: Trip = { id, scene, sceneSnapshot:freezeScene(id,scene,recentScenes,recentVariants), startedAt: this.now(), dueAt: this.now()+minutes*60000, status: 'traveling' };
+    const trip: Trip = { id, scene, sceneSnapshot:freezeScene(id,scene,recentScenes,recentVariants,recent.filter(t=>t.status==='completed').map(t=>t.sceneSnapshot?.visualVariation).filter((v):v is VisualVariation=>!!v).slice(0,6)), startedAt: this.now(), dueAt: this.now()+minutes*60000, status: 'traveling' };
     if (this.generator?.prepare) trip.generation = this.generator.prepare(trip);
     state.trips.push(trip); this.store.save(state); return structuredClone(trip);
   }

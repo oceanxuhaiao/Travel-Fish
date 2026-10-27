@@ -151,3 +151,8 @@ it('宿主路径明确反图只重写文字，含糊感受可通过且不重生�
  let checks=0;const remote=vi.fn(transport()),host:Transport=async(k,p,signal)=>{if(promptOf(p).startsWith('只检查短笺'))return response(++checks===1?{...clear,has_explicit_conflict:true,checks:[{claim:'海岸',category:'scene',observation:'图中为树林溪流',clear_conflict:true}],conflicts:['森林图不兼容海岸']}:{...clear,uncertain_details:['温度和心情不可确认，不构成冲突']});return transport()(k,p,signal);};
  const g=createCloudGenerator({root,characterReference:ref,styleReference:ref,secret:()=> 'test',useHostModel:true,hostTransport:host},remote);prepare(g);const result=await g(trip,new AbortController().signal);expect(result.generation?.noteAttempt).toBe(2);expect(remote.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);
 });
+
+it('已有v2快照及完整提示词冻结，恢复不注入新组合',async()=>{
+ const g=make(transport());prepare(g);const old=structuredClone(trip.generation as any);old.sceneSnapshot.catalogVersion='imagined-scenes-v2';delete old.sceneSnapshot.visualVariation;old.prompt='旧版冻结prompt：保持原图，不加新构图';trip.generation=old;
+ const t=vi.fn(transport()),next=make(t);await next(trip,new AbortController().signal);expect(t.mock.calls.find(c=>c[0]==='image')![1].prompt).toBe(old.prompt);const count=t.mock.calls.length;await next(trip,new AbortController().signal);expect(t.mock.calls.length).toBe(count);
+});

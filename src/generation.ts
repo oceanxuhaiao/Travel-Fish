@@ -15,7 +15,7 @@ export const SCENE_PROMPTS: Record<'forest'|'coast'|'snow',string> = {
   coast:'安静的晴日海岸，女孩在浅色沙滩的小沙堡旁，身旁有小红螃蟹和贝壳，远处蓝绿海水和低矮绿海岬，天空清浅开阔。',
   snow:'蓝紫色雪夜小镇，女孩在面包店橱窗外木长椅旁休息，捧着冒轻柔热气的浅色杯子，积雪屋顶、小街、橱窗暖光和远处山影。围绕长椅与斜向街道重新构图，不出现海水、沙滩、沙堡或螃蟹。',
 };
-const COMMON = '生成完整收藏级旅行明信片，竖版2:3，单张。图1仅作角色身份参考：相同蓝发蓝眼Q版女孩，深蓝鲸鱼帽、白色喷水帽顶、白绒边、蓝白裙、小靴、鲸鱼尾。图2仅作浅淡透明水彩、细铅笔线、象牙白纸与通透留白参考；必须舍弃图2背景，不能搬用海天水平线或沙堡布局。角色连帽子约占高度三分之一，风景主导，角色自然融入环境光。细节克制，不画文字、日期、签名、logo、邮票；无贴纸感、多余肢体或其他人物。本次场景：';
+const COMMON = '生成完整收藏级旅行明信片，竖版2:3，单张。图1仅作角色身份参考：相同蓝发蓝眼Q版女孩，深蓝鲸鱼帽、白色喷水帽顶、白绒边、蓝白裙、小靴、鲸鱼尾。图2仅作浅淡透明水彩、细铅笔线、象牙白纸与通透留白参考；必须舍弃图2背景，不能搬用海天水平线或沙堡布局。人物含帽约占画面高度18%至33%，具体按本次景别，风景主导，角色自然融入环境光。细节克制，不画文字、日期、签名、logo、邮票；无贴纸感、多余肢体或其他人物。本次场景：';
 type Json = Record<string,unknown>;
 export interface CloudOptions { hostReady?:()=>boolean; hostTransport?:Transport; useHostModel?:boolean; root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
 export type Transport = (kind:'image'|'text', payload:Json, signal:AbortSignal)=>Promise<Json>;
