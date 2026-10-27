@@ -5,7 +5,7 @@ export interface SetupSecrets {secret:(name:string)=>string;storeSecret:(name:st
 const names={ark:'POSTCARD_ARK_API_KEY',vision:'POSTCARD_VISION_API_KEY'};
 export class SetupPanel {
  constructor(private cfg:PostcardConfigSection,private secrets?:SetupSecrets){}
- snapshot(){return {keys:{ark:!!this.secrets?.secret(names.ark),vision:!!this.secrets?.secret(names.vision)},secureSaveAvailable:!!this.secrets,cloudEnabled:this.cfg.cloudEnabled,characterReference:this.cfg.characterReference,styleReference:this.cfg.styleReference};}
+ snapshot(){return {keys:{ark:!!this.secrets?.secret(names.ark),vision:!!this.secrets?.secret(names.vision)},secureSaveAvailable:!!this.secrets,useHostModel:!!this.cfg.useHostModel,cloudEnabled:this.cfg.cloudEnabled,characterReference:this.cfg.characterReference,styleReference:this.cfg.styleReference};}
  invoke(method:string,args:unknown[]=[]):unknown {
   if(method==='snapshot')return this.snapshot();
   if(method==='setKey'){
@@ -19,7 +19,7 @@ export class SetupPanel {
    const s=this.snapshot();
    const reference=(path:string)=>{try{if(statSync(path).size>40*1024*1024)return false;decodePng(readFileSync(path));return true;}catch{return false;}};
    const proxy=(value:string)=>{if(!value)return true;try{return ['http:','https:'].includes(new URL(value).protocol);}catch{return false;}};
-   return {keys:s.keys,characterReference:reference(this.cfg.characterReference),styleReference:reference(this.cfg.styleReference),imageProxy:proxy(this.cfg.imageProxyUrl),visionProxy:proxy(this.cfg.visionProxyUrl),cloudEnabled:s.cloudEnabled};
+   return {useHostModel:s.useHostModel,visionKeyRequired:!s.useHostModel,keys:s.keys,characterReference:reference(this.cfg.characterReference),styleReference:reference(this.cfg.styleReference),imageProxy:proxy(this.cfg.imageProxyUrl),visionProxy:proxy(this.cfg.visionProxyUrl),cloudEnabled:s.cloudEnabled};
   }
   throw new Error('未知配置操作');
  }

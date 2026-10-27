@@ -1,3 +1,4 @@
+import type {HostModelBridge} from './host-model.ts';
 import {SetupPanel,type SetupSecrets} from './setup.ts';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
@@ -29,7 +30,7 @@ export class PostcardWorld implements World {
   readonly setup:SetupPanel;
   readonly invitations:InvitationSchedule;
   private invitationsHealthy=true;
-  constructor(private opts: { cfg: PostcardConfigSection; dataDir: string; generator?: Generator; now?:()=>number; setup?:SetupSecrets }) {
+  constructor(private opts: { cfg: PostcardConfigSection; dataDir: string; generator?: Generator; now?:()=>number; setup?:SetupSecrets; bridge?:HostModelBridge }) {
     this.setup=new SetupPanel(opts.cfg,opts.setup);
     this.service = new TravelService(new TravelStore(join(opts.dataDir,'postcard')), opts.generator, opts.now);
     this.invitations=new InvitationSchedule(join(opts.dataDir,'postcard'),opts.now);
@@ -37,7 +38,7 @@ export class PostcardWorld implements World {
   }
   envPromptVars(): Record<string,string> { return { 'postcard.availability': this.opts.generator ? '已接入生成服务' : '旅行核心预览，生成服务尚未接入，不会实际生图' }; }
   tools(): ToolDef[] {
-    return POSTCARD_TOOL_DECLS.map(decl => ({ ...decl, handler: async (args) => {
+    return [...(this.opts.bridge?.tools()??[]),...POSTCARD_TOOL_DECLS.map(decl => ({ ...decl, handler: async (args:Record<string,unknown>) => {
       let result: unknown;
       switch (decl.name) {
         case 'postcard_start': result = this.service.start('surprise', TRAVEL_MINUTES); break;
@@ -48,19 +49,19 @@ export class PostcardWorld implements World {
         case 'postcard_retry': result = this.service.retry(String(args.tripId),args.confirmUnknownOutcome===true); break;
       }
       return JSON.stringify(result);
-    } }));
+    } }))];
   }
   webUi(): WorldWebUiDecl {
     return { label: '旅行明信片', panels:[{id:'album',title:'远方来信',description:'旅行、翻看明信片与保存收藏。'},{id:'setup',title:'配置引导',description:'配置云端 API、参考图及旅行选项。'}],invoke:async(panel,method,args)=>panel==='setup'?this.setup.invoke(method,args):this.panel.invoke(panel,method,args),config: [POSTCARD_CONFIG_GROUP], promptDocs: [{ key:'worlds.postcard.envPrompt', title:'旅行环境说明', description:'旅行状态、费用与生成服务边界。', path:ENV_PROMPT_FILE, role:'envPrompt', vars:[{name:'postcard.availability',description:'当前生成服务接入情况'}] }] };
   }
   async start(host: WorldHost): Promise<void> {
-    this.host = host; this.service.open();
+    this.host = host; this.opts.bridge?.attach(host); this.service.open();
     try {this.invitations.open();} catch {this.invitationsHealthy=false;host.log.error('主动旅行询问日程损坏，已暂停询问；旅行和收藏仍可使用，请恢复日程备份');}
     this.timer = setInterval(() => { void this.pulse().catch(() => host.log.error('旅行状态推进失败，请检查存档')); }, 1000);
     this.timer.unref?.();
     try {
       await host.pushEvent({ type:'postcard.started', ts:new Date().toISOString(), source:this.id, origin:'internal', senderKey:this.id, text:'旅行核心已加载。'+this.envPromptVars()['postcard.availability'] }, { trigger:'piggyback' });
-      await this.pulse();
+      if(this.opts.bridge)void this.pulse().catch(()=>host.log.error('旅行状态推进失败，请检查存档'));else await this.pulse();
     } catch (error) { await this.stop(); throw error; }
   }
   pulse(): Promise<void> {
@@ -85,6 +86,6 @@ export class PostcardWorld implements World {
   }
   async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
-    this.timer = undefined; this.host = undefined; await this.service.close();
+    this.timer = undefined; this.opts.bridge?.detach(); this.host = undefined; await this.service.close();
   }
 }

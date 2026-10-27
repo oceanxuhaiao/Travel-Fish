@@ -17,7 +17,7 @@ export const SCENE_PROMPTS: Record<'forest'|'coast'|'snow',string> = {
 };
 const COMMON = '生成完整收藏级旅行明信片，竖版2:3，单张。图1仅作角色身份参考：相同蓝发蓝眼Q版女孩，深蓝鲸鱼帽、白色喷水帽顶、白绒边、蓝白裙、小靴、鲸鱼尾。图2仅作浅淡透明水彩、细铅笔线、象牙白纸与通透留白参考；必须舍弃图2背景，不能搬用海天水平线或沙堡布局。角色连帽子约占高度三分之一，风景主导，角色自然融入环境光。细节克制，不画文字、日期、签名、logo、邮票；无贴纸感、多余肢体或其他人物。本次场景：';
 type Json = Record<string,unknown>;
-export interface CloudOptions { root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
+export interface CloudOptions { hostReady?:()=>boolean; hostTransport?:Transport; useHostModel?:boolean; root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
 export type Transport = (kind:'image'|'text', payload:Json, signal:AbortSignal)=>Promise<Json>;
 interface Spec { policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; sceneSnapshot?:SceneSnapshot; placeScopeVersion?:'v1'|'v2'; noteReviewVersion?:'v1'|'v2'|'v3'; }
 interface Checkpoint { schema:1; imageAttempt:number; pendingImage:boolean; stage:string; textRequests:Record<string,number>; errors:string[]; }
@@ -94,7 +94,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
   };
   const generate:Generator=async(trip,signal,onPhase)=>{
     const folder=tripFolder(trip),spec=trip.generation as unknown as Spec;
-    if(!spec||![POLICY,CONTENT_POLICY,LEGACY_POLICY].includes(spec.policy)||spec.imageModel!==IMAGE_MODEL||spec.visionModel!==VISION_MODEL)throw new PipelineError('旅程生成版本不支持或缺少固定输入');
+    if(!spec||![POLICY,CONTENT_POLICY,LEGACY_POLICY].includes(spec.policy)||spec.imageModel!==IMAGE_MODEL||![VISION_MODEL,'host-model'].includes(spec.visionModel))throw new PipelineError('旅程生成版本不支持或缺少固定输入');
     if(spec.policy!==LEGACY_POLICY&&(!spec.scenePrompt||!spec.sceneVariant||!spec.noteVoice))throw new PipelineError('旅程缺少固定内容策略');
     if(spec.policy===POLICY&&(!spec.sceneSnapshot||spec.sceneSnapshot.scene!==trip.scene||!spec.sceneSnapshot.core||!spec.sceneSnapshot.conflicts))throw new PipelineError('旅行缺少固定场景快照');
     const refs=['character.png','style.png'].map(file=>readFileSync(join(folder,'input',file)));
@@ -124,6 +124,14 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       const content:Json[]=[{type:'text',text:prompt},...images.map(b=>({type:'image_url',image_url:{url:'data:image/png;base64,'+b.toString('base64')}}))];
       const payload:Json={model:spec.visionModel,stream:false,thinking:{type:'disabled'},response_format:{type:'json_object'},max_tokens:1800,messages:[{role:'user',content}]};
       atomicJson(join(folder,label+'-request.json'),{model:spec.visionModel,prompt,images:images.map(b=>({sha256:hash(b),bytes:b.length}))});
+      if(spec.visionModel==='host-model'){
+        if(!options.hostTransport)throw new PipelineError('本趟使用宿主模型，请恢复宿主模式后继续');
+        const result=await options.hostTransport('text',{...payload,__postcardTask:{tripId:trip.id,label}},signal);
+        const choice=(result.choices as any[])?.[0];let value:Json;
+        try{value=JSON.parse(choice.message.content);}catch{throw new PipelineError('宿主结果不是有效JSON');}
+        if(!value||typeof value!=='object'||Array.isArray(value))throw new PipelineError('宿主结果格式无效');
+        atomicJson(target,value);return value;
+      }
       while((cp.textRequests[label]??0)<2){
         cp.textRequests[label]=(cp.textRequests[label]??0)+1;atomicJson(cpFile(trip),cp);
         const started=Date.now();
@@ -201,14 +209,15 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
   };
   generate.prepare=trip=>{
     validateId(trip.id);
-    if(!options.secret('POSTCARD_ARK_API_KEY')||!options.secret('POSTCARD_VISION_API_KEY'))throw new PipelineError('请配置图片与视觉服务的部署密钥');
+    if(options.useHostModel&&options.hostReady&&!options.hostReady())throw new PipelineError('宿主模型未连接或不支持PNG，尚未开始生图');
+    if(!options.secret('POSTCARD_ARK_API_KEY')||(!options.useHostModel&&!options.secret('POSTCARD_VISION_API_KEY')))throw new PipelineError('请配置图片与视觉服务的部署密钥');
     if(!options.characterReference||!options.styleReference)throw new PipelineError('请明确配置角色与画风参考图');
     const refs=[options.characterReference,options.styleReference].map(file=>readFileSync(file));refs.forEach(b=>decodePng(b));
     const folder=tripFolder(trip);mkdirSync(join(folder,'input'),{recursive:true});
     ['character.png','style.png'].forEach((name,i)=>writeFileSync(join(folder,'input',name),refs[i],{flag:'wx'}));
     const sceneSnapshot=trip.sceneSnapshot??freezeScene(trip.id,trip.scene,[],options.recentVariants?.(trip.scene)??[]);
     const variant={id:sceneSnapshot.id,prompt:sceneSnapshot.prompt};
-    const spec:Spec={sceneSnapshot,placeScopeVersion:'v2',noteReviewVersion:'v3',policy:POLICY,imageModel:IMAGE_MODEL,visionModel:VISION_MODEL,prompt:COMMON+variant.prompt,characterSha:hash(refs[0]),styleSha:hash(refs[1]),scenePrompt:variant.prompt,sceneVariant:variant.id,noteVoice:selectNoteVoice(trip.id)};
+    const spec:Spec={sceneSnapshot,placeScopeVersion:'v2',noteReviewVersion:'v3',policy:POLICY,imageModel:IMAGE_MODEL,visionModel:options.useHostModel?'host-model':VISION_MODEL,prompt:COMMON+variant.prompt,characterSha:hash(refs[0]),styleSha:hash(refs[1]),scenePrompt:variant.prompt,sceneVariant:variant.id,noteVoice:selectNoteVoice(trip.id)};
     atomicJson(join(folder,'spec.json'),spec);return {...spec};
   };
   generate.confirmRetry=(trip,confirmed)=>{

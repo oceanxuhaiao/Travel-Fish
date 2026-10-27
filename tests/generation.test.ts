@@ -140,3 +140,14 @@ it('逐项明确反证不能被总体放行覆盖，旧版本行为不变',()=>{
  const r={...clear,checks:[{claim:'当下直立',category:'posture',observation:'明显坐姿',clear_conflict:true}]};
  expect(textAccepted(r)).toBe(false);expect(textAccepted(r,false)).toBe(true);
 });
+
+it('宿主通道超时后恢复同图，并保留原有图文门禁',async()=>{
+ let fail=true;const remote=vi.fn(transport()),host=vi.fn<Transport>(async(k,p,signal)=>{if(fail){fail=false;throw new Error('host timeout');}return transport()(k,p,signal);});
+ const g=createCloudGenerator({root,characterReference:ref,styleReference:ref,secret:n=>n==='POSTCARD_ARK_API_KEY'?'test':'',useHostModel:true,hostTransport:host},remote);prepare(g);
+ await expect(g(trip,new AbortController().signal)).rejects.toThrow('host timeout');const r=await g(trip,new AbortController().signal);expect(r.title).toBe(note.title);expect(r.generation?.visionModel).toBe('host-model');expect(remote.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);expect(remote.mock.calls.filter(c=>c[0]==='text')).toHaveLength(0);
+});
+
+it('宿主路径明确反图只重写文字，含糊感受可通过且不重生图片',async()=>{
+ let checks=0;const remote=vi.fn(transport()),host:Transport=async(k,p,signal)=>{if(promptOf(p).startsWith('只检查短笺'))return response(++checks===1?{...clear,has_explicit_conflict:true,checks:[{claim:'海岸',category:'scene',observation:'图中为树林溪流',clear_conflict:true}],conflicts:['森林图不兼容海岸']}:{...clear,uncertain_details:['温度和心情不可确认，不构成冲突']});return transport()(k,p,signal);};
+ const g=createCloudGenerator({root,characterReference:ref,styleReference:ref,secret:()=> 'test',useHostModel:true,hostTransport:host},remote);prepare(g);const result=await g(trip,new AbortController().signal);expect(result.generation?.noteAttempt).toBe(2);expect(remote.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);
+});

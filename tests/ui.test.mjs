@@ -49,7 +49,7 @@ it('不展示场景目录、分类徽章或目的地控件，未知类别收藏�
 
 it('配置引导解释八项设置，密钥输入保存后清空且不缓存',async()=>{
  const f=fixture();f.ctx.invoke.mockImplementation(async(method)=>method==='snapshot'?{keys:{ark:false,vision:false},secureSaveAvailable:true,cloudEnabled:false,characterReference:'',styleReference:''}:{keys:{ark:true,vision:false}});
- await mountSetup(f.ctx);expect(f.ctx.root.querySelectorAll('dt')).toHaveLength(7);expect(f.ctx.root.textContent).toContain('不调用 API');
+ await mountSetup(f.ctx);expect(f.ctx.root.querySelectorAll('dt')).toHaveLength(8);expect(f.ctx.root.textContent).toContain('不调用 API');
  const input=f.ctx.root.querySelector('input');expect(input.type).toBe('password');input.value='mock-only-key';[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='保存此服务密钥').click();await flush();expect(input.value).toBe('');expect(f.memo.size).toBe(0);expect(f.ctx.root.textContent).not.toContain('mock-only-key');
 });
 
