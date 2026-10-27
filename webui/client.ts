@@ -2,8 +2,8 @@ import type {WebUiPanelContext} from 'cortico/web/shared/client-panel.ts';
 
 interface Card {tripId:string;scene:string;title:string;note:string;completedAt:number;}
 interface Trip {id:string;scene:string;status:string;dueAt:number;error?:string;}
-interface Snapshot {trip:Trip|null;cards:Card[];minutes:number;generatorConnected:boolean;}
-const places:Record<string,string>={coast:'晴日海岸',forest:'萤光森林',snow:'雪夜小镇'};
+interface Snapshot {trip:Trip|null;cards:Card[];minutes:number;generatorConnected:boolean;places?:Record<string,string>;}
+let places:Record<string,string>={coast:'晴日海岸',forest:'萤光森林',snow:'雪夜小镇'};
 const date=(n:number)=>new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:'long',day:'numeric'}).format(new Date(n));
 const active=(t:Trip|null)=>!!t&&['traveling','generating','awaiting_service','failed'].includes(t.status);
 
@@ -50,8 +50,8 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
       title.textContent='下一段风景，去哪里看看？';
       sub.textContent=data.generatorConnected?'旅行约 '+data.minutes+' 分钟。归来后准备明信片；云端生成按服务计费。':'先在扩展配置中连接图片与视觉服务，再让它出发。已收到的来信随时可以翻看。';
       const choose=el('select','pc-select');choose.setAttribute('aria-label','旅行目的地');
-      for(const [value,label] of Object.entries(places)){const option=el('option','',label);option.value=value;choose.append(option);}
-      choose.value=ctx.memo.get('destination','forest');choose.addEventListener('change',()=>ctx.memo.set('destination',choose.value));
+      for(const [value,label] of Object.entries({surprise:'随便走走',...places})){const option=el('option','',label);option.value=value;choose.append(option);}
+      choose.value=ctx.memo.get('destination','surprise');if(!choose.value)choose.value='surprise';choose.addEventListener('change',()=>ctx.memo.set('destination',choose.value));
       const start=button('带一封来信回来',()=>action('start',[choose.value]),'pc-button pc-primary');start.disabled=!data.generatorConnected||busy;controls.append(choose,start);
     }
     text.prepend(title,sub);for(const b of controls.querySelectorAll('button'))if(busy)b.disabled=true;journey.append(text,controls);
@@ -69,7 +69,7 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
     const cards=data.cards.filter(c=>filter==='all'||c.scene===filter);
     if(!cards.length){const empty=el('div','pc-empty');empty.append(el('span','pc-empty-symbol','✉'),el('h3','',data.cards.length?'这段风景还没寄来':'第一封来信，还在路上'),el('p','',data.cards.length?'换个目的地看看，或让它出发去看看这里。':'选一个想去的地方，让收藏从这次旅行开始。'));grid.append(empty);}
     for(const card of cards){const open=button('',()=>{selected=card.tripId;flipped=false;remember();void renderDetail(true);},'pc-postcard');open.setAttribute('aria-label','打开来信：'+card.title);
-      const image=el('img');image.alt=places[card.scene]+'旅行明信片';image.loading='lazy';image.width=360;image.height=540;
+      const image=el('img');image.alt=(places[card.scene]??'远方')+'旅行明信片';image.loading='lazy';image.width=360;image.height=540;
       const footer=el('div','pc-card-footer');footer.append(el('span','pc-place',places[card.scene]??card.scene),el('h3','',card.title),el('time','',date(card.completedAt)));open.append(image,footer);grid.append(open);void thumbnail(card,image);
     }
     if(selected&&!data.cards.some(c=>c.tripId===selected)){selected=null;remember();}
@@ -90,7 +90,7 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
     detail.append(bar,content,actions);if(scroll)detail.scrollIntoView({behavior:'smooth',block:'start'});
   }
   function render(){renderJourney();const key=JSON.stringify(data?.cards);if(key!==lastCards){lastCards=key;renderCollection();}}
-  async function refresh(){if(loading||busy||ctx.signal.aborted)return;loading=true;const version=revision;try{const next=await ctx.invoke<Snapshot>('snapshot');if(!ctx.signal.aborted&&version===revision){data=next;render();}}catch{if(!ctx.signal.aborted)tell('暂时联系不上旅行册，已打开的来信仍留在这里。',true);}finally{loading=false;}}
+  async function refresh(){if(loading||busy||ctx.signal.aborted)return;loading=true;const version=revision;try{const next=await ctx.invoke<Snapshot>('snapshot');if(!ctx.signal.aborted&&version===revision){data=next;if(next.places)places=next.places;render();}}catch{if(!ctx.signal.aborted)tell('暂时联系不上旅行册，已打开的来信仍留在这里。',true);}finally{loading=false;}}
   await refresh();ctx.interval(()=>{void refresh();},5000);
 }
 export default {panels:{album:{mount:mountAlbum}}};

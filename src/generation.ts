@@ -5,11 +5,12 @@ import { PNG } from 'pngjs';
 import { fetch, ProxyAgent, Agent } from 'undici';
 import { atomicJson, type Generator, type Trip, type Artifact, type Scene } from './travel.ts';
 import {CONTENT_POLICY,LEGACY_POLICY,selectCoastVariant,selectNoteVoice,notePrompt} from './content.ts';
+import {freezeScene,type SceneSnapshot} from './scenes.ts';
 
-export const POLICY = CONTENT_POLICY;
+export const POLICY = 'non-contradiction-cloud-v3';
 export const IMAGE_MODEL = 'doubao-seedream-5-0-pro-260628';
 export const VISION_MODEL = 'deepseek-flash';
-export const SCENE_PROMPTS: Record<Scene,string> = {
+export const SCENE_PROMPTS: Record<'forest'|'coast'|'snow',string> = {
   forest:'黄昏薄雾森林，女孩在长满苔藓的老树洞旁休息，身旁有温暖的小小萤光，蕨叶、细小林间溪流、朦胧树影。围绕树洞与溪流重新构图，不出现海水、沙滩、沙堡、螃蟹或雪。',
   coast:'安静的晴日海岸，女孩在浅色沙滩的小沙堡旁，身旁有小红螃蟹和贝壳，远处蓝绿海水和低矮绿海岬，天空清浅开阔。',
   snow:'蓝紫色雪夜小镇，女孩在面包店橱窗外木长椅旁休息，捧着冒轻柔热气的浅色杯子，积雪屋顶、小街、橱窗暖光和远处山影。围绕长椅与斜向街道重新构图，不出现海水、沙滩、沙堡或螃蟹。',
@@ -18,7 +19,7 @@ const COMMON = '生成完整收藏级旅行明信片，竖版2:3，单张。图1
 type Json = Record<string,unknown>;
 export interface CloudOptions { root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
 export type Transport = (kind:'image'|'text', payload:Json, signal:AbortSignal)=>Promise<Json>;
-interface Spec { policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; }
+interface Spec { policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; sceneSnapshot?:SceneSnapshot; }
 interface Checkpoint { schema:1; imageAttempt:number; pendingImage:boolean; stage:string; textRequests:Record<string,number>; errors:string[]; }
 export class PipelineError extends Error { constructor(message:string) {super(message);this.name='PostcardPipelineError';} }
 export class HttpError extends Error { constructor(readonly status:number) {super('Cloud HTTP '+status);} }
@@ -89,8 +90,9 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
   };
   const generate:Generator=async(trip,signal,onPhase)=>{
     const folder=tripFolder(trip),spec=trip.generation as unknown as Spec;
-    if(!spec||![POLICY,LEGACY_POLICY].includes(spec.policy)||spec.imageModel!==IMAGE_MODEL||spec.visionModel!==VISION_MODEL)throw new PipelineError('旅程生成版本不支持或缺少固定输入');
-    if(spec.policy===POLICY&&(!spec.scenePrompt||!spec.sceneVariant||!spec.noteVoice))throw new PipelineError('旅程缺少固定内容策略');
+    if(!spec||![POLICY,CONTENT_POLICY,LEGACY_POLICY].includes(spec.policy)||spec.imageModel!==IMAGE_MODEL||spec.visionModel!==VISION_MODEL)throw new PipelineError('旅程生成版本不支持或缺少固定输入');
+    if(spec.policy!==LEGACY_POLICY&&(!spec.scenePrompt||!spec.sceneVariant||!spec.noteVoice))throw new PipelineError('旅程缺少固定内容策略');
+    if(spec.policy===POLICY&&(!spec.sceneSnapshot||spec.sceneSnapshot.scene!==trip.scene||!spec.sceneSnapshot.core||!spec.sceneSnapshot.conflicts))throw new PipelineError('旅行缺少固定场景快照');
     const refs=['character.png','style.png'].map(file=>readFileSync(join(folder,'input',file)));
     if(hash(refs[0])!==spec.characterSha||hash(refs[1])!==spec.styleSha)throw new PipelineError('旅行参考图校验失败，禁止使用变化的输入');
     const cp=getCp(trip);
@@ -162,7 +164,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
         }
       }
       stage('reviewing_image');
-      imageReview=await textCall('image-'+cp.imageAttempt+'-review', '图1为候选，图2仅角色参考。核对图1目标场景、蓝发鲸鱼装女孩身份、明显肢体破碎/乱码等不可用问题。细微服饰变化和不清晰细节不直接失败；坐站姿势和蒸汽数量为创作建议，不是硬门槛。森林/雪夜不能带入海岸/沙堡/螃蟹。返回JSON：scene_match、character_match、usable（布尔），background_conflicts、issues（字符串数组），facts（3到8条图1直接可见事实）。目标：'+(spec.scenePrompt??SCENE_PROMPTS[trip.scene]),[readFileSync(imagePath()),refs[0]]);
+      imageReview=await textCall('image-'+cp.imageAttempt+'-review', (spec.policy===POLICY?'图1为候选，图2仅角色参考。核对图1的核心景观、蓝发鲸鱼装女孩身份、明显肢体破碎/乱码等不可用问题。只把核心景观及明确冲突作为场景门槛，具体构图、气氛、可选装饰、手势及细小服饰变化不是硬要求，不清晰不等于错误。不核验真实地理，不要求某座地标。返回JSON：scene_match、character_match、usable（布尔），background_conflicts、issues（字符串数组），facts（3到8条图1直接可见事实）。核心景观：'+spec.sceneSnapshot!.core+'；明确冲突：'+spec.sceneSnapshot!.conflicts+'；可选装饰：'+spec.sceneSnapshot!.optional:'图1为候选，图2仅角色参考。核对图1目标场景、蓝发鲸鱼装女孩身份、明显肢体破碎/乱码等不可用问题。细微服饰变化和不清晰细节不直接失败；坐站姿势和蒸汽数量为创作建议，不是硬门槛。森林/雪夜不能带入海岸/沙堡/螃蟹。返回JSON：scene_match、character_match、usable（布尔），background_conflicts、issues（字符串数组），facts（3到8条图1直接可见事实）。目标：'+(spec.scenePrompt??SCENE_PROMPTS[trip.scene as keyof typeof SCENE_PROMPTS])),[readFileSync(imagePath()),refs[0]]);
       if(imageAccepted(imageReview))break;
       // A malformed check does not justify paying for another image.
       if(['scene_match','character_match','usable'].some(k=>typeof imageReview![k]!=='boolean')||!Array.isArray(imageReview.background_conflicts)||!strings(imageReview.facts,3,8))invalidSchema('image-'+cp.imageAttempt+'-review','图像审核格式无效，请检查后恢复本张图片');
@@ -173,15 +175,20 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     const image=readFileSync(imagePath());
     for(let attempt=1;attempt<=2;attempt++){
       stage('writing_note');
-      const raw=await textCall('image-'+cp.imageAttempt+'-note-'+attempt,notePrompt(imageReview.facts,options.recentTitles?.().slice(0,12)??[],spec.policy===POLICY?spec.noteVoice:undefined));
+      const raw=await textCall('image-'+cp.imageAttempt+'-note-'+attempt,notePrompt(imageReview.facts,options.recentTitles?.().slice(0,12)??[],spec.policy!==LEGACY_POLICY?spec.noteVoice:undefined)+(spec.policy===POLICY?' 本次地点虚构，title和note不得使用任何真实省市、景区、国家等专有地名，只写通用环境或风景。':''));
       const note=formatNote(raw);
       atomicJson(join(folder,'image-'+cp.imageAttempt+'-note-'+attempt+'-formatted.json'),{policy:'sentence-boundary-length-v1',changed:note.note!==raw.note,note});
       if(!noteFormatted(note))continue;
       stage('reviewing_note');
       const review=await textCall('image-'+cp.imageAttempt+'-note-'+attempt+'-review',textReviewPrompt(note,spec.policy),[image]);
+      if(spec.policy===POLICY){
+        const scope=await textCall('image-'+cp.imageAttempt+'-note-'+attempt+'-scope','只检查文字是否明确使用真实国家、省市、景区等专有地名。森林、海岸、山谷、沙丘、江边、古镇等通用词不是地名；感受和比喻不算。返回JSON：has_real_place_name（布尔）、names（明确真实地名字符串数组）。文字：'+JSON.stringify(note));
+        if(typeof scope.has_real_place_name!=='boolean'||!strings(scope.names))invalidSchema('image-'+cp.imageAttempt+'-note-'+attempt+'-scope','地名范围检查格式无效，请检查后恢复，不会重画');
+        if(scope.has_real_place_name||(scope.names as string[]).length)continue;
+      }
       if(textAccepted(review)){
         stage('committing');
-        return {image,title:note.title as string,note:note.note as string,generation:{policy:spec.policy,noteFormatting:'sentence-boundary-length-v1',imageModel:spec.imageModel,visionModel:spec.visionModel,characterSha:spec.characterSha,styleSha:spec.styleSha,imageAttempt:cp.imageAttempt,noteAttempt:attempt,...(spec.sceneVariant?{sceneVariant:spec.sceneVariant,noteVoice:spec.noteVoice}:{})}} satisfies Artifact;
+        return {image,title:note.title as string,note:note.note as string,generation:{policy:spec.policy,noteFormatting:'sentence-boundary-length-v1',imageModel:spec.imageModel,visionModel:spec.visionModel,characterSha:spec.characterSha,styleSha:spec.styleSha,imageAttempt:cp.imageAttempt,noteAttempt:attempt,...(spec.sceneSnapshot?{catalogVersion:spec.sceneSnapshot.catalogVersion,sceneLabel:spec.sceneSnapshot.label}:{}),...(spec.sceneVariant?{sceneVariant:spec.sceneVariant,noteVoice:spec.noteVoice}:{})}} satisfies Artifact;
       }
       if(typeof review.has_explicit_conflict!=='boolean'||!Array.isArray(review.conflicts)||!strings(review.uncertain_details))invalidSchema('image-'+cp.imageAttempt+'-note-'+attempt+'-review','文案审核格式无效，不能按通过处理');
     }
@@ -194,8 +201,9 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     const refs=[options.characterReference,options.styleReference].map(file=>readFileSync(file));refs.forEach(b=>decodePng(b));
     const folder=tripFolder(trip);mkdirSync(join(folder,'input'),{recursive:true});
     ['character.png','style.png'].forEach((name,i)=>writeFileSync(join(folder,'input',name),refs[i],{flag:'wx'}));
-    const variant=trip.scene==='coast'?selectCoastVariant(trip.id,options.recentVariants?.(trip.scene)??[]):{id:trip.scene+'-base',prompt:SCENE_PROMPTS[trip.scene]};
-    const spec:Spec={policy:POLICY,imageModel:IMAGE_MODEL,visionModel:VISION_MODEL,prompt:COMMON+variant.prompt,characterSha:hash(refs[0]),styleSha:hash(refs[1]),scenePrompt:variant.prompt,sceneVariant:variant.id,noteVoice:selectNoteVoice(trip.id)};
+    const sceneSnapshot=trip.sceneSnapshot??freezeScene(trip.id,trip.scene,[],options.recentVariants?.(trip.scene)??[]);
+    const variant={id:sceneSnapshot.id,prompt:sceneSnapshot.prompt};
+    const spec:Spec={sceneSnapshot,policy:POLICY,imageModel:IMAGE_MODEL,visionModel:VISION_MODEL,prompt:COMMON+variant.prompt,characterSha:hash(refs[0]),styleSha:hash(refs[1]),scenePrompt:variant.prompt,sceneVariant:variant.id,noteVoice:selectNoteVoice(trip.id)};
     atomicJson(join(folder,'spec.json'),spec);return {...spec};
   };
   generate.confirmRetry=(trip,confirmed)=>{

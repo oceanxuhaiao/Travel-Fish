@@ -7,7 +7,7 @@ function fixture(cards=[]){
   const controller=new w.AbortController(),memo=new Map(),resources=[],timers=[];
   let state={trip:null,cards,minutes:30,generatorConnected:true};
   const ctx={root:w.document.getElementById('root'),signal:controller.signal,memo:{get:(k,d)=>memo.has(k)?memo.get(k):d,set:(k,v)=>memo.set(k,v)},own:d=>{resources.push(d);return d;},interval:f=>{timers.push(f);return {dispose(){}};},timeout:()=>({dispose(){}}),ui:{confirm:vi.fn(async()=>true)},invoke:vi.fn(async(method,args)=>{
-    if(method==='start')state={...state,trip:{id:'test-trip',scene:args[0],status:'traveling',dueAt:Date.now()+1800000}};
+    if(method==='start')state={...state,trip:{id:'test-trip',scene:args[0]==='surprise'?'forest':args[0],status:'traveling',dueAt:Date.now()+1800000}};
     if(method==='cancel')state={...state,trip:{...state.trip,status:'cancelled'}};
     return structuredClone(state);
   }),invokeBinary:vi.fn(async()=>new Blob(['image']))};
@@ -19,7 +19,7 @@ afterEach(()=>{fixtures.forEach(f=>f.dispose());fixtures=[];vi.restoreAllMocks()
 it('空态、出发、等待和取消通过标准invoke调用',async()=>{
   const f=fixture();await mountAlbum(f.ctx);expect(f.ctx.root.textContent).toContain('第一封来信');
   const b=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='带一封来信回来');b.click();await flush();
-  expect(f.ctx.invoke).toHaveBeenCalledWith('start',['forest']);expect(f.ctx.root.textContent).toContain('正在去萤光森林');
+  expect(f.ctx.invoke).toHaveBeenCalledWith('start',['surprise']);expect(f.ctx.root.textContent).toContain('正在去萤光森林');
   [...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='先回家').click();await flush();expect(f.ctx.invoke).toHaveBeenCalledWith('cancel',['test-trip']);
 });
 it('目的地筛选、翻面和选择状态保留，内容不注入HTML',async()=>{

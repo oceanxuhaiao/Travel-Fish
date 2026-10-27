@@ -2,11 +2,11 @@ import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, openSync, closeSync, fsyncSync, unlinkSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const SCENES = ['forest', 'coast', 'snow'] as const;
-export type Scene = typeof SCENES[number];
+import {SCENES,chooseScene,freezeScene,type Scene,type Destination,type SceneSnapshot} from './scenes.ts';
+export {SCENES,type Scene} from './scenes.ts';
 export type Status = 'traveling' | 'awaiting_service' | 'generating' | 'failed' | 'cancelled' | 'completed';
-export interface Trip { id: string; scene: Scene; startedAt: number; dueAt: number; status: Status; error?: string; completedAt?: number; phase?: string; generation?: Record<string,unknown>; }
-export interface Card { tripId: string; scene: Scene; title: string; note: string; sha256: string; completedAt: number; generation?: Record<string,unknown>; }
+export interface Trip { id: string; scene: Scene; sceneSnapshot?: SceneSnapshot; startedAt: number; dueAt: number; status: Status; error?: string; completedAt?: number; phase?: string; generation?: Record<string,unknown>; }
+export interface Card { tripId: string; scene: Scene; sceneLabel?: string; title: string; note: string; sha256: string; completedAt: number; generation?: Record<string,unknown>; }
 interface Snapshot { schema: 1; trips: Trip[]; notified: string[]; }
 /** Adapter must return an approved complete artifact, never a temporary URL. */
 export interface Artifact { image: Uint8Array; title: string; note: string; generation?: Record<string,unknown>; }
@@ -101,7 +101,7 @@ export class TravelStore {
     const existing = this.card(trip.id); if (existing) return existing;
     const bytes = Buffer.from(artifact.image);
     if (!bytes.subarray(0,8).equals(png) || !artifact.title || !artifact.note) throw new Error('生成产物不完整');
-    const record: Card = { tripId: trip.id, scene: trip.scene, title: artifact.title, note: artifact.note, sha256: createHash('sha256').update(bytes).digest('hex'), completedAt: now, ...(artifact.generation ? { generation:artifact.generation } : {}) };
+    const record: Card = { tripId: trip.id, scene: trip.scene, ...(trip.sceneSnapshot?{sceneLabel:trip.sceneSnapshot.label}:{}), title: artifact.title, note: artifact.note, sha256: createHash('sha256').update(bytes).digest('hex'), completedAt: now, ...(artifact.generation ? { generation:artifact.generation } : {}) };
     const pending = join(this.collection, trip.id+'.'+randomUUID()+'.pending');
     mkdirSync(pending);
     writeFileSync(join(pending,'postcard.png'), bytes, { flag: 'wx' });
@@ -120,12 +120,17 @@ export class TravelService {
   open(): void { this.store.open(); this.stopped = false; }
   async close(): Promise<void> { this.stopped = true; this.controller?.abort(); try {await this.flight;} finally {this.store.close();} }
   status(): Trip | null { const trips = this.store.snapshot().trips; return trips.find(t => active.has(t.status)) ?? trips.at(-1) ?? null; }
-  start(scene: Scene, minutes: number): Trip {
+  start(destination: Destination, minutes: number): Trip {
     if (this.stopped) throw new Error('旅行服务未启动');
-    if (!SCENES.includes(scene) || !Number.isFinite(minutes) || minutes <= 0 || minutes > 10080) throw new Error('目的地或旅行时长无效');
+    if (!(destination==='surprise'||SCENES.includes(destination)) || !Number.isFinite(minutes) || minutes <= 0 || minutes > 10080) throw new Error('目的地或旅行时长无效');
     const state = this.store.snapshot();
     if (state.trips.some(t => active.has(t.status))) throw new Error('已有未结束旅行，请先完成或取消');
-    const trip: Trip = { id: randomUUID(), scene, startedAt: this.now(), dueAt: this.now()+minutes*60000, status: 'traveling' };
+    const id=randomUUID();
+    const recent=state.trips.slice().reverse();
+    const recentScenes=recent.map(t=>t.scene);
+    const scene=destination==='surprise'?chooseScene(id,recentScenes):destination;
+    const recentVariants=recent.filter(t=>t.scene===scene).map(t=>t.sceneSnapshot?.id??t.generation?.sceneVariant).filter((v):v is string=>typeof v==='string');
+    const trip: Trip = { id, scene, sceneSnapshot:freezeScene(id,scene,recentScenes,recentVariants), startedAt: this.now(), dueAt: this.now()+minutes*60000, status: 'traveling' };
     if (this.generator?.prepare) trip.generation = this.generator.prepare(trip);
     state.trips.push(trip); this.store.save(state); return structuredClone(trip);
   }

@@ -13,7 +13,7 @@ const good={scene_match:true,character_match:true,usable:true,background_conflic
 const clear={has_explicit_conflict:false,conflicts:[],uncertain_details:['微风无法从静态图确认']};
 function response(value:unknown){return {model:'deepseek-flash',choices:[{finish_reason:'stop',message:{content:JSON.stringify(value)}}],usage:{total_tokens:10}};}
 const promptOf=(payload:Record<string,unknown>)=>(payload.messages as {content:{text:string}[]}[])[0].content[0].text;
-function transport():Transport{return async(kind,payload)=>{if(kind==='image')return {data:[{b64_json:image.toString('base64')}],usage:{input_images:2,generated_images:1}};const p=promptOf(payload);return response(p.startsWith('图1为候选')?good:p.startsWith('写桌宠旅行')?note:clear);};}
+function transport():Transport{return async(kind,payload)=>{if(kind==='image')return {data:[{b64_json:image.toString('base64')}],usage:{input_images:2,generated_images:1}};const p=promptOf(payload);return response(p.startsWith('图1为候选')?good:p.startsWith('写桌宠旅行')?note:p.startsWith('只检查文字')?{has_real_place_name:false,names:[]}:clear);};}
 function make(t:Transport):Generator{return createCloudGenerator({root,characterReference:ref,styleReference:ref,secret:()=> 'local-test-only'},t);}
 function prepare(g:Generator){trip.generation=g.prepare!(trip);}
 beforeEach(()=>{root=mkdtempSync(join(tmpdir(),'postcard-cloud-'));ref=join(root,'ref.png');const png=new PNG({width:512,height:768});png.data.fill(240);image=PNG.sync.write(png);writeFileSync(ref,image);trip={id:randomUUID(),scene:'forest',startedAt:0,dueAt:1,status:'generating'};});
@@ -24,7 +24,7 @@ it('真实附两图、固定参考副本、缓存恢复不重复收费',async()=
   const result=await g(trip,new AbortController().signal);expect(result.title).toBe(note.title);
   const payload=t.mock.calls.find(c=>c[0]==='image')![1];expect((payload.image as string[])).toHaveLength(2);
   const count=t.mock.calls.length;await g(trip,new AbortController().signal);expect(t.mock.calls.length).toBe(count);
-  expect(result.generation?.policy).toBe('non-contradiction-cloud-v2');
+  expect(result.generation?.policy).toBe('non-contradiction-cloud-v3');
 });
 it('文案有明确冲突只改文字，不重新生成图片',async()=>{
   let checked=0;const base=transport(),t=vi.fn<Transport>(async(k,p,s)=>{
@@ -115,4 +115,15 @@ it('超长正文仅保留完整原句，仍经文图审核，原文和缓存不�
   const result=await g(trip,new AbortController().signal);expect(result.note).toBe(formatted.note);
   expect(t.mock.calls.some(c=>c[0]==='text'&&promptOf(c[1]).startsWith('只检查短笺'))).toBe(true);
   const saved=JSON.parse(readFileSync(join(root,'trips',trip.id,'image-1-note-1.json'),'utf8'));expect(saved.note).toBe(long.note);
+});
+
+it('v2未完成旅程继续旧审核，不因升级增加地名检查或重画',async()=>{
+ const t=vi.fn(transport()),g=make(t);prepare(g);trip.generation!.policy='non-contradiction-cloud-v2';delete trip.generation!.sceneSnapshot;
+ const a=await g(trip,new AbortController().signal);expect(a.generation?.policy).toBe('non-contradiction-cloud-v2');
+ expect(t.mock.calls.filter(c=>c[0]==='text').some(c=>promptOf(c[1]).startsWith('只检查文字'))).toBe(false);
+ const n=t.mock.calls.length;await g(trip,new AbortController().signal);expect(t.mock.calls.length).toBe(n);
+});
+it('真实地名仅重写短笺，同一图片不重画',async()=>{
+ const base=transport();let scopes=0;const t=vi.fn<Transport>(async(k,p,s)=>k==='text'&&promptOf(p).startsWith('只检查文字')?response(++scopes===1?{has_real_place_name:true,names:['杭州']}:{has_real_place_name:false,names:[]}):base(k,p,s));
+ const g=make(t);prepare(g);const a=await g(trip,new AbortController().signal);expect(a.generation?.noteAttempt).toBe(2);expect(t.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);
 });
