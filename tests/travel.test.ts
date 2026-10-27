@@ -83,3 +83,14 @@ describe('旅行状态和收藏',()=>{
     expect(()=>s.store.cards()).toThrow('校验');
   });
 });
+
+it('新旅行提前生成但不到期不入册/通知，重启且生成离线仍按期交付',async()=>{
+ const gen=vi.fn(async()=>artifact),s=new TravelService(new TravelStore(root),gen,()=>time,true);s.open();openServices.push(s);const trip=s.start('forest',120);await s.tick();expect(gen).toHaveBeenCalledTimes(1);expect(s.status()?.phase).toBe('ready_for_return');expect(s.store.cards()).toEqual([]);expect(s.pendingNotifications()).toEqual([]);await s.tick();expect(gen).toHaveBeenCalledTimes(1);await s.close();
+ const resumed=new TravelService(new TravelStore(root),undefined,()=>time,true);resumed.open();openServices.push(resumed);time=trip.dueAt-1;await resumed.tick();expect(resumed.store.cards()).toEqual([]);time=trip.dueAt;await resumed.tick();expect(resumed.status()?.status).toBe('completed');expect(resumed.pendingNotifications()).toHaveLength(1);
+});
+it('预制完成后取消，归来时间后仍不交付',async()=>{
+ const s=new TravelService(new TravelStore(root),async()=>artifact,()=>time,true);s.open();openServices.push(s);const trip=s.start('forest',120);await s.tick();s.cancel(trip.id);time=trip.dueAt;await s.tick();expect(s.store.cards()).toEqual([]);expect(s.pendingNotifications()).toEqual([]);
+});
+it('预制缓存损坏不自动重生图或发布',async()=>{
+ const gen=vi.fn(async()=>artifact),s=new TravelService(new TravelStore(root),gen,()=>time,true);s.open();openServices.push(s);const trip=s.start('forest',120);await s.tick();writeFileSync(join(root,'prepared',trip.id,'postcard.png'),'corrupt');time=trip.dueAt;await s.tick();expect(s.status()?.status).toBe('failed');expect(gen).toHaveBeenCalledTimes(1);expect(s.store.cards()).toEqual([]);
+});

@@ -39,24 +39,25 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
   function renderJourney(){
     if(!data)return;journey.replaceChildren();const t=data.trip;
     const text=el('div','pc-journey-copy');const title=el('h2');const sub=el('p','pc-muted');const controls=el('div','pc-journey-actions');
+    const inTravel=!!t&&Date.now()<t.dueAt;
     if(active(t)){
-      title.textContent=t!.status==='traveling'?'正在远方旅行':t!.status==='failed'?'这封来信还没准备好':t!.status==='awaiting_service'?'旅途到了，等来信启程':'正在把旅途装进信里';
-      sub.textContent=t!.status==='traveling'?'预计 '+new Date(t!.dueAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})+' 结束旅行，之后还要准备明信片。':t!.status==='failed'?'已经保存这趟旅程，可以稍后继续准备。':t!.status==='awaiting_service'?'请先在扩展配置中连接云端生成服务。':'明信片和短笺准备好后，会自动收进下面的收藏册。';
+      title.textContent=inTravel&&t!.status!=='failed'?'正在远方旅行':t!.status==='failed'?'这封来信还没准备好':t!.status==='awaiting_service'?'旅途到了，等来信启程':'正在把旅途装进信里';
+      sub.textContent=inTravel&&t!.status!=='failed'?'预计 '+new Date(t!.dueAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})+' 归来，明信片将在旅途中准备。':t!.status==='failed'?'已经保存这趟旅程，可以稍后继续准备。':t!.status==='awaiting_service'?'请先在扩展配置中连接云端生成服务。':'明信片和短笺准备好后，会自动收进下面的收藏册。';
       if(t!.status==='failed')controls.append(button('继续准备',retry,'pc-button pc-primary'));
       controls.append(button('先回家',cancel));
       if(t!.error){const info=el('details','pc-error-details');info.append(el('summary','','查看原因'),el('p','',t!.error));text.append(info);}
     }else{
       title.textContent='让它去远方走走';
-      sub.textContent=data.generatorConnected?'每趟旅行固定 2 小时。归来后准备明信片；云端生成按服务计费。':'先在扩展配置中连接图片与视觉服务，再让它出发。已收到的来信随时可以翻看。';
+      sub.textContent=data.generatorConnected?'每趟旅行固定 2 小时。明信片在旅途中制作，到时交付；云端生成按服务计费。':'先在扩展配置中连接图片与视觉服务，再让它出发。已收到的来信随时可以翻看。';
       const start=button('带一封来信回来',()=>action('start'),'pc-button pc-primary');start.disabled=!data.generatorConnected||busy;controls.append(start);
     }
     if(active(t)){
       const meter=el('div','pc-travel-progress');
       const total=t!.dueAt-t!.startedAt;
       const fraction=Number.isFinite(total)&&total>0?Math.max(0,Math.min(1,(Date.now()-t!.startedAt)/total)):0;
-      const traveling=t!.status==='traveling';const percent=traveling?Math.floor(fraction*100):100;
+      const traveling=inTravel;const percent=traveling?Math.floor(fraction*100):100;
       const label=el('p','pc-progress-label',traveling?'旅行进度 · '+percent+'%':'旅行等待已结束 · 明信片尚未完成');
-      const bar=el('progress','pc-progress');bar.max=100;bar.value=percent;bar.setAttribute('aria-label','旅行等待进度');bar.setAttribute('aria-valuetext',traveling?percent+'%，明信片制作时间另计':'旅行等待已结束，明信片尚未完成');
+      const bar=el('progress','pc-progress');bar.max=100;bar.value=percent;bar.setAttribute('aria-label','旅行等待进度');bar.setAttribute('aria-valuetext',traveling?percent+'%，明信片在旅途中准备':'旅行等待已结束，明信片尚未完成');
       const left=Math.max(0,Math.ceil((t!.dueAt-Date.now())/60000));
       const hint=el('p','pc-muted',traveling?(left>0?'约 '+left+' 分钟后结束旅行':'旅行等待已结束，正在同步归来状态'):'这条进度仅表示旅行等待，明信片保存后才算收到来信。');
       meter.append(label,bar,hint);text.append(meter);
@@ -95,6 +96,6 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
   }
   function render(){renderJourney();const key=JSON.stringify(data?.cards);if(key!==lastCards){lastCards=key;renderCollection();}}
   async function refresh(){if(loading||busy||ctx.signal.aborted)return;loading=true;const version=revision;try{const next=await ctx.invoke<Snapshot>('snapshot');if(!ctx.signal.aborted&&version===revision){data=next;render();}}catch{if(!ctx.signal.aborted)tell('暂时联系不上旅行册，已打开的来信仍留在这里。',true);}finally{loading=false;}}
-  await refresh();ctx.interval(()=>{void refresh();},5000);ctx.interval(()=>{if(!ctx.signal.aborted&&data?.trip?.status==='traveling')renderJourney();},1000);
+  await refresh();ctx.interval(()=>{void refresh();},5000);ctx.interval(()=>{if(!ctx.signal.aborted&&data?.trip&&active(data.trip))renderJourney();},1000);
 }
 export default {panels:{album:{mount:mountAlbum},setup:{mount:mountSetup}}};

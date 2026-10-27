@@ -1,5 +1,5 @@
 import type {WebUiPanelContext} from 'cortico/web/shared/client-panel.ts';
-interface State {characterPreset?:string;presets?:{id:string;label:string}[];useHostModel?:boolean;keys:{ark:boolean;vision:boolean};secureSaveAvailable:boolean;cloudEnabled:boolean;characterReference:string;styleReference:string;}
+interface State {imageModel?:string;characterPreset?:string;presets?:{id:string;label:string}[];useHostModel?:boolean;keys:{ark:boolean;vision:boolean};secureSaveAvailable:boolean;cloudEnabled:boolean;characterReference:string;styleReference:string;}
 export async function mountSetup(ctx:WebUiPanelContext){
  const d=ctx.root.ownerDocument;
  const el=(tag:string,text='')=>{const n=d.createElement(tag);n.textContent=text;return n;};
@@ -10,9 +10,9 @@ export async function mountSetup(ctx:WebUiPanelContext){
  const button=(text:string,action:()=>Promise<void>)=>{const b=d.createElement('button');b.type='button';b.className='pc-button';b.textContent=text;b.onclick=()=>{b.disabled=true;void action().catch(()=>say('操作未完成，请检查配置或部署目录权限后重试。')).finally(()=>{if(!ctx.signal.aborted)b.disabled=false;});};return b;};
  root.append(el('h1','让第一封旅行来信顺利抵达'),el('p','准备生图 API Key 和两张 PNG 参考图；视觉可选择使用宿主模型，或独立配置 DeepSeek。无需 OpenAI 账号，也不需要在本机安装模型。这里的检查不会调用云端 API 或产生生图费用。'),status);
  const state=await ctx.invoke<State>('snapshot');if(ctx.signal.aborted)return;
- root.append(el('h2','1 · 配置两个云端服务'));
+ root.append(el('h2','1 · 配置生图与视觉通道'));
  for(const [id,title,description,url] of [
-  ['ark','火山方舟 · 画明信片','使用 Doubao-Seedream-5.0-pro，根据角色与画风参考图生成完整明信片。在方舟控制台开通对应模型的调用权限、检查账户余额，再创建 API Key。','https://ark.volcengine.com/region:cn-beijing/apikey'],
+  ['ark','火山方舟 · 画明信片','默认使用 Doubao-Seedream-5.0-flash，根据角色与画风参考图生成完整明信片。在方舟控制台开通对应模型的调用权限、检查账户余额，再创建 API Key。','https://ark.volcengine.com/region:cn-beijing/apikey'],
   ['vision','DeepSeek · 看图写信与检查','使用 deepseek-flash 读取成图、生成短笺并检查明确的图文矛盾。需在 DeepSeek 开放平台创建 API Key 并确保账户可调用；聊天应用登录或会员不能代替 API Key。','https://platform.deepseek.com/api_keys']
  ] as const){
   const block=el('article');block.append(el('h3',title),el('p',description),link('打开官方 API Key 控制台',url));
@@ -22,7 +22,7 @@ export async function mountSetup(ctx:WebUiPanelContext){
   const save=button('保存此服务密钥',async()=>{try{const next=await ctx.invoke<State>('setKey',[id,input.value]);if(ctx.signal.aborted)return;configured.textContent=next.keys[id]?'已配置密钥（不回显内容）':'尚未配置';say('密钥已交由宿主保存。请勿截图或分享部署目录中的 .env 文件。');}finally{input.value='';}});save.disabled=!state.secureSaveAvailable;
   block.append(configured,input,save);root.append(block);
  }
- root.append(el('p','密钥由宿主写入扩展部署目录的 .env；该文件包含明文凭据，请保管好。界面不回显、不存入浏览器缓存。模型与接口由本版本固定，无需填写模型名或接口地址。高级用户也可自行配置 POSTCARD_ARK_API_KEY 与 POSTCARD_VISION_API_KEY 环境变量。'));
+ root.append(el('p','密钥由宿主写入扩展部署目录的 .env；该文件包含明文凭据，请保管好。界面不回显、不存入浏览器缓存。默认Flash，可在配置页“生图模型ID”填写其他兼容方舟模型或接入点ID。自定义模型必须支持当前双参考图、2K和PNG输出协议；不代表通用支持所有厂商。高级用户也可自行配置 POSTCARD_ARK_API_KEY 与 POSTCARD_VISION_API_KEY 环境变量。'));
  root.append(el('h2','2 · 选择两张参考图'));
  root.append(el('p','角色可直接选择内置服饰，或导入自己的PNG（校验后复制到扩展数据目录，移动原文件不会丢失）。默认使用冬装；已有角色路径继续兼容使用。选择不会自动跟随宿主换装，只影响新旅行。'));
  const selectedText=el('p','当前角色：'+((state.characterPreset??'auto')==='auto'?(state.characterReference?'自定义参考图':'冬装'):({maid:'女仆装',winter:'冬装',crew:'店员装',custom:'自定义参考图'}[state.characterPreset!]??'冬装')));root.append(selectedText);
@@ -33,10 +33,12 @@ export async function mountSetup(ctx:WebUiPanelContext){
   ['characterReference','角色参考 PNG','决定宠物的外形、配色和身份，建议主体清楚、没有复杂遮挡。'],
   ['styleReference','画风参考 PNG','决定水彩笔触、色调与画面气质，不保证复制参考图中的地点。']
  ] as const){
-  const label=el('p',state[key]||'尚未选择');root.append(el('h3',title),el('p',desc+' 图片需为可解码的PNG，宽高各512至4096像素，文件不超过40MB。'),label,button('选择'+title,async()=>{let path=await ctx.pickPath({kind:'file',title,extensions:['.png']});if(!path||ctx.signal.aborted)return;if(key==='characterReference'){const imported=await ctx.invoke<{path:string}>('importCharacter',[path]);path=imported.path;selectedText.textContent='当前角色：自定义参考图';}await ctx.setConfig('world:postcard',{['worlds.postcard.'+key]:path,...(key==='characterReference'?{'worlds.postcard.characterPreset':'custom'}:{})});label.textContent=path;say('路径已保存。请重启旅行明信片 World，再做本地检查。');}));
+  const label=el('p',state[key]||(key==='styleReference'?'使用内置开发水彩参考':'尚未选择'));root.append(el('h3',title),el('p',desc+' 图片需为可解码的PNG，宽高各512至4096像素，文件不超过40MB。'),label,button('选择'+title,async()=>{let path=await ctx.pickPath({kind:'file',title,extensions:['.png']});if(!path||ctx.signal.aborted)return;if(key==='characterReference'){const imported=await ctx.invoke<{path:string}>('importCharacter',[path]);path=imported.path;selectedText.textContent='当前角色：自定义参考图';}await ctx.setConfig('world:postcard',{['worlds.postcard.'+key]:path,...(key==='characterReference'?{'worlds.postcard.characterPreset':'custom'}:{})});label.textContent=path;say('路径已保存。请重启旅行明信片 World，再做本地检查。');}));
  }
- root.append(el('h2','3 · 理解配置选项，再开启生成'),el('p','每次新旅行固定为2小时，无法修改。旅行进度按真实经过时间计算；到达后还需制作明信片，生成耗时另计。旧旅程保留出发时的归来时间。'));
+ root.append(button('恢复内置水彩参考',async()=>{await ctx.setConfig('world:postcard',{'worlds.postcard.styleReference':''});say('已恢复内置开发水彩参考，请重启本World。');}));
+ root.append(el('h2','3 · 理解配置选项，再开启生成'),el('p','每次新旅行固定为2小时，无法修改。旅行进度按真实经过时间计算，明信片在旅途中提前制作，到达后交付；云服务失败或未完成时如实显示延迟。旧旅程保留出发时的归来时间。'));
  const items=[
+ ['生图模型ID','默认doubao-seedream-5-0-flash-260915，可填写其他兼容方舟双参考图/PNG输出的模型或接入点ID，需先开通。保存后重启，仅新旅行生效。'],
  ['使用宿主模型看图与写信','开启后不需要独立DeepSeek密钥，宿主当前模型必须支持PNG。进入主会话，消耗宿主额度；忙碌时等待，10分钟后超时，可手动继续原候选。不会自动切换独立收费API。保存后重启，仅新旅行使用此选择。'],
  ['允许宠物主动询问旅行','默认开启。到时给宠物一个询问机会，由宠物自然表达；用户明确同意才出发，沉默与拒绝都不会生图。保存后立即生效。'],
  ['主动询问间隔（分钟）','默认360分钟（6小时），范围1至43200。旅行未结束或服务未接入时暂停，恢复后重新计时；关机期间不会补发。询问可能消耗少量宿主对话模型用量，间隔不保证每次都说话。保存后立即生效。'],

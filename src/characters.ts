@@ -6,3 +6,5 @@ export function characterReference(cfg:PostcardConfigSection){const mode=cfg.cha
  if(mode==='custom'||mode==='auto'&&cfg.characterReference.trim()){if(!cfg.characterReference.trim())throw new Error('请先导入自定义角色PNG');return cfg.characterReference;}
  return presetPath(mode==='auto'?'winter':mode);
 }
+
+export function styleReference(cfg:PostcardConfigSection){return cfg.styleReference.trim()||fileURLToPath(new URL('../assets/style-default.png',import.meta.url));}

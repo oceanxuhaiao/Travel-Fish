@@ -156,3 +156,7 @@ it('已有v2快照及完整提示词冻结，恢复不注入新组合',async()=>
  const g=make(transport());prepare(g);const old=structuredClone(trip.generation as any);old.sceneSnapshot.catalogVersion='imagined-scenes-v2';delete old.sceneSnapshot.visualVariation;old.prompt='旧版冻结prompt：保持原图，不加新构图';trip.generation=old;
  const t=vi.fn(transport()),next=make(t);await next(trip,new AbortController().signal);expect(t.mock.calls.find(c=>c[0]==='image')![1].prompt).toBe(old.prompt);const count=t.mock.calls.length;await next(trip,new AbortController().signal);expect(t.mock.calls.length).toBe(count);
 });
+
+it('默认Flash且自定义模型在出发冻结，旧Pro记录也可恢复',async()=>{
+ const t=vi.fn(transport()),g=createCloudGenerator({root,characterReference:ref,styleReference:ref,imageModel:'custom-ark-model',secret:()=> 'test'},t);prepare(g);expect(trip.generation!.imageModel).toBe('custom-ark-model');await g(trip,new AbortController().signal);expect(t.mock.calls.find(c=>c[0]==='image')![1].model).toBe('custom-ark-model');
+});

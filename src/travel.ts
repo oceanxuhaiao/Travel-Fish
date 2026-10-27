@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import {SCENES,chooseScene,freezeScene,type Scene,type Destination,type SceneSnapshot,type VisualVariation} from './scenes.ts';
 export {SCENES,type Scene} from './scenes.ts';
 export type Status = 'traveling' | 'awaiting_service' | 'generating' | 'failed' | 'cancelled' | 'completed';
-export interface Trip { id: string; scene: Scene; sceneSnapshot?: SceneSnapshot; startedAt: number; dueAt: number; status: Status; error?: string; completedAt?: number; phase?: string; generation?: Record<string,unknown>; }
+export interface Trip { id: string; scene: Scene; prepareDuringTravel?:boolean; sceneSnapshot?: SceneSnapshot; startedAt: number; dueAt: number; status: Status; error?: string; completedAt?: number; phase?: string; generation?: Record<string,unknown>; }
 export interface Card { tripId: string; scene: Scene; sceneLabel?: string; title: string; note: string; sha256: string; completedAt: number; generation?: Record<string,unknown>; }
 interface Snapshot { schema: 1; trips: Trip[]; notified: string[]; }
 /** Adapter must return an approved complete artifact, never a temporary URL. */
@@ -65,12 +65,26 @@ export class TravelStore {
       for (const trip of this.state.trips) {
         const card = this.card(trip.id);
         if (card) { trip.status = 'completed'; trip.completedAt = card.completedAt; delete trip.error; }
+        else if (trip.status === 'generating'&&trip.prepareDuringTravel) {try{if(this.stagedArtifact(trip.id)){trip.status='traveling';trip.phase='ready_for_return';}else{trip.status='failed';trip.error='应用在生成过程中关闭，请检查服务状态后手动继续';}}catch{trip.status='failed';trip.error='待交付成品损坏，请恢复备份，禁止重新收费生成';}}
         else if (trip.status === 'generating') { trip.status = 'failed'; trip.error = '应用在生成过程中关闭，远端结果未知；请确认后手动重试'; }
         else if (trip.status === 'completed') throw new Error('收藏文件缺失或损坏，禁止自动重新收费生成');
       }
       if (this.state.trips.filter(t => active.has(t.status)).length > 1) throw new Error('存档包含多趟未结束旅行');
       this.persist();
     } catch (error) { this.close(); throw error; }
+  }
+  stageArtifact(trip:Trip,artifact:Artifact):void {
+    if(!validId(trip.id))throw new Error('旅行编号无效');
+    const folder=join(this.root,'prepared',trip.id);mkdirSync(folder,{recursive:true});const image=Buffer.from(artifact.image);
+    if(!image.subarray(0,8).equals(png))throw new Error('候选成品不是PNG');
+    const target=join(folder,'postcard.png'),temp=target+'.'+randomUUID()+'.tmp';const fd=openSync(temp,'wx');try{writeFileSync(fd,image);fsyncSync(fd);}finally{closeSync(fd);}renameSync(temp,target);
+    atomicJson(join(folder,'artifact.json'),{title:artifact.title,note:artifact.note,generation:artifact.generation,sha256:createHash('sha256').update(image).digest('hex')});
+  }
+  stagedArtifact(id:string):Artifact|null {
+    if(!validId(id))throw new Error('旅行编号无效');const folder=join(this.root,'prepared',id),meta=join(folder,'artifact.json');if(!existsSync(meta))return null;
+    const record=JSON.parse(readFileSync(meta,'utf8')),image=readFileSync(join(folder,'postcard.png'));
+    if(typeof record.title!=='string'||typeof record.note!=='string'||createHash('sha256').update(image).digest('hex')!==record.sha256)throw new Error('待交付成品损坏，禁止重新收费生成');
+    return {image,title:record.title,note:record.note,generation:record.generation};
   }
   close(): void { if (this.lock) { unlinkSync(join(this.root, 'writer.lock')); this.lock = false; } }
   snapshot(): Snapshot { return structuredClone(this.state); }
@@ -116,7 +130,7 @@ export class TravelService {
   private flight?: Promise<void>;
   private controller?: AbortController;
   private stopped = true;
-  constructor(readonly store: TravelStore, private generator: Generator | undefined, private now: () => number = Date.now) {}
+  constructor(readonly store: TravelStore, private generator: Generator | undefined, private now: () => number = Date.now,private earlyPreparation=false) {}
   open(): void { this.store.open(); this.stopped = false; }
   async close(): Promise<void> { this.stopped = true; this.controller?.abort(); try {await this.flight;} finally {this.store.close();} }
   status(): Trip | null { const trips = this.store.snapshot().trips; return trips.find(t => active.has(t.status)) ?? trips.at(-1) ?? null; }
@@ -130,7 +144,7 @@ export class TravelService {
     const recentScenes=recent.map(t=>t.scene);
     const scene=destination==='surprise'?chooseScene(id,recentScenes):destination;
     const recentVariants=recent.filter(t=>t.scene===scene).map(t=>t.sceneSnapshot?.id??t.generation?.sceneVariant).filter((v):v is string=>typeof v==='string');
-    const trip: Trip = { id, scene, sceneSnapshot:freezeScene(id,scene,recentScenes,recentVariants,recent.filter(t=>t.status==='completed').map(t=>t.sceneSnapshot?.visualVariation).filter((v):v is VisualVariation=>!!v).slice(0,6)), startedAt: this.now(), dueAt: this.now()+minutes*60000, status: 'traveling' };
+    const trip: Trip = { id, scene,...(this.earlyPreparation?{prepareDuringTravel:true}:{}), sceneSnapshot:freezeScene(id,scene,recentScenes,recentVariants,recent.filter(t=>t.status==='completed').map(t=>t.sceneSnapshot?.visualVariation).filter((v):v is VisualVariation=>!!v).slice(0,6)), startedAt: this.now(), dueAt: this.now()+minutes*60000, status: 'traveling' };
     if (this.generator?.prepare) trip.generation = this.generator.prepare(trip);
     state.trips.push(trip); this.store.save(state); return structuredClone(trip);
   }
@@ -155,9 +169,11 @@ export class TravelService {
   }
   private async advance(): Promise<void> {
     const state = this.store.snapshot();
-    const trip = state.trips.find(t => (t.status === 'traveling' || t.status === 'awaiting_service') && t.dueAt <= this.now());
+    const trip = state.trips.find(t => (t.status === 'traveling' || t.status === 'awaiting_service') && (t.dueAt <= this.now()||t.prepareDuringTravel));
     if (!trip) return;
-    if (!this.generator) { trip.status = 'awaiting_service'; this.store.save(state); return; }
+    let prepared:Artifact|null;try{prepared=trip.prepareDuringTravel?this.store.stagedArtifact(trip.id):null;}catch{trip.status='failed';trip.error='待交付成品损坏，请恢复备份，禁止重新收费生成';this.store.save(state);return;}
+    if(prepared){if(this.now()<trip.dueAt)return;try{const card=this.store.commit(trip,prepared,this.now());trip.status='completed';trip.completedAt=card.completedAt;delete trip.error;}catch{trip.status='failed';trip.error='成品交付保存失败，已保留待交付文件；请检查磁盘后手动继续';}this.store.save(state);return;}
+    if (!this.generator) { if(this.now()<trip.dueAt)return;trip.status = 'awaiting_service'; this.store.save(state); return; }
     trip.status = 'generating'; this.store.save(state); this.controller = new AbortController();
     try {
       const artifact = await this.generator(structuredClone(trip), this.controller.signal, phase=>{
@@ -167,6 +183,7 @@ export class TravelService {
       const latest = this.store.snapshot(), current = latest.trips.find(t => t.id === trip.id)!;
       if (current.status === 'cancelled') return;
       if (this.stopped) { current.status = 'failed'; current.error = '生成被停止，确认服务状态后可手动重试'; this.store.save(latest); return; }
+      if(current.prepareDuringTravel){this.store.stageArtifact(current,artifact);if(this.now()<current.dueAt){current.status='traveling';current.phase='ready_for_return';delete current.error;this.store.save(latest);return;}}
       const card = this.store.commit(current, artifact, this.now());
       current.status = 'completed'; current.completedAt = card.completedAt; delete current.error; this.store.save(latest);
     } catch (error) {

@@ -8,7 +8,7 @@ import {CONTENT_POLICY,LEGACY_POLICY,selectCoastVariant,selectNoteVoice,noteProm
 import {freezeScene,type SceneSnapshot} from './scenes.ts';
 
 export const POLICY = 'non-contradiction-cloud-v3';
-export const IMAGE_MODEL = 'doubao-seedream-5-0-pro-260628';
+export const IMAGE_MODEL = 'doubao-seedream-5-0-flash-260915';
 export const VISION_MODEL = 'deepseek-flash';
 export const SCENE_PROMPTS: Record<'forest'|'coast'|'snow',string> = {
   forest:'黄昏薄雾森林，女孩在长满苔藓的老树洞旁休息，身旁有温暖的小小萤光，蕨叶、细小林间溪流、朦胧树影。围绕树洞与溪流重新构图，不出现海水、沙滩、沙堡、螃蟹或雪。',
@@ -17,7 +17,7 @@ export const SCENE_PROMPTS: Record<'forest'|'coast'|'snow',string> = {
 };
 const COMMON = '生成完整收藏级旅行明信片，竖版2:3，单张。图1仅作角色身份与服装参考：保持图1的发色、发型、脸部、头饰、服装主色与独特配件，不能把不同服饰强改成冬装或鲸鱼帽；自定义角色也严格跟随图1。图2仅作浅淡透明水彩、细铅笔线、象牙白纸与通透留白参考；必须舍弃图2背景，不能搬用海天水平线或沙堡布局。人物含帽约占画面高度18%至33%，具体按本次景别，风景主导，角色自然融入环境光。细节克制，不画文字、日期、签名、logo、邮票；无贴纸感、多余肢体或其他人物。本次场景：';
 type Json = Record<string,unknown>;
-export interface CloudOptions { hostReady?:()=>boolean; hostTransport?:Transport; useHostModel?:boolean; root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
+export interface CloudOptions { imageModel?:string; hostReady?:()=>boolean; hostTransport?:Transport; useHostModel?:boolean; root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
 export type Transport = (kind:'image'|'text', payload:Json, signal:AbortSignal)=>Promise<Json>;
 interface Spec { policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; sceneSnapshot?:SceneSnapshot; placeScopeVersion?:'v1'|'v2'; noteReviewVersion?:'v1'|'v2'|'v3'; }
 interface Checkpoint { schema:1; imageAttempt:number; pendingImage:boolean; stage:string; textRequests:Record<string,number>; errors:string[]; }
@@ -94,7 +94,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
   };
   const generate:Generator=async(trip,signal,onPhase)=>{
     const folder=tripFolder(trip),spec=trip.generation as unknown as Spec;
-    if(!spec||![POLICY,CONTENT_POLICY,LEGACY_POLICY].includes(spec.policy)||spec.imageModel!==IMAGE_MODEL||![VISION_MODEL,'host-model'].includes(spec.visionModel))throw new PipelineError('旅程生成版本不支持或缺少固定输入');
+    if(!spec||![POLICY,CONTENT_POLICY,LEGACY_POLICY].includes(spec.policy)||(typeof spec.imageModel!=='string'||!spec.imageModel.trim())||![VISION_MODEL,'host-model'].includes(spec.visionModel))throw new PipelineError('旅程生成版本不支持或缺少固定输入');
     if(spec.policy!==LEGACY_POLICY&&(!spec.scenePrompt||!spec.sceneVariant||!spec.noteVoice))throw new PipelineError('旅程缺少固定内容策略');
     if(spec.policy===POLICY&&(!spec.sceneSnapshot||spec.sceneSnapshot.scene!==trip.scene||!spec.sceneSnapshot.core||!spec.sceneSnapshot.conflicts))throw new PipelineError('旅行缺少固定场景快照');
     const refs=['character.png','style.png'].map(file=>readFileSync(join(folder,'input',file)));
@@ -217,7 +217,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     ['character.png','style.png'].forEach((name,i)=>writeFileSync(join(folder,'input',name),refs[i],{flag:'wx'}));
     const sceneSnapshot=trip.sceneSnapshot??freezeScene(trip.id,trip.scene,[],options.recentVariants?.(trip.scene)??[]);
     const variant={id:sceneSnapshot.id,prompt:sceneSnapshot.prompt};
-    const spec:Spec={sceneSnapshot,placeScopeVersion:'v2',noteReviewVersion:'v3',policy:POLICY,imageModel:IMAGE_MODEL,visionModel:options.useHostModel?'host-model':VISION_MODEL,prompt:COMMON+variant.prompt,characterSha:hash(refs[0]),styleSha:hash(refs[1]),scenePrompt:variant.prompt,sceneVariant:variant.id,noteVoice:selectNoteVoice(trip.id)};
+    const spec:Spec={sceneSnapshot,placeScopeVersion:'v2',noteReviewVersion:'v3',policy:POLICY,imageModel:options.imageModel?.trim()||IMAGE_MODEL,visionModel:options.useHostModel?'host-model':VISION_MODEL,prompt:COMMON+variant.prompt,characterSha:hash(refs[0]),styleSha:hash(refs[1]),scenePrompt:variant.prompt,sceneVariant:variant.id,noteVoice:selectNoteVoice(trip.id)};
     atomicJson(join(folder,'spec.json'),spec);return {...spec};
   };
   generate.confirmRetry=(trip,confirmed)=>{

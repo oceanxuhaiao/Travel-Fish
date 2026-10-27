@@ -1,6 +1,6 @@
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
-import {CHARACTER_PRESETS,presetPath,characterReference} from './characters.ts';
+import {CHARACTER_PRESETS,presetPath,characterReference,styleReference} from './characters.ts';
 import {readFileSync,statSync,mkdirSync,writeFileSync,existsSync} from 'node:fs';
 import {decodePng} from './generation.ts';
 import type {PostcardConfigSection} from './config.ts';
@@ -8,7 +8,7 @@ export interface SetupSecrets {secret:(name:string)=>string;storeSecret:(name:st
 const names={ark:'POSTCARD_ARK_API_KEY',vision:'POSTCARD_VISION_API_KEY'};
 export class SetupPanel {
  constructor(private cfg:PostcardConfigSection,private secrets?:SetupSecrets,private importRoot?:string){}
- snapshot(){return {keys:{ark:!!this.secrets?.secret(names.ark),vision:!!this.secrets?.secret(names.vision)},secureSaveAvailable:!!this.secrets,characterPreset:this.cfg.characterPreset??'auto',presets:CHARACTER_PRESETS,useHostModel:!!this.cfg.useHostModel,cloudEnabled:this.cfg.cloudEnabled,characterReference:this.cfg.characterReference,styleReference:this.cfg.styleReference};}
+ snapshot(){return {keys:{ark:!!this.secrets?.secret(names.ark),vision:!!this.secrets?.secret(names.vision)},secureSaveAvailable:!!this.secrets,characterPreset:this.cfg.characterPreset??'auto',presets:CHARACTER_PRESETS,imageModel:this.cfg.imageModel||'doubao-seedream-5-0-flash-260915',useHostModel:!!this.cfg.useHostModel,cloudEnabled:this.cfg.cloudEnabled,characterReference:this.cfg.characterReference,styleReference:this.cfg.styleReference};}
  invoke(method:string,args:unknown[]=[]):unknown {
   if(method==='importCharacter'){
    if(!this.importRoot||typeof args[0]!=='string')throw new Error('请选择本机PNG文件');
@@ -28,7 +28,7 @@ export class SetupPanel {
    const s=this.snapshot();
    const reference=(path:string)=>{try{if(statSync(path).size>40*1024*1024)return false;decodePng(readFileSync(path));return true;}catch{return false;}};
    const proxy=(value:string)=>{if(!value)return true;try{return ['http:','https:'].includes(new URL(value).protocol);}catch{return false;}};
-   return {useHostModel:s.useHostModel,visionKeyRequired:!s.useHostModel,keys:s.keys,characterReference:(()=>{try{return reference(characterReference(this.cfg));}catch{return false;}})(),styleReference:reference(this.cfg.styleReference),imageProxy:proxy(this.cfg.imageProxyUrl),visionProxy:proxy(this.cfg.visionProxyUrl),cloudEnabled:s.cloudEnabled};
+   return {useHostModel:s.useHostModel,visionKeyRequired:!s.useHostModel,keys:s.keys,characterReference:(()=>{try{return reference(characterReference(this.cfg));}catch{return false;}})(),styleReference:reference(styleReference(this.cfg)),imageProxy:proxy(this.cfg.imageProxyUrl),visionProxy:proxy(this.cfg.visionProxyUrl),cloudEnabled:s.cloudEnabled};
   }
   throw new Error('未知配置操作');
  }

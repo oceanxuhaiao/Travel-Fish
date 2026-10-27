@@ -1,4 +1,4 @@
-import {characterReference} from './characters.ts';
+import {characterReference,styleReference} from './characters.ts';
 import {HostModelBridge} from './host-model.ts';
 import { describeTools, type WorldDefinition } from 'cortico/world.ts';
 import { POSTCARD_DEFAULTS, type PostcardConfigSection } from './config.ts';
@@ -10,7 +10,7 @@ export const POSTCARD: WorldDefinition<PostcardConfigSection> = {
   create:ctx=>{
     let world:PostcardWorld;
     const bridge=new HostModelBridge(join(ctx.dataDir,'postcard/host-tasks'));
-    const generator=ctx.cfg.cloudEnabled?createCloudGenerator({hostReady:()=>bridge.ready(),hostTransport:bridge.transport,useHostModel:ctx.cfg.useHostModel,root:join(ctx.dataDir,'postcard'),characterReference:characterReference(ctx.cfg),styleReference:ctx.cfg.styleReference,secret:name=>ctx.secret(name),imageProxyUrl:ctx.cfg.imageProxyUrl,visionProxyUrl:ctx.cfg.visionProxyUrl,recentTitles:()=>world.service.store.cards().slice(0,12).map(c=>c.title),recentVariants:scene=>world.service.store.cards().filter(c=>c.scene===scene&&typeof c.generation?.sceneVariant==='string').map(c=>c.generation!.sceneVariant as string)}):undefined;
+    const generator=ctx.cfg.cloudEnabled?createCloudGenerator({imageModel:ctx.cfg.imageModel,hostReady:()=>bridge.ready(),hostTransport:bridge.transport,useHostModel:ctx.cfg.useHostModel,root:join(ctx.dataDir,'postcard'),characterReference:characterReference(ctx.cfg),styleReference:styleReference(ctx.cfg),secret:name=>ctx.secret(name),imageProxyUrl:ctx.cfg.imageProxyUrl,visionProxyUrl:ctx.cfg.visionProxyUrl,recentTitles:()=>world.service.store.cards().slice(0,12).map(c=>c.title),recentVariants:scene=>world.service.store.cards().filter(c=>c.scene===scene&&typeof c.generation?.sceneVariant==='string').map(c=>c.generation!.sceneVariant as string)}):undefined;
     world=new PostcardWorld({cfg:ctx.cfg,dataDir:ctx.dataDir,generator,bridge,setup:{secret:name=>ctx.secret(name),storeSecret:(name,value)=>ctx.storeSecret(name,value)}});return world;
   },
   describe:{tools:describeTools([...POSTCARD_TOOL_DECLS,...HostModelBridge.prototype.tools.call({} as HostModelBridge)],{
