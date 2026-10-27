@@ -3,12 +3,13 @@ import type {WebUiPanelContext} from 'cortico/web/shared/client-panel.ts';
 interface Card {tripId:string;scene:string;title:string;note:string;completedAt:number;}
 interface Trip {id:string;scene:string;status:string;dueAt:number;error?:string;}
 interface Snapshot {trip:Trip|null;cards:Card[];minutes:number;generatorConnected:boolean;places?:Record<string,string>;}
-let places:Record<string,string>={coast:'晴日海岸',forest:'萤光森林',snow:'雪夜小镇'};
+const defaultPlaces:Record<string,string>={coast:'晴日海岸',forest:'萤光森林',snow:'雪夜小镇'};
 const date=(n:number)=>new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:'long',day:'numeric'}).format(new Date(n));
 const active=(t:Trip|null)=>!!t&&['traveling','generating','awaiting_service','failed'].includes(t.status);
 
 export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
   const doc=ctx.root.ownerDocument;
+  let places:Record<string,string>={...defaultPlaces};
   const el=<K extends keyof HTMLElementTagNameMap>(tag:K,cls='',text='')=>{const node=doc.createElement(tag);node.className=cls;if(text)node.textContent=text;return node;};
   const handlers=new WeakMap<HTMLButtonElement,()=>unknown>();
   const button=(text:string,fn:()=>unknown,cls='pc-button')=>{const b=el('button',cls,text);b.type='button';handlers.set(b,fn);return b;};
@@ -31,7 +32,7 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
   function remember(){ctx.memo.set('filter',filter);ctx.memo.set('selected',selected);ctx.memo.set('flipped',flipped);}
   async function action(method:string,args:unknown[]=[]){
     if(busy||ctx.signal.aborted)return;revision++;busy=true;renderJourney();
-    try {data=await ctx.invoke<Snapshot>(method,args);tell(method==='start'?'已经出发了，等它带一封来信回来。':method==='cancel'?'这次先回家，下一段风景还在等它。':'已继续准备这封来信。');render();}
+    try {data=await ctx.invoke<Snapshot>(method,args);if(data.places)places=data.places;tell(method==='start'?'已经出发了，等它带一封来信回来。':method==='cancel'?'这次先回家，下一段风景还在等它。':'已继续准备这封来信。');render();}
     catch(error){if(!ctx.signal.aborted)tell(error instanceof Error?error.message:'操作暂时没有完成，请稍后再试。',true);}
     finally {busy=false;if(!ctx.signal.aborted)renderJourney();}
   }

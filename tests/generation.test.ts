@@ -10,7 +10,7 @@ import type { Trip,Generator } from '../src/travel.ts';
 let root:string,ref:string,image:Buffer,trip:Trip;
 const note={title:'森林深处的一封来信',note:'在树影里停了一会儿，心也慢慢静下来。身旁的一点亮光像温柔的问候。忽然想把这份安宁寄给你，让它在你忙碌的一天里，留下一小段可以慢慢呼吸的时间。'};
 const good={scene_match:true,character_match:true,usable:true,background_conflicts:[],issues:[],facts:['蓝发鲸鱼装女孩','老树旁有溪流','周围有蕨叶']};
-const clear={has_explicit_conflict:false,conflicts:[],uncertain_details:['微风无法从静态图确认']};
+const clear={checks:[],has_explicit_conflict:false,conflicts:[],uncertain_details:['微风无法从静态图确认']};
 function response(value:unknown){return {model:'deepseek-flash',choices:[{finish_reason:'stop',message:{content:JSON.stringify(value)}}],usage:{total_tokens:10}};}
 const promptOf=(payload:Record<string,unknown>)=>(payload.messages as {content:{text:string}[]}[])[0].content[0].text;
 function transport():Transport{return async(kind,payload)=>{if(kind==='image')return {data:[{b64_json:image.toString('base64')}],usage:{input_images:2,generated_images:1}};const p=promptOf(payload);return response(p.startsWith('图1为候选')?good:p.startsWith('写桌宠旅行')?note:p.startsWith('只检查文字')?{has_real_place_name:false,names:[]}:clear);};}
@@ -126,4 +126,17 @@ it('v2未完成旅程继续旧审核，不因升级增加地名检查或重画',
 it('真实地名仅重写短笺，同一图片不重画',async()=>{
  const base=transport();let scopes=0;const t=vi.fn<Transport>(async(k,p,s)=>k==='text'&&promptOf(p).startsWith('只检查文字')?response(++scopes===1?{has_real_place_name:true,names:['杭州']}:{has_real_place_name:false,names:[]}):base(k,p,s));
  const g=make(t);prepare(g);const a=await g(trip,new AbortController().signal);expect(a.generation?.noteAttempt).toBe(2);expect(t.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);
+});
+
+it('已出发v3缺少子版本时仍使用首轮语义，缓存恢复不按新规则重算',async()=>{
+ const t=vi.fn(transport()),g=make(t);prepare(g);delete trip.generation!.placeScopeVersion;delete trip.generation!.noteReviewVersion;
+ await g(trip,new AbortController().signal);const prompts=t.mock.calls.filter(c=>c[0]==='text').map(c=>promptOf(c[1]));
+ expect(prompts.find(p=>p.startsWith('只检查文字'))).toContain('感受和比喻不算');
+ expect(prompts.find(p=>p.startsWith('只检查短笺'))).not.toContain('先判断短语的语义再看姿态');
+ const n=t.mock.calls.length;await g(trip,new AbortController().signal);expect(t.mock.calls.length).toBe(n);
+});
+
+it('逐项明确反证不能被总体放行覆盖，旧版本行为不变',()=>{
+ const r={...clear,checks:[{claim:'当下直立',category:'posture',observation:'明显坐姿',clear_conflict:true}]};
+ expect(textAccepted(r)).toBe(false);expect(textAccepted(r,false)).toBe(true);
 });

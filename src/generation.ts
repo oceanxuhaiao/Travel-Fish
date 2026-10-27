@@ -19,7 +19,7 @@ const COMMON = '生成完整收藏级旅行明信片，竖版2:3，单张。图1
 type Json = Record<string,unknown>;
 export interface CloudOptions { root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
 export type Transport = (kind:'image'|'text', payload:Json, signal:AbortSignal)=>Promise<Json>;
-interface Spec { policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; sceneSnapshot?:SceneSnapshot; }
+interface Spec { policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; sceneSnapshot?:SceneSnapshot; placeScopeVersion?:'v1'|'v2'; noteReviewVersion?:'v1'|'v2'|'v3'; }
 interface Checkpoint { schema:1; imageAttempt:number; pendingImage:boolean; stage:string; textRequests:Record<string,number>; errors:string[]; }
 export class PipelineError extends Error { constructor(message:string) {super(message);this.name='PostcardPipelineError';} }
 export class HttpError extends Error { constructor(readonly status:number) {super('Cloud HTTP '+status);} }
@@ -52,13 +52,17 @@ export function formatNote(raw:Json):Json {
   const note=[...chosen].sort((a,b)=>a-b).map(n=>sentences[n]).join('');
   return note&&[...note].length<=120?{...raw,note}:raw;
 }
-export function textAccepted(review:Json):boolean {return review.has_explicit_conflict===false&&Array.isArray(review.conflicts)&&review.conflicts.length===0&&strings(review.uncertain_details);}
+export function textAccepted(review:Json,structured=true):boolean {if(structured&&Array.isArray(review.checks)&&review.checks.some(c=>c&&typeof c==='object'&&(c as Json).clear_conflict===true))return false;return review.has_explicit_conflict===false&&Array.isArray(review.conflicts)&&review.conflicts.length===0&&strings(review.uncertain_details);}
 /** Shared verbatim with the blind regression runner; labels never enter this prompt. */
-export function textReviewPrompt(note:Json,policy:string=POLICY):string {
+export function textReviewPrompt(note:Json,policy:string=POLICY,version:'v1'|'v2'|'v3'='v3'):string {
+ if(policy===POLICY&&version==='v3')return '只检查短笺与图是否存在明确反证。逐项核对，不能只看整体场景相似就放行：1.提取文字中明确描述当下可见场景、身体姿态、明显大道具的陈述，逐条填checks；2.观察图片对应区域，写observation和clear_conflict；3.任一项有清晰反证，最终必须拒绝。重点看清臀部是否落地/落椅、膝盖和脚的位置：明确我蹲在地上/沙堡旁与清晰坐在地上、双腿向前不兼容。姿态不能因景观正确被忽略。遮挡或细节不清不算反证；风声、温度、心情、含糊过去动作及蹲守消息/蹲守一封消息/蹲在心里等比喻不描述当下身体位置，不进入姿态checks，允许保留。不要将未能证明的内容当成矛盾。返回JSON：checks（数组，每项含claim原文、category为scene/posture/prop、observation观察、clear_conflict布尔），has_explicit_conflict布尔、conflicts反证说明数组、uncertain_details未确认但不阻断的细节数组。检查完所有明确陈述再给最终结论。短笺：'+JSON.stringify(note);
  const base='只检查短笺与此图是否有明确矛盾，不要求每句话被画面证明。感受比喻不检查，微风声音温度与静态无法确认的动作只列uncertain_details，不当反证。遮挡/细节不清不等于不存在。只拦截明确场景相反、明显姿态相反、清晰区域不可能兼容的大道具。';
  const pose=policy===LEGACY_POLICY?'':'判定步骤：先区分明确描写当下可见状态的句子和感受/比喻/含糊过去动作；再对明确可见状态检查场景、姿态、道具，三类中任意一类有清晰反证就必须拒绝，不需要场景也相反。尤其注意：明确“我蹲在……”不是坐姿的同义词；图中臀部明显落在地面或椅面、双腿向前，就反证了这种蹲姿。完整可见的双手在身前且头顶区域敞开，也能反证“双手高举展开大伞且伞面盖住头顶天空”；不能把这些已看清的不相容状态写进uncertain_details后仍通过。conflicts只写这样的清晰反证；如果有一条，has_explicit_conflict必须为true。只有未看清、遮挡、声音风温度、含糊过去动作及“蹲守消息/蹲在心里”等比喻可列uncertain_details而不拒绝。不准把“只是姿态/道具细节，场景没有变”作为放行理由。';
- return base+pose+'返回JSON：has_explicit_conflict（布尔）、conflicts（反证说明数组）、uncertain_details（不阻断的未确认细节数组）。短笺：'+JSON.stringify(note);
+ const metaphor=policy===POLICY&&version==='v2'?'先判断短语的语义再看姿态：例如蹲守一封消息、蹲守消息表示等待消息，不陈述膝盖/臀部位置，图中站立或坐着都不反证它；只有明确我蹲在地上、弯膝蹲下等当下具体身体状态才进入姿态核对。同一个比喻不能既在uncertain_details承认是等待意味，又在conflicts把它解释成真实蹲姿。若没有其他明确反证，必须允许。':'';
+ return base+pose+metaphor+'返回JSON：has_explicit_conflict（布尔）、conflicts（反证说明数组）、uncertain_details（不阻断的未确认细节数组）。短笺：'+JSON.stringify(note);
 }
+
+export function placeScopePrompt(note:Json,version:'v1'|'v2'='v2'):string {return (version==='v1'?'只检查文字是否明确使用真实国家、省市、景区等专有地名。森林、海岸、山谷、沙丘、江边、古镇等通用词不是地名；感受和比喻不算。':'只检查文字是否明确包含真实国家、地域、省市、景区等专有地名。通用地貌或环境词（森林、海岸、山谷、沙丘、江边、古镇）不是地名。情绪和比喻本身不违规，但里面若含真实地域名称仍须列入names，不因句子是比喻就忽略专有地名。此项只是无真实地名的内容范围检查，不是文图矛盾检查。')+'返回JSON：has_real_place_name（布尔）、names（明确真实地名字符串数组）。文字：'+JSON.stringify(note);}
 
 /** Only official cloud endpoints; credentials never enter checkpoints or errors. */
 export function cloudTransport(options:CloudOptions):Transport {
@@ -180,15 +184,16 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       atomicJson(join(folder,'image-'+cp.imageAttempt+'-note-'+attempt+'-formatted.json'),{policy:'sentence-boundary-length-v1',changed:note.note!==raw.note,note});
       if(!noteFormatted(note))continue;
       stage('reviewing_note');
-      const review=await textCall('image-'+cp.imageAttempt+'-note-'+attempt+'-review',textReviewPrompt(note,spec.policy),[image]);
+      const review=await textCall('image-'+cp.imageAttempt+'-note-'+attempt+'-review',textReviewPrompt(note,spec.policy,spec.noteReviewVersion??'v1'),[image]);
+      if(spec.policy===POLICY&&spec.noteReviewVersion==='v3'&&(!Array.isArray(review.checks)||review.checks.some(c=>!c||typeof c!=='object'||typeof (c as Json).claim!=='string'||!['scene','posture','prop'].includes((c as Json).category as string)||typeof (c as Json).observation!=='string'||typeof (c as Json).clear_conflict!=='boolean')))invalidSchema('image-'+cp.imageAttempt+'-note-'+attempt+'-review','逐项文图检查格式无效，请检查后恢复本张图');
       if(spec.policy===POLICY){
-        const scope=await textCall('image-'+cp.imageAttempt+'-note-'+attempt+'-scope','只检查文字是否明确使用真实国家、省市、景区等专有地名。森林、海岸、山谷、沙丘、江边、古镇等通用词不是地名；感受和比喻不算。返回JSON：has_real_place_name（布尔）、names（明确真实地名字符串数组）。文字：'+JSON.stringify(note));
+        const scope=await textCall('image-'+cp.imageAttempt+'-note-'+attempt+'-scope',placeScopePrompt(note,spec.placeScopeVersion??'v1'));
         if(typeof scope.has_real_place_name!=='boolean'||!strings(scope.names))invalidSchema('image-'+cp.imageAttempt+'-note-'+attempt+'-scope','地名范围检查格式无效，请检查后恢复，不会重画');
         if(scope.has_real_place_name||(scope.names as string[]).length)continue;
       }
-      if(textAccepted(review)){
+      if(textAccepted(review,spec.policy===POLICY&&spec.noteReviewVersion==='v3')){
         stage('committing');
-        return {image,title:note.title as string,note:note.note as string,generation:{policy:spec.policy,noteFormatting:'sentence-boundary-length-v1',imageModel:spec.imageModel,visionModel:spec.visionModel,characterSha:spec.characterSha,styleSha:spec.styleSha,imageAttempt:cp.imageAttempt,noteAttempt:attempt,...(spec.sceneSnapshot?{catalogVersion:spec.sceneSnapshot.catalogVersion,sceneLabel:spec.sceneSnapshot.label}:{}),...(spec.sceneVariant?{sceneVariant:spec.sceneVariant,noteVoice:spec.noteVoice}:{})}} satisfies Artifact;
+        return {image,title:note.title as string,note:note.note as string,generation:{policy:spec.policy,noteFormatting:'sentence-boundary-length-v1',...(spec.policy===POLICY?{placeScopeVersion:spec.placeScopeVersion??'v1',noteReviewVersion:spec.noteReviewVersion??'v1'}:{}),imageModel:spec.imageModel,visionModel:spec.visionModel,characterSha:spec.characterSha,styleSha:spec.styleSha,imageAttempt:cp.imageAttempt,noteAttempt:attempt,...(spec.sceneSnapshot?{catalogVersion:spec.sceneSnapshot.catalogVersion,sceneLabel:spec.sceneSnapshot.label}:{}),...(spec.sceneVariant?{sceneVariant:spec.sceneVariant,noteVoice:spec.noteVoice}:{})}} satisfies Artifact;
       }
       if(typeof review.has_explicit_conflict!=='boolean'||!Array.isArray(review.conflicts)||!strings(review.uncertain_details))invalidSchema('image-'+cp.imageAttempt+'-note-'+attempt+'-review','文案审核格式无效，不能按通过处理');
     }
@@ -203,7 +208,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     ['character.png','style.png'].forEach((name,i)=>writeFileSync(join(folder,'input',name),refs[i],{flag:'wx'}));
     const sceneSnapshot=trip.sceneSnapshot??freezeScene(trip.id,trip.scene,[],options.recentVariants?.(trip.scene)??[]);
     const variant={id:sceneSnapshot.id,prompt:sceneSnapshot.prompt};
-    const spec:Spec={sceneSnapshot,policy:POLICY,imageModel:IMAGE_MODEL,visionModel:VISION_MODEL,prompt:COMMON+variant.prompt,characterSha:hash(refs[0]),styleSha:hash(refs[1]),scenePrompt:variant.prompt,sceneVariant:variant.id,noteVoice:selectNoteVoice(trip.id)};
+    const spec:Spec={sceneSnapshot,placeScopeVersion:'v2',noteReviewVersion:'v3',policy:POLICY,imageModel:IMAGE_MODEL,visionModel:VISION_MODEL,prompt:COMMON+variant.prompt,characterSha:hash(refs[0]),styleSha:hash(refs[1]),scenePrompt:variant.prompt,sceneVariant:variant.id,noteVoice:selectNoteVoice(trip.id)};
     atomicJson(join(folder,'spec.json'),spec);return {...spec};
   };
   generate.confirmRetry=(trip,confirmed)=>{

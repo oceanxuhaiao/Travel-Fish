@@ -31,7 +31,8 @@
     "USAGE.md",
     "RECOVERY.md",
     "describe.json",
-    "dist"
+    "dist",
+    "VALIDATION.md"
   ],
   "scripts": {
     "test": "vitest run",

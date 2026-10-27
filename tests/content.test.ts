@@ -17,5 +17,5 @@ it('新短笺只用背景锚点，旧策略提示保持原样且审核不按姿�
  const legacy=notePrompt(['女孩坐在苔藓上'],[]);expect(legacy).toContain('女孩坐在苔藓上');expect(legacy).not.toContain('不要写自己坐');
  expect(textReviewPrompt({note:'我蹲在这里'})).toContain('双腿向前');
  expect(textReviewPrompt({note:'我蹲在这里'},LEGACY_POLICY)).not.toContain('双腿向前');
- expect(textReviewPrompt({note:'海风轻轻'})).toContain('感受比喻不检查');
+ expect(textReviewPrompt({note:'海风轻轻'})).toContain('不要将未能证明的内容当成矛盾');
 });

@@ -4,9 +4,9 @@ export const SCENES=['forest','coast','snow','lake','valley','dunes','flowers','
 export type Scene=typeof SCENES[number];
 export type Destination=Scene|'surprise';
 export const SCENE_LABELS:Record<Scene,string>={forest:'萤光森林',coast:'海岸',snow:'雪夜小镇',lake:'湖畔',valley:'山谷',dunes:'沙丘',flowers:'花田',waterside:'水边小镇'};
-export const CATALOG_VERSION='imagined-scenes-v1';
+export const CATALOG_VERSION='imagined-scenes-v2';
 export interface ScenePlan {id:string;scene:Scene;label:string;subject:string;composition:string;moods:string[];core:string;optional:string;conflicts:string;}
-export interface SceneSnapshot extends ScenePlan {catalogVersion:string;mood:string;prompt:string;recentScenes:Scene[];recentVariants:string[];}
+export interface SceneSnapshot extends ScenePlan {catalogVersion:string;mood:string;moment?:string;prompt:string;recentScenes:Scene[];recentVariants:string[];}
 const plan=(scene:Scene,id:string,label:string,subject:string,composition:string,moods:string[],core:string,optional:string,conflicts:string):ScenePlan=>({scene,id,label,subject,composition,moods,core,optional,conflicts});
 export const SCENE_PLANS:readonly ScenePlan[]=[
  plan('forest','forest-hollow','树洞与溪流','苔藓老树与蕨叶间的浅溪，女孩自然停留在树旁','溪流由前景弯入树后，树干偏左',['暮色微光','雨后薄雾'],'树木占主景，有明显林间纵深','萤光、蕨叶、落叶','开阔海滩、沙漠主景、城市街道'),
@@ -46,6 +46,8 @@ export function freezeScene(id:string,scene:Scene,recentScenes:Scene[]=[],recent
  let available=plans.filter(p=>!history.includes(p.id));
  while(!available.length){history=history.slice(0,-1);available=plans.filter(p=>!history.includes(p.id));}
  const selected=available[seed('variant:'+id)%available.length];const mood=selected.moods[seed('mood:'+id)%selected.moods.length];
- const prompt=selected.subject+'。构图：'+selected.composition+'。氛围：'+mood+'。核心景观：'+selected.core+'。可有可无的装饰：'+selected.optional+'。不要出现：'+selected.conflicts+'。地点完全虚构，不模仿或标注具体真实地名，不画任何文字。女孩姿态自然，具体手势不作硬要求。';
- return {...structuredClone(selected),catalogVersion:CATALOG_VERSION,mood,prompt,recentScenes:recentScenes.slice(0,12),recentVariants:recentVariants.slice(0,5)};
+ const moments=['在近景一侧自然停留，站姿放松','在安全平坦的近景坐下来歇息，姿态舒展自然','沿着近处安全缓坡或小径缓步经过，呈轻微侧身，不背对观众'];
+ const moment=moments[recentVariants.length%moments.length];
+ const prompt=selected.subject+'。构图：'+selected.composition+'。氛围：'+mood+'。核心景观：'+selected.core+'。可有可无的装饰：'+selected.optional+'。不要出现：'+selected.conflicts+'。角色自然姿态建议：'+moment+'，不作为必须逐项兑现的动作要求。地点完全虚构，不模仿或标注具体真实地名，不画任何文字。女孩姿态自然，具体手势不作硬要求。';
+ return {...structuredClone(selected),catalogVersion:CATALOG_VERSION,mood,moment,prompt,recentScenes:recentScenes.slice(0,12),recentVariants:recentVariants.slice(0,5)};
 }

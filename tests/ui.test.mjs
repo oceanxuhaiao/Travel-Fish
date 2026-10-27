@@ -40,3 +40,8 @@ it('结果不确定的重试需要确认，取消确认不会发出重试请求'
   [...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='继续准备').click();await flush();expect(f.ctx.invoke.mock.calls.filter(c=>c[0]==='retry')).toHaveLength(0);
   f.ctx.ui.confirm.mockResolvedValue(true);[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='继续准备').click();await flush();expect(f.ctx.invoke).toHaveBeenCalledWith('retry',['uncertain-trip',true]);
 });
+
+it('从服务读取八类目录，保留随机入口与未知类别回退',async()=>{
+ const f=fixture([card('x','future-category')]);f.setState({trip:null,cards:[card('x','future-category')],minutes:30,generatorConnected:true,places:{forest:'萤光森林',coast:'海岸',snow:'雪夜小镇',lake:'湖畔',valley:'山谷',dunes:'沙丘',flowers:'花田',waterside:'水边小镇'}});
+ vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:test');await mountAlbum(f.ctx);expect(f.ctx.root.querySelectorAll('select option')).toHaveLength(9);expect(f.ctx.root.querySelector('select').value).toBe('surprise');expect(f.ctx.root.textContent).toContain('水边小镇');expect(f.ctx.root.querySelector('img').alt).toBe('远方旅行明信片');
+});

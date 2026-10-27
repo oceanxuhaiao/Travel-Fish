@@ -6,10 +6,10 @@ import {SCENE_LABELS,type Destination} from './scenes.ts';
 import type { Card,Scene,TravelService,Trip } from './travel.ts';
 
 export type PublicTrip=Omit<Trip,'generation'|'sceneSnapshot'>;
-export type PublicCard=Pick<Card,'tripId'|'scene'|'title'|'note'|'completedAt'>;
+export type PublicCard=Pick<Card,'tripId'|'scene'|'title'|'note'|'completedAt'|'sceneLabel'>;
 export interface PanelSnapshot { trip:PublicTrip|null; cards:PublicCard[]; minutes:number; generatorConnected:boolean; places:typeof SCENE_LABELS; }
 function tripView(trip:Trip|null):PublicTrip|null {if(!trip)return null;const {generation,sceneSnapshot,...view}=trip;return view;}
-function cardView(card:Card):PublicCard {const {tripId,scene,title,note,completedAt}=card;return {tripId,scene,title,note,completedAt};}
+function cardView(card:Card):PublicCard {const {tripId,scene,title,note,completedAt,sceneLabel}=card;return {tripId,scene,title,note,completedAt,...(sceneLabel?{sceneLabel}:{})};}
 const binary=(mime:string,bytes:Uint8Array)=>({$binary:{mime,base64:Buffer.from(bytes).toString('base64')}});
 
 /** Standard panel data surface; every mutation uses the existing travel service. */
