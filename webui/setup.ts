@@ -1,5 +1,5 @@
 import type {WebUiPanelContext} from 'cortico/web/shared/client-panel.ts';
-interface State {useHostModel?:boolean;keys:{ark:boolean;vision:boolean};secureSaveAvailable:boolean;cloudEnabled:boolean;characterReference:string;styleReference:string;}
+interface State {characterPreset?:string;presets?:{id:string;label:string}[];useHostModel?:boolean;keys:{ark:boolean;vision:boolean};secureSaveAvailable:boolean;cloudEnabled:boolean;characterReference:string;styleReference:string;}
 export async function mountSetup(ctx:WebUiPanelContext){
  const d=ctx.root.ownerDocument;
  const el=(tag:string,text='')=>{const n=d.createElement(tag);n.textContent=text;return n;};
@@ -24,11 +24,16 @@ export async function mountSetup(ctx:WebUiPanelContext){
  }
  root.append(el('p','密钥由宿主写入扩展部署目录的 .env；该文件包含明文凭据，请保管好。界面不回显、不存入浏览器缓存。模型与接口由本版本固定，无需填写模型名或接口地址。高级用户也可自行配置 POSTCARD_ARK_API_KEY 与 POSTCARD_VISION_API_KEY 环境变量。'));
  root.append(el('h2','2 · 选择两张参考图'));
+ root.append(el('p','角色可直接选择内置服饰，或导入自己的PNG（校验后复制到扩展数据目录，移动原文件不会丢失）。默认使用冬装；已有角色路径继续兼容使用。选择不会自动跟随宿主换装，只影响新旅行。'));
+ const selectedText=el('p','当前角色：'+((state.characterPreset??'auto')==='auto'?(state.characterReference?'自定义参考图':'冬装'):({maid:'女仆装',winter:'冬装',crew:'店员装',custom:'自定义参考图'}[state.characterPreset!]??'冬装')));root.append(selectedText);
+ const presets=el('div');presets.className='pc-presets';root.append(presets);
+ for(const preset of state.presets??[]){const box=el('article');const img=d.createElement('img');img.alt=preset.label+'角色参考';img.width=160;img.height=160;img.style.objectFit='contain';box.append(img,button(preset.label,async()=>{await ctx.setConfig('world:postcard',{'worlds.postcard.characterPreset':preset.id});selectedText.textContent='当前角色：'+preset.label;say('已选择'+preset.label+'，请重启本World后用于下一趟旅行。');}));presets.append(box);try{const blob=await ctx.invokeBinary('reference',[preset.id]);if(ctx.signal.aborted)continue;const url=URL.createObjectURL(blob);img.src=url;ctx.own({dispose:()=>URL.revokeObjectURL(url)});}catch{box.append(el('p','预览暂不可用'));}}
+
  for(const [key,title,desc] of [
   ['characterReference','角色参考 PNG','决定宠物的外形、配色和身份，建议主体清楚、没有复杂遮挡。'],
   ['styleReference','画风参考 PNG','决定水彩笔触、色调与画面气质，不保证复制参考图中的地点。']
  ] as const){
-  const label=el('p',state[key]||'尚未选择');root.append(el('h3',title),el('p',desc+' 图片需为可解码的PNG，宽高各512至4096像素，文件不超过40MB。'),label,button('选择'+title,async()=>{const path=await ctx.pickPath({kind:'file',title,extensions:['.png']});if(!path||ctx.signal.aborted)return;await ctx.setConfig('world:postcard',{['worlds.postcard.'+key]:path});label.textContent=path;say('路径已保存。请重启旅行明信片 World，再做本地检查。');}));
+  const label=el('p',state[key]||'尚未选择');root.append(el('h3',title),el('p',desc+' 图片需为可解码的PNG，宽高各512至4096像素，文件不超过40MB。'),label,button('选择'+title,async()=>{let path=await ctx.pickPath({kind:'file',title,extensions:['.png']});if(!path||ctx.signal.aborted)return;if(key==='characterReference'){const imported=await ctx.invoke<{path:string}>('importCharacter',[path]);path=imported.path;selectedText.textContent='当前角色：自定义参考图';}await ctx.setConfig('world:postcard',{['worlds.postcard.'+key]:path,...(key==='characterReference'?{'worlds.postcard.characterPreset':'custom'}:{})});label.textContent=path;say('路径已保存。请重启旅行明信片 World，再做本地检查。');}));
  }
  root.append(el('h2','3 · 理解配置选项，再开启生成'),el('p','每次新旅行固定为2小时，无法修改。旅行进度按真实经过时间计算；到达后还需制作明信片，生成耗时另计。旧旅程保留出发时的归来时间。'));
  const items=[
@@ -36,6 +41,7 @@ export async function mountSetup(ctx:WebUiPanelContext){
  ['允许宠物主动询问旅行','默认开启。到时给宠物一个询问机会，由宠物自然表达；用户明确同意才出发，沉默与拒绝都不会生图。保存后立即生效。'],
  ['主动询问间隔（分钟）','默认360分钟（6小时），范围1至43200。旅行未结束或服务未接入时暂停，恢复后重新计时；关机期间不会补发。询问可能消耗少量宿主对话模型用量，间隔不保证每次都说话。保存后立即生效。'],
  ['启用云端明信片生成','默认关闭。生图密钥、参考图及所选视觉通道准备好后开启，并重启本World。角色图、画风图发送给方舟，成图由宿主模型或独立DeepSeek处理；云服务按各自用量计费。开关本身不发起旅行。'],
+ ['角色参考来源','内置女仆装、冬装或店员装，也可导入自定义图；auto兼容旧路径，无旧图则默认冬装。选择后重启，仅新旅行生效，不自动跟随桌宠换装。'],
  ['角色参考PNG路径','本机角色图的绝对路径。出发时复制固定，本趟不会随原图修改而变化。修改后重启本World。'],
  ['画风参考PNG路径','本机画风图的绝对路径。用于保持画面风格；修改后重启本World。'],
  ['图片服务代理（留空直连）','只影响方舟生图。通常留空；确需代理时填写HTTP(S)代理，例如http://127.0.0.1:7890，不能填API接口地址或密钥。修改后重启本World。'],

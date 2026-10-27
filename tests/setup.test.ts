@@ -15,6 +15,6 @@ describe('configuration guide',()=>{
  });
  it('checks locally without claiming service authentication',()=>{
   const panel=new SetupPanel({...POSTCARD_DEFAULTS,imageProxyUrl:'socks5://localhost:1234'});
-  const check=panel.invoke('check') as any;expect(check.characterReference).toBe(false);expect(check.keys.ark).toBe(false);expect(check.imageProxy).toBe(false);expect(check.visionProxy).toBe(true);expect(check.cloudEnabled).toBe(false);
+  const check=panel.invoke('check') as any;expect(check.characterReference).toBe(true);expect(check.keys.ark).toBe(false);expect(check.imageProxy).toBe(false);expect(check.visionProxy).toBe(true);expect(check.cloudEnabled).toBe(false);
  });
 });

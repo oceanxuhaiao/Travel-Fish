@@ -31,7 +31,7 @@ export class PostcardWorld implements World {
   readonly invitations:InvitationSchedule;
   private invitationsHealthy=true;
   constructor(private opts: { cfg: PostcardConfigSection; dataDir: string; generator?: Generator; now?:()=>number; setup?:SetupSecrets; bridge?:HostModelBridge }) {
-    this.setup=new SetupPanel(opts.cfg,opts.setup);
+    this.setup=new SetupPanel(opts.cfg,opts.setup,join(opts.dataDir,'postcard/character-imports'));
     this.service = new TravelService(new TravelStore(join(opts.dataDir,'postcard')), opts.generator, opts.now);
     this.invitations=new InvitationSchedule(join(opts.dataDir,'postcard'),opts.now);
     this.panel=new PostcardPanel(this.service,()=>({minutes:TRAVEL_MINUTES,generatorConnected:!!this.opts.generator}));
