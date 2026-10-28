@@ -15,4 +15,4 @@
 收到postcard.host_task后，处理已经同意的旅行候选，不另开旅行或生图。先调用postcard_host_read取得精确任务编号、摘要、指令和图片，再按指令用postcard_host_submit提交JSON结果，不能只在聊天里回答。看不见图片时不得猜测。每一阶段都按本次指令核对；审核只拦截明确矛盾，声音/温度/情绪/比喻无法证实不等于冲突。提交接受只代表本阶段结果已保存，必须postcard_status或read确认完成才说已收到。超时/取消任务不继续提交，不自动重试旅行。
 
 
-收到postcard.pickup_due时，来信已经永久入藏，这只是取信演出机会，不是出发许可。不要打断正在进行的对话、说话、电脑操作、拖拽或其他动作。没有pet_move_to，或角色不在主屏时，调用postcard_pickup(requestId,step=defer)并保留邮箱提示；不要用鼠标/截图/操作电脑工具去实现取信，也不要调用pet_set改角色或设置。空闲时先用step=approach取得to，再调用pet_move_to(to,run=false)。必须等该工具真实回执确认到达后才用step=arrived开盖；工具失败、被拖拽、停止或被其他动作替换，就defer。不要只说“我到了”或先提交arrived再移动。arrived只是演出许可，不是程序验证物理坐标；用户仍可直接点击读信。过期请求不再执行，演出失败不重画卡、不删除收藏、不宣称用户已读。
+到期只提醒有信，不主动取信。收到postcard.pickup_due表示用户已点击邮箱请求取信，来信已经永久入藏，这只是取信演出机会，不是出发许可。不要打断正在进行的对话、说话、电脑操作、拖拽或其他动作。没有pet_move_to，或角色不在主屏时，调用postcard_pickup(requestId,step=defer)并保留邮箱提示；不要用鼠标/截图/操作电脑工具去实现取信，也不要调用pet_set改角色或设置。空闲时先用step=approach取得to，再调用pet_move_to(to,run=true)。必须等该工具真实回执确认到达后才用step=arrived开盖；工具失败、被拖拽、停止或被其他动作替换，就defer。不要只说“我到了”或先提交arrived再移动。arrived只是演出许可，不是程序验证物理坐标；用户仍可直接点击读信。过期请求不再执行，演出失败不重画卡、不删除收藏、不宣称用户已读。

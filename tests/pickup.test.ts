@@ -21,7 +21,7 @@ it('必须先approach，再arrived；重复到达不重启演出，演出后仍�
  const t=await complete(),req=queue.offer()!;expect(()=>queue.step(req.requestId,'arrived')).toThrow('先取得');
  expect(queue.step(req.requestId,'approach')).toMatchObject({to:.66});expect(queue.step(req.requestId,'arrived')).toMatchObject({accepted:true,spatiallyVerified:false});
  const start=queue.snapshot().active!.startedAt;now+=100;expect(queue.step(req.requestId,'arrived')).toMatchObject({duplicate:true});expect(queue.snapshot().active!.startedAt).toBe(start);
- queue.finish(req.requestId,t.id);expect(queue.snapshot().pending).toEqual([]);expect(mail.snapshot().unreadCount).toBe(1);expect(queue.offer()).toBeNull();expect(()=>queue.finish(req.requestId,t.id)).toThrow('失效');
+ queue.finish(req.requestId,t.id);expect(queue.snapshot().pending).toEqual([]);expect(mail.snapshot().unreadCount).toBe(1);expect(queue.offer()).toBeNull();expect(()=>queue.finish(req.requestId,t.id)).toThrow('失效');expect(queue.offer(true,t.id)?.requestId).not.toBe(req.requestId);
 });
 it('忙碌defer不自动重复催促，用户手动重试获得新编号，旧编号拒绝',async()=>{
  await complete();const first=queue.offer()!;queue.step(first.requestId,'defer');expect(queue.offer()).toBeNull();const next=queue.offer(true)!;expect(next.requestId).not.toBe(first.requestId);expect(()=>queue.step(first.requestId,'approach')).toThrow('过期');
@@ -45,19 +45,20 @@ it('未就绪或关闭窗口不派发，已有历史收藏不自动演出',async
  await complete();placement=null;expect(queue.offer()).toBeNull();placement={to:.66};
  rmSync(join(root,'pickup.json'));queue=new PickupQueue(root,()=>mail.snapshot(),()=>placement,()=>now);queue.open();expect(queue.offer()).toBeNull();
 });
-it('Core忙碌时不发事件，空闲后仅一次',async()=>{
+it('到期空闲也不自动取信；点击后忙碌等待，空闲仅发送一次',async()=>{
  const world=new PostcardWorld({cfg:{...POSTCARD_DEFAULTS,mailboxEnabled:false},dataDir:join(root,'world'),now:()=>now,generator:async()=>artifact}),host=new FakeHost();
  await world.start(host);try{
   vi.spyOn(world.mailboxWindow,'placement').mockReturnValue({to:.66,screenWidth:1920});
   const t=world.service.start('surprise',120);now=t.dueAt;await world.pulse();
-  world.onRunPhase({state:'model',running:[],enteredAt:''});await world.pickupPulse();expect(host.events.filter(e=>e.type==='postcard.pickup_due')).toHaveLength(0);
+  world.onRunPhase({state:'idle',running:[],enteredAt:''});await world.pickupPulse();expect(host.events.filter(e=>e.type==='postcard.pickup_due')).toHaveLength(0);expect(world.pickup.snapshot().active).toBeNull();
+  world.pickup.offer(true,t.id);world.onRunPhase({state:'model',running:[],enteredAt:''});await world.pickupPulse();expect(host.events.filter(e=>e.type==='postcard.pickup_due')).toHaveLength(0);
   world.onRunPhase({state:'idle',running:[],enteredAt:''});await world.pickupPulse();await world.pickupPulse();expect(host.events.filter(e=>e.type==='postcard.pickup_due')).toHaveLength(1);
  }finally{await world.stop();}
 });
 it('取信事件投递失败不自动重发或重画，用户仍可读已保存来信',async()=>{
  const generator=vi.fn(async()=>artifact),world=new PostcardWorld({cfg:{...POSTCARD_DEFAULTS,mailboxEnabled:false},dataDir:join(root,'world'),now:()=>now,generator}),host=new FakeHost();
  await world.start(host);try{
-  vi.spyOn(world.mailboxWindow,'placement').mockReturnValue({to:.66,screenWidth:1920});const t=world.service.start('surprise',120);now=t.dueAt;await world.pulse();world.onRunPhase({state:'idle',running:[],enteredAt:''});
+  vi.spyOn(world.mailboxWindow,'placement').mockReturnValue({to:.66,screenWidth:1920});const t=world.service.start('surprise',120);now=t.dueAt;await world.pulse();world.pickup.offer(true,t.id);world.onRunPhase({state:'idle',running:[],enteredAt:''});
   const original=host.pushEvent.bind(host);vi.spyOn(host,'pushEvent').mockImplementation(async(e,o)=>{if(e.type==='postcard.pickup_due')throw Error('offline');return original(e,o);});
   await expect(world.pickupPulse()).rejects.toThrow('未送达');await world.pickupPulse();expect(world.pickup.snapshot().active).toBeNull();expect(world.mailbox.snapshot().unreadCount).toBe(1);expect(generator).toHaveBeenCalledTimes(1);
  }finally{await world.stop();}

@@ -33,7 +33,7 @@ export class PickupQueue {
   offer(manual=false,tripId?:string):PickupRequest|null {
     this.sync();if(this.state.active)return structuredClone(this.state.active);
     const where=this.placement();if(!where)return null;
-    const cards=this.mail().cards;const record=this.state.records.find(r=>!r.done&&(manual||!r.attempted)&&(!tripId||r.tripId===tripId)&&cards.some(c=>c.tripId===r.tripId&&c.unread));
+    const cards=this.mail().cards;const record=this.state.records.find(r=>(manual||!r.done)&&(manual||!r.attempted)&&(!tripId||r.tripId===tripId)&&cards.some(c=>c.tripId===r.tripId&&c.unread));
     if(!record)return null;
     const next=structuredClone(this.state);next.records.find(r=>r.tripId===record.tripId)!.attempted=true;
     next.active={requestId:randomUUID(),tripId:record.tripId,to:where.to,phase:'offered',expiresAt:this.now()+120000};this.save(next);return structuredClone(next.active);

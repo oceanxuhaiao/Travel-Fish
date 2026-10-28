@@ -23,3 +23,13 @@ it('看开盖可手动重复，只有视觉动画，不催促模型、不提交�
  await timers[0]();await flush();preview.click();await flush();await flush();expect(timers).toHaveLength(2);
  expect(api.call.mock.calls.some(c=>['pickup-request','presentation-done','mark-read','open-letter'].includes(c[0]))).toBe(false);
 });
+
+it('点击邮箱请求桌宠取信，不直接打开来信或播放动画',async()=>{
+ const dom=new JSDOM('<main id="root"></main>',{url:'https://local.test/',runScripts:'outside-only'});fixtures.push(dom);
+ const id='00000000-0000-0000-0000-000000000001';const state={phase:'mail_waiting',trip:null,cards:[{tripId:id,unread:true}],unreadCount:1,pickup:{active:null,pending:[id]}};
+ const api={rects:vi.fn(),call:vi.fn(async(action:string)=>action==='state'?state:{})};
+ (dom.window as any).postcard=api;(dom.window as any).ResizeObserver=class{observe(){}};(dom.window as any).setInterval=()=>1;
+ dom.window.eval(script);await flush();expect(api.call.mock.calls.some(c=>c[0]==='pickup-request')).toBe(false);
+ (dom.window.document.getElementById('mail') as HTMLButtonElement).click();await flush();await flush();
+ expect(api.call).toHaveBeenCalledWith('pickup-request',id);expect(api.call.mock.calls.some(c=>['open-letter','presentation-done','mark-read'].includes(c[0]))).toBe(false);expect(dom.window.document.querySelector('.opening')).toBeNull();
+});

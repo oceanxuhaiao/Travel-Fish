@@ -75,8 +75,8 @@ export class PostcardWorld implements World {
   pickupPulse():Promise<void>{if(this.pickupFlight)return this.pickupFlight;this.pickupFlight=this.advancePickup().finally(()=>{this.pickupFlight=undefined;});return this.pickupFlight;}
   private async advancePickup(){
     const host=this.host;if(!host||!this.pickupHealthy||!this.mailboxHealthy||!this.coreIdle)return;
-    const request=this.pickup.offer();if(!request||request.phase!=='offered'||this.pickupSent.has(request.requestId))return;this.pickupSent.add(request.requestId);
-    try{await host.pushEvent({type:'postcard.pickup_due',source:this.id,origin:'internal',senderKey:this.id,ts:new Date().toISOString(),text:'明信片已永久入藏，邮箱有一封待取来信。空闲且桌宠在主屏时，先用postcard_pickup的approach取得位置，使用pet_move_to走到邮箱旁，等待真实到达回执后才提交arrived。忙碌、操作电脑、被拖拽、移动失败或无移动工具则defer；不要抢占用户活动。requestId='+request.requestId+'，tripId='+request.tripId+'。取信只是表现，不再生图、不开始旅行，不把演出完成说成用户已读。',meta:{requestId:request.requestId,tripId:request.tripId}},{trigger:'debounce'});}catch{this.pickup.pause();throw Error('取信事件未送达，已保留来信，可点击重试');}
+    const request=this.pickup.snapshot().active;if(!request||request.phase!=='offered'||this.pickupSent.has(request.requestId))return;this.pickupSent.add(request.requestId);
+    try{await host.pushEvent({type:'postcard.pickup_due',source:this.id,origin:'internal',senderKey:this.id,ts:new Date().toISOString(),text:'用户已点击邮箱请求取信，明信片已永久入藏。空闲且桌宠在主屏时，先用postcard_pickup的approach取得位置，使用pet_move_to(to,run=true)跑到邮箱旁，等待真实到达回执后才提交arrived。忙碌、操作电脑、被拖拽、移动失败或无移动工具则defer；不要抢占用户活动。requestId='+request.requestId+'，tripId='+request.tripId+'。取信只是表现，不再生图、不开始旅行，不把演出完成说成用户已读。',meta:{requestId:request.requestId,tripId:request.tripId}},{trigger:'debounce'});}catch{this.pickup.pause();throw Error('取信事件未送达，已保留来信，可点击重试');}
   }
   async openMailbox(){if(!this.mailboxHealthy)throw Error('邮箱已读记录损坏，请恢复备份，收藏未改动');if(this.opts.cfg.mailboxEnabled===false)throw Error('桌面邮箱已在配置中关闭');return this.mailboxWindow.open();}
   async start(host: WorldHost): Promise<void> {
