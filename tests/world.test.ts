@@ -19,7 +19,8 @@ describe('Postcard World',()=>{
     vi.spyOn(host,'pushEvent').mockImplementation(async(event,options)=>{if(event.type==='postcard.completed'&&!failed){failed=true;throw Error('event transport unavailable');}return push(event,options);});
     try{const trip=world.service.start('forest',1);now=trip.dueAt;
       await expect(world.pulse()).rejects.toThrow('event transport');expect(world.service.status()?.status).toBe('completed');expect(world.service.pendingNotifications()).toHaveLength(1);
-      await world.pulse();await world.pulse();expect(generator).toHaveBeenCalledTimes(1);expect(world.service.pendingNotifications()).toEqual([]);expect(host.events.filter(e=>e.type==='postcard.completed')).toHaveLength(1);
+      await world.pulse();await world.pulse();expect(generator).toHaveBeenCalledTimes(1);expect(world.service.pendingNotifications()).toEqual([]);expect(host.events.filter(e=>e.type==='postcard.completed')).toHaveLength(1);expect(host.events.find(e=>e.type==='postcard.completed')!.text).toContain('你是旅行者和寄信人');
+      const read=world.tools().find(t=>t.name==='postcard_read')!;const receipt=JSON.parse(await read.handler({tripId:trip.id},{} as ToolCallContext) as string);expect(receipt.note).toBe('测试成品');expect(receipt.narrativeContext).toContain('用户是收信人');expect(receipt.narrativeContext).toContain('开发验证');
     }finally{await world.stop();}
   });
   it('真实契约干装载通过',async()=>{

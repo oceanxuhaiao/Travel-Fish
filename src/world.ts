@@ -21,7 +21,7 @@ export const POSTCARD_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
   { name: 'postcard_start', description: 'Start one surprise virtual pet trip when the user asks. The pet chooses the scenery internally; do not ask the user to choose a destination. Duration is fixed at two hours of real waiting time and cannot be changed by user configuration; the postcard is prepared during this wait and delivered at return if ready; service failures may delay delivery. Only one unfinished trip is allowed. Start only for an explicit user request or affirmative reply to a travel invitation. An invitation event, silence or a refusal is never consent.', tags: ['write'], parameters: { type: 'object', additionalProperties: false, properties: {} } },
   { name: 'postcard_status', description: 'Read the current trip and availability. awaiting_service means a generator is not connected; do not claim a postcard exists.', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'postcard_list', description: 'List permanently saved postcards.', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'postcard_read', description: 'Read a completed postcard title and note by trip id.', tags: ['read'], parameters: idParam },
+  { name: 'postcard_read', description: 'Read your own travel postcard, written by you to the user, by trip id. Retell it in first person as your travel keepsake, not as an incoming letter from someone else. Respect explicitly labelled development fixtures.', tags: ['read'], parameters: idParam },
   { name: 'postcard_cancel', description: 'Cancel a trip on user request. A remote request already sent may still incur a charge.', tags: ['write'], parameters: idParam },
   { name: 'postcard_retry', description: 'Manually retry a failed trip only after the user requests it. For an uncertain image outcome, set confirmUnknownOutcome only after the user has explicitly confirmed checking the previous result and possible charge.', tags: ['write'], parameters: { ...idParam,properties:{...idParam.properties,confirmUnknownOutcome:{type:'boolean',description:'True only after the user explicitly confirms the uncertain previous request and possible charge.'}} } },
 ];
@@ -60,7 +60,7 @@ export class PostcardWorld implements World {
         case 'postcard_start': result = this.service.start('surprise', TRAVEL_MINUTES); break;
         case 'postcard_status': result = { trip: this.service.status(), generatorConnected: !!this.opts.generator, invitation:{enabled:this.opts.cfg.proactiveEnabled??true,intervalMinutes:this.opts.cfg.proactiveIntervalMinutes??360,nextAt:this.invitations.snapshot()?.nextAt??null,...(!this.invitationsHealthy?{error:'主动询问日程损坏，已暂停'}:{})} }; break;
         case 'postcard_list': result = this.service.store.cards(); break;
-        case 'postcard_read': result = this.service.store.card(String(args.tripId)); if (!result) throw new Error('没有这份已完成收藏'); break;
+        case 'postcard_read': { const card=this.service.store.card(String(args.tripId)); if (!card) throw new Error('没有这份已完成收藏'); result={...card,narrativeContext:'这是你（当前桌宠）旅行时写给用户、寄回家的明信片。你是旅行者和寄信人，用户是收信人。以第一人称陪用户重温自己的旅途，不称为别人寄给你的信，不猜测陌生寄信人。只依据这封信的内容，不编造用户同行或真实地名；明确标注为开发验证的卡片仍须如实称为演示，不能伪称真实旅行。'}; break; }
         case 'postcard_cancel': result = this.service.cancel(String(args.tripId)); break;
         case 'postcard_retry': result = this.service.retry(String(args.tripId),args.confirmUnknownOutcome===true); break;
       }
@@ -76,7 +76,7 @@ export class PostcardWorld implements World {
   private async advancePickup(){
     const host=this.host;if(!host||!this.pickupHealthy||!this.mailboxHealthy||!this.coreIdle)return;
     const request=this.pickup.snapshot().active;if(!request||request.phase!=='offered'||this.pickupSent.has(request.requestId))return;this.pickupSent.add(request.requestId);
-    try{await host.pushEvent({type:'postcard.pickup_due',source:this.id,origin:'internal',senderKey:this.id,ts:new Date().toISOString(),text:'用户已点击邮箱请求取信，明信片已永久入藏。空闲且桌宠在主屏时，先用postcard_pickup的approach取得位置，使用pet_move_to(to,run=true)跑到邮箱旁，等待真实到达回执后才提交arrived。忙碌、操作电脑、被拖拽、移动失败或无移动工具则defer；不要抢占用户活动。requestId='+request.requestId+'，tripId='+request.tripId+'。取信只是表现，不再生图、不开始旅行，不把演出完成说成用户已读。',meta:{requestId:request.requestId,tripId:request.tripId}},{trigger:'debounce'});}catch{this.pickup.pause();throw Error('取信事件未送达，已保留来信，可点击重试');}
+    try{await host.pushEvent({type:'postcard.pickup_due',source:this.id,origin:'internal',senderKey:this.id,ts:new Date().toISOString(),text:'用户已点击邮箱，请你取出自己旅行时写给用户、寄回家的明信片，陪用户一起重看自己的旅途；你是寄信人，用户是收信人，不是别人寄给你的信。先用postcard_read核对内容，明确的开发验证卡应如实称演示，不伪称真实旅行。明信片已永久入藏。空闲且桌宠在主屏时，先用postcard_pickup的approach取得位置，使用pet_move_to(to,run=true)跑到邮箱旁，等待真实到达回执后才提交arrived。忙碌、操作电脑、被拖拽、移动失败或无移动工具则defer；不要抢占用户活动。requestId='+request.requestId+'，tripId='+request.tripId+'。取信只是表现，不再生图、不开始旅行，不把演出完成说成用户已读。',meta:{requestId:request.requestId,tripId:request.tripId}},{trigger:'debounce'});}catch{this.pickup.pause();throw Error('取信事件未送达，已保留来信，可点击重试');}
   }
   async openMailbox(){if(!this.mailboxHealthy)throw Error('邮箱已读记录损坏，请恢复备份，收藏未改动');if(this.opts.cfg.mailboxEnabled===false)throw Error('桌面邮箱已在配置中关闭');return this.mailboxWindow.open();}
   async start(host: WorldHost): Promise<void> {
@@ -101,7 +101,7 @@ export class PostcardWorld implements World {
     await this.service.tick();
     if (!this.host) return;
     for (const card of this.service.pendingNotifications()) {
-      await this.host.pushEvent({ type:'postcard.completed', ts:new Date(card.completedAt).toISOString(), source:this.id, origin:'internal', senderKey:this.id, text:'一趟旅行的明信片已保存，可以用 postcard_read 查看。', meta:{ tripId:card.tripId, scene:card.scene } }, { trigger:'debounce' });
+      await this.host.pushEvent({ type:'postcard.completed', ts:new Date(card.completedAt).toISOString(), source:this.id, origin:'internal', senderKey:this.id, text:'你这趟旅行时写给用户、寄回家的明信片已保存，可以用 postcard_read 查看。你是旅行者和寄信人，用户是收信人；只提醒有信，等用户点击邮箱后取信，不主动开盖或朗读。明确开发验证卡须如实说明是演示。', meta:{ tripId:card.tripId, scene:card.scene } }, { trigger:'debounce' });
       if (!this.host) return;
       this.service.acknowledge(card.tripId);
     }
@@ -117,3 +117,4 @@ export class PostcardWorld implements World {
     this.timer = undefined; this.opts.bridge?.detach(); this.host = undefined; await this.mailboxWindow.close(); await this.service.close();
   }
 }
+
