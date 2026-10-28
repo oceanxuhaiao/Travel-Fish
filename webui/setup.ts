@@ -33,4 +33,17 @@ export async function mountSetup(ctx:WebUiPanelContext){
  const items=[['生图服务','方舟云端或本地兼容接口；切换只影响新旅行。'],['生图模型ID','指定服务开通的模型名称或接入点ID，降低模型成本可能降低成图质量。'],['本地/兼容接口地址','填写HTTP(S)服务根地址，不填密钥或查询参数。接口协议见配置页说明。'],['本地/兼容出图尺寸','仅兼容接口使用，必须能返回合规PNG。'],['自定义每张图片估价','只用于费用提示，不设置服务扣款上限。'],['使用宿主模型看图与写信','默认开启，要求当前宿主模型支持PNG，消耗宿主原有额度。'],['启用云端明信片生成','默认开启；此开关控制明信片生成流水线，本地生图也使用它。未配置就绪时不会开始旅行，收藏可继续离线阅读。'],['允许宠物主动询问旅行','默认开启，获得明确同意才出发，沉默或拒绝不生图。'],['主动询问间隔（分钟）','默认360，1至43200；已有未完成旅行时暂停，不补发关机积压。'],['角色参考来源/PNG路径','选择内置角色或图库中的导入图；新旅行固定参考副本，旧收藏不变。'],['画风参考PNG路径','留空使用内置水彩参考，更改仅影响新旅行。'],['显示桌面旅行邮箱','默认开启，需要独立Electron运行时。关闭不取消旅行，可在收藏册重开。'],['邮箱本体高度','默认120逻辑像素，80—180；仅缩放邮箱，不改变桌宠。'],['邮箱Electron运行时路径','通常留空自动查找；不是Coopanion.exe或模型服务地址。'],['图片服务代理','通常留空直连，只影响生图HTTP请求；需要时填HTTP(S)代理，不能填密钥。']];const dl=el('dl');for(const [title,text] of items)dl.append(el('dt',title),el('dd',text));root.append(dl);
  const config=d.createElement('a');config.href='#/provider/world%3Apostcard/~config';config.textContent='打开详细配置';const worlds=d.createElement('a');worlds.href='#/world';worlds.textContent='打开World总览（重启/启用）';root.append(config,el('span',' · '),worlds);
  root.append(button('仅检查本地配置',async()=>{const c=await ctx.invoke<{readyForTravel:boolean;hostVisionReady:boolean;imageReady:boolean;characterReference:boolean;styleReference:boolean}>('check');say(c.readyForTravel?'本地配置就绪；没有调用API，服务实际连通性将在首次旅行验证。':'尚未就绪：请检查生图服务/密钥、参考图和宿主PNG看图能力；未发起旅行或API请求。');}),el('p','参考图会发送至你选择的生图服务；成图会交给宿主模型处理。使用本地生图不等于宿主看图也在本地。升级不重画、不覆盖已经收到的明信片；更改模型或参考只影响新旅行。'));
+ // Group the existing controls without changing their handlers or configuration semantics.
+ let section:HTMLElement|undefined;
+ for(const node of Array.from(root.children)){
+  if(node.tagName==='H2'){
+   section=d.createElement('section');section.className='pc-setup-step';
+   const id='pc-setup-step-'+(root.querySelectorAll('.pc-setup-step').length+1);
+   node.id=id;section.setAttribute('aria-labelledby',id);root.insertBefore(section,node);section.append(node);
+  }else if(section)section.append(node);
+ }
+ root.querySelector('h1')?.classList.add('pc-setup-title');
+ status.className='pc-setup-status';
+ const intro=root.querySelector(':scope > p:not([role])');intro?.classList.add('pc-setup-intro');
+
 }

@@ -138,3 +138,7 @@ G5实际Coopanion0.2.11独立profile18789加载0.2.0；随机旅行waterside真�
 - 155/155测试通过，服务与Web类型检查、构建和官方describe/check通过；新增进行中旅行不变与UI重复点击/外部关闭同步回归。
 - 日常17788无进行中旅行后备份并安装补丁。发现同版本前端缓存仍显示旧按钮，版本提升0.7.1切换资源URL后解决。实际浏览器点击关闭→显示按钮，重开→关闭按钮；后端running/closed/closed/running，旧2张卡、未读0不变，无新旅行或生图。
 - 备份：E:/zcdfy/Coopanion/data/backups/postcard-mailbox-toggle-20261028-153701。证据：output/stage-w-mailbox-toggle/verified.png。当前邮箱已重新打开，用户桌面视觉目击仍由用户确认；不改变既有R4/R5待验证边界。
+
+
+## 2026-10-28 配置引导排版修复（0.7.2）
+对齐新用户配置体验：四个步骤独立卡片；主标题30px、步骤22px、小标题17px、正文14px、辅助13px，字段加粗，费用独立底色，词条分隔、窄屏布局。仅修改展示结构和样式，保留原控件与事件。11项UI测试、Web类型检查与构建通过。无在途旅程后备份更新日常17788，实际宿主截图确认标题层级及步骤卡片生效；未改配置值，未调用云生成。备份data/backups/postcard-setup-layout-072；证据output/stage-x-setup-layout/verified.png。
