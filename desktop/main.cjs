@@ -1,4 +1,4 @@
-const {app,BrowserWindow,ipcMain,screen}=require('electron');
+const {app,BrowserWindow,ipcMain,screen,powerMonitor}=require('electron');
 const path=require('node:path'),fs=require('node:fs');
 app.disableHardwareAcceleration();
 fs.mkdirSync(process.env.POSTCARD_MAIL_PROFILE,{recursive:true});
@@ -7,10 +7,10 @@ const origin=process.env.POSTCARD_MAIL_ORIGIN,token=process.env.POSTCARD_MAIL_TO
 let mailbox,reader,rects=[],drag=null;
 async function request(route,payload){if(typeof payload==='string')payload={tripId:payload};const response=await fetch(origin+route,{method:payload?'POST':'GET',headers:{Authorization:'Bearer '+token,...(payload?{'Content-Type':'application/json'}:{})},...(payload?{body:JSON.stringify(payload)}:{}),signal:AbortSignal.timeout(5000)});if(!response.ok)throw Error('暂时联系不上邮箱，收藏仍保留');return response.json();}
 const options={preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true};
-function secure(win){win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());}
+function secure(win){win.webContents.on('render-process-gone',()=>{if(win===mailbox)app.quit();else if(!win.isDestroyed())win.close();});win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());}
 app.whenReady().then(async()=>{
- const a=screen.getPrimaryDisplay().workArea;const positionFile=path.join(process.env.POSTCARD_MAIL_PROFILE,'position.json');const initial=await request('/state');const height=Math.max(260,(Number(initial.height)||120)+140);
- const clamp=(b)=>({x:Math.round(Math.max(a.x,Math.min(a.x+Math.max(0,a.width-260),b.x))),y:Math.round(a.y+Math.max(0,a.height-height)),width:260,height});let position=clamp({x:a.x+a.width*.7-130,y:a.y+a.height-height});try{const saved=JSON.parse(fs.readFileSync(positionFile,'utf8'));if(Number.isFinite(saved.x)&&Number.isFinite(saved.y))position=clamp(saved);}catch{}
+ let a=screen.getPrimaryDisplay().workArea;const positionFile=path.join(process.env.POSTCARD_MAIL_PROFILE,'position.json');const initial=await request('/state');const height=Math.max(260,(Number(initial.height)||120)+140);
+ const {groundBounds}=require('./layout.cjs');const clamp=(b)=>groundBounds(a,height,b);let position=clamp({x:a.x+a.width*.7-130,y:a.y+a.height-height});try{const saved=JSON.parse(fs.readFileSync(positionFile,'utf8'));if(Number.isFinite(saved.x)&&Number.isFinite(saved.y))position=clamp(saved);}catch{}
  mailbox=new BrowserWindow({...position,width:260,height,frame:false,transparent:true,alwaysOnTop:true,skipTaskbar:true,focusable:false,resizable:false,show:false,webPreferences:options});secure(mailbox);
  ipcMain.handle('postcard:call',async(event,action,id)=>{
   if(![mailbox?.webContents,reader?.webContents].includes(event.sender))throw Error('窗口已失效');
@@ -46,6 +46,10 @@ app.whenReady().then(async()=>{
  fs.writeFileSync(positionFile,JSON.stringify({x:geometry.bounds.x,y:geometry.bounds.y}));
  fs.writeFileSync(path.join(process.env.POSTCARD_MAIL_PROFILE,'window-ready.json'),JSON.stringify(geometry,null,2));
  await request('/window',geometry);
+ let refreshTimer;const refreshDisplay=()=>{clearTimeout(refreshTimer);refreshTimer=setTimeout(async()=>{if(mailbox.isDestroyed())return;drag=null;a=screen.getPrimaryDisplay().workArea;mailbox.setBounds(clamp(mailbox.getBounds()));const geometry=geometryNow();try{fs.writeFileSync(positionFile,JSON.stringify({x:geometry.bounds.x,y:geometry.bounds.y}));fs.writeFileSync(path.join(process.env.POSTCARD_MAIL_PROFILE,'window-ready.json'),JSON.stringify({...geometry,displays:screen.getAllDisplays().map(d=>({id:d.id,bounds:d.bounds,workArea:d.workArea,scaleFactor:d.scaleFactor}))},null,2));await request('/window',geometry);}catch{}},150);};
+ for(const event of ['display-added','display-removed','display-metrics-changed'])screen.on(event,refreshDisplay);powerMonitor.on('resume',refreshDisplay);
+ mailbox.once('closed',()=>{clearTimeout(refreshTimer);for(const event of ['display-added','display-removed','display-metrics-changed'])screen.removeListener(event,refreshDisplay);powerMonitor.removeListener('resume',refreshDisplay);});
+ fs.writeFileSync(path.join(process.env.POSTCARD_MAIL_PROFILE,'display-state.json'),JSON.stringify(screen.getAllDisplays().map(d=>({id:d.id,bounds:d.bounds,workArea:d.workArea,scaleFactor:d.scaleFactor})),null,2));
  if(process.env.POSTCARD_MAIL_CAPTURE){setTimeout(async()=>{try{fs.writeFileSync(process.env.POSTCARD_MAIL_CAPTURE,(await mailbox.webContents.capturePage()).toPNG());}catch{}},2000);}
  let ignored=true;setInterval(()=>{if(mailbox.isDestroyed())return;const p=screen.getCursorScreenPoint(),b=mailbox.getBounds(),x=p.x-b.x,y=p.y-b.y;const next=!drag&&!rects.some(r=>x>=r.x&&x<r.x+r.width&&y>=r.y&&y<r.y+r.height);if(next!==ignored){ignored=next;mailbox.setIgnoreMouseEvents(next,{forward:true});}},60);
 });
