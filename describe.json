@@ -1,0 +1,259 @@
+{
+  "tools": [
+    {
+      "name": "postcard_pickup",
+      "description": "Manage a saved postcard pickup performance only for postcard.pickup_due requestId. First approach obtains target, then use pet_move_to on the primary display ONLY when idle and await its real arrival receipt; then arrived starts the mailbox animation. Defer on busy, missing tool, interrupted/failed movement, wrong screen or user interaction. Never infer arrival from chat. Expired requests fail. This does not save cards, prove physical position, or mark a letter read.",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "step": {
+            "type": "string",
+            "enum": [
+              "approach",
+              "arrived",
+              "defer"
+            ]
+          }
+        },
+        "required": [
+          "requestId",
+          "step"
+        ]
+      },
+      "tags": [
+        "write"
+      ],
+      "summary": {
+        "zh": "按当前请求协调靠近、开始取信或暂缓。",
+        "en": "Coordinate a saved postcard pickup."
+      }
+    },
+    {
+      "name": "postcard_start",
+      "description": "Start one surprise virtual pet trip when the user asks. The pet chooses the scenery internally; do not ask the user to choose a destination. Duration is fixed at two hours of real waiting time and cannot be changed by user configuration; the postcard is prepared during this wait and delivered at return if ready; service failures may delay delivery. Only one unfinished trip is allowed. Start only for an explicit user request or affirmative reply to a travel invitation. An invitation event, silence or a refusal is never consent.",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      },
+      "tags": [
+        "write"
+      ],
+      "summary": {
+        "zh": "开始一趟现实时间等待的旅行。",
+        "en": "Start one timed trip."
+      }
+    },
+    {
+      "name": "postcard_status",
+      "description": "Read the current trip and availability. awaiting_service means a generator is not connected; do not claim a postcard exists.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "tags": [
+        "read"
+      ],
+      "summary": {
+        "zh": "查看旅行与服务连接状态。",
+        "en": "Read trip and generator availability."
+      }
+    },
+    {
+      "name": "postcard_list",
+      "description": "List permanently saved postcards.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "tags": [
+        "read"
+      ],
+      "summary": {
+        "zh": "列出已保存的明信片。",
+        "en": "List saved postcards."
+      }
+    },
+    {
+      "name": "postcard_read",
+      "description": "Read your own travel postcard, written by you to the user, by trip id. Retell it in first person as your travel keepsake, not as an incoming letter from someone else. Respect explicitly labelled development fixtures.",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tripId": {
+            "type": "string",
+            "description": "Trip id from postcard_status."
+          }
+        },
+        "required": [
+          "tripId"
+        ]
+      },
+      "tags": [
+        "read"
+      ],
+      "summary": {
+        "zh": "读取一份已完成的旅行短笺。",
+        "en": "Read a completed postcard."
+      }
+    },
+    {
+      "name": "postcard_cancel",
+      "description": "Cancel a trip on user request. A remote request already sent may still incur a charge.",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tripId": {
+            "type": "string",
+            "description": "Trip id from postcard_status."
+          }
+        },
+        "required": [
+          "tripId"
+        ]
+      },
+      "tags": [
+        "write"
+      ],
+      "summary": {
+        "zh": "取消未结束的旅行。",
+        "en": "Cancel an unfinished trip."
+      }
+    },
+    {
+      "name": "postcard_retry",
+      "description": "Manually retry a failed trip only after the user requests it. For an uncertain image outcome, set confirmUnknownOutcome only after the user has explicitly confirmed checking the previous result and possible charge.",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tripId": {
+            "type": "string",
+            "description": "Trip id from postcard_status."
+          },
+          "confirmUnknownOutcome": {
+            "type": "boolean",
+            "description": "True only after the user explicitly confirms the uncertain previous request and possible charge."
+          }
+        },
+        "required": [
+          "tripId"
+        ]
+      },
+      "tags": [
+        "write"
+      ],
+      "summary": {
+        "zh": "按用户要求重试失败旅程。",
+        "en": "Retry a failed trip on user request."
+      }
+    },
+    {
+      "name": "postcard_host_read",
+      "description": "读取旅行宿主模型待办及候选图片。只有收到postcard.host_task才处理；不开始旅行或生图。",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ]
+      },
+      "tags": [
+        "read"
+      ],
+      "summary": {
+        "zh": "读取宿主模型旅行待办及图片。",
+        "en": "Read host model task."
+      }
+    },
+    {
+      "name": "postcard_host_submit",
+      "description": "提交当前旅行宿主模型任务的JSON结果；非最终收藏回执。编号与digest必须来自read。",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "resultJson": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "digest",
+          "resultJson"
+        ]
+      },
+      "tags": [
+        "write"
+      ],
+      "summary": {
+        "zh": "提交宿主模型任务结果。",
+        "en": "Submit host model task result."
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "postcard.pickup_due",
+      "description": {
+        "zh": "已入藏的明信片等待空闲取信演出。",
+        "en": "A saved postcard awaits an idle pickup performance."
+      }
+    },
+    {
+      "type": "postcard.host_task",
+      "description": {
+        "zh": "旅行宿主模型待办及候选附件。",
+        "en": "Host model postcard task and attachments."
+      }
+    },
+    {
+      "type": "postcard.started",
+      "description": {
+        "zh": "旅行核心已加载及生成服务可用情况。",
+        "en": "Travel core mounted and generator availability."
+      }
+    },
+    {
+      "type": "postcard.invitation_due",
+      "description": {
+        "zh": "用户配置的主动旅行询问时机已到，尚未获得出发许可。",
+        "en": "Configured invitation time is due; departure is not approved."
+      }
+    },
+    {
+      "type": "postcard.completed",
+      "description": {
+        "zh": "明信片已完整保存到收藏。",
+        "en": "A complete postcard was saved."
+      }
+    }
+  ],
+  "prompts": [
+    {
+      "key": "worlds.postcard.envPrompt",
+      "title": "旅行环境说明",
+      "role": "envPrompt",
+      "content": "你可以通过 postcard 工具管理虚拟旅行和明信片收藏。当前：{{postcard.availability}}。\r\n只在用户明确提出旅行需求，或明确同意你刚提出的旅行请求后出发，不自行开始收费任务。新旅行在2小时旅途中提前制作明信片；成品备妥后等待归来时刻交付。仅服务失败/超时才可能延迟，不能保证外部API绝不故障。\r\n只有 postcard_read/list 确认存在的收藏才可描述为已收到。awaiting_service 不能说成正在实际生图。\r\n失败不会自动重新收费；用户要求重试前，要先确认上次远端结果。取消可能无法撤销已提交远端请求。\r\n工具提供的旅程是外部环境状态，不表示你获得了新的关系记忆，不编造与用户的共同经历。\r\n\r\n旅行目的地是虚构环境，不对应真实省市或景区。内部场景目录只用于生成和避重，不代表一组供用户选择的固定地点。不要编造真实到访地点；具体取景归来后从成图了解。\r\n\r\n出发不接受目的地参数，由宠物内部选择风景。不要让用户从场景列表选择，不提前透露具体取景。收藏按收到时间翻看，不按地点分类；这些内部场景类别不是固定目的地。\r\n\r\n收到 postcard.invitation_due 时，按你原有的性格和当前对话语气，简短表达自己想出去看看，并询问用户是否同意，例如“我想去远方走走，给你带封来信，可以吗？”不要把定时器、配置或后台事件说给用户听。这是主动询问机会，不是用户的出发许可。发问后等待用户明确回答；沉默、拒绝、含糊回应都不调用postcard_start，也不自行重试收费任务。用户明确答应这次请求才可调用postcard_start。用户拒绝就自然接受，不当场反复劝说；下次询问由用户设置的间隔控制，不自行绕开间隔另发催促。\r\n\r\n每次新旅行固定等待2小时，用户不能修改时长。不要承诺提前结束等待或用工具参数缩短。面板进度只代表旅行等待；通常到期直接交付已备妥的成品；若到期仍未完成须如实说明延迟。不能仅凭进度100%说成已收到。旧旅程沿用其出发时确定的到期时间。\r\n\r\n收到postcard.host_task后，处理已经同意的旅行候选，不另开旅行或生图。先调用postcard_host_read取得精确任务编号、摘要、指令和图片，再按指令用postcard_host_submit提交JSON结果，不能只在聊天里回答。看不见图片时不得猜测。每一阶段都按本次指令核对；审核只拦截明确矛盾，声音/温度/情绪/比喻无法证实不等于冲突。提交接受只代表本阶段结果已保存，必须postcard_status或read确认完成才说已收到。超时/取消任务不继续提交，不自动重试旅行。\r\n\r\n\r\n到期只提醒有信，不主动取信。收到postcard.pickup_due表示用户已点击邮箱请求取信，来信已经永久入藏，这只是取信演出机会，不是出发许可。不要打断正在进行的对话、说话、电脑操作、拖拽或其他动作。没有pet_move_to，或角色不在主屏时，调用postcard_pickup(requestId,step=defer)并保留邮箱提示；不要用鼠标/截图/操作电脑工具去实现取信，也不要调用pet_set改角色或设置。空闲时先用step=approach取得to，再调用pet_move_to(to,run=true)。必须等该工具真实回执确认到达后才用step=arrived开盖；工具失败、被拖拽、停止或被其他动作替换，就defer。不要只说“我到了”或先提交arrived再移动。arrived只是演出许可，不是程序验证物理坐标；用户仍可直接点击读信。过期请求不再执行，演出失败不重画卡、不删除收藏、不宣称用户已读。\r\n\r\n\r\n旅行明信片的叙事身份：你（当前桌宠）是旅行者、短笺作者和寄信人，用户是留在家中、你牵挂的收信人。邮箱里的是你在旅途中寄回家的明信片，取信是替用户拿出它、陪用户重温自己的旅途，不是在收别人给你的信。阅读后按自己的性格用第一人称自然分享，例如“这是我那会儿寄回来的，想把这片风景也留给你看看”，不要说“不知道谁寄来的”“这位旅行者”“有人给我写了封信”。短笺的“我”指你，“你”指用户。只依据已保存的短笺和可确认的画面分享，不编造用户同行、共同回忆或真实地名。状态数据本身不等于新增关系记忆，但已确认的虚拟旅程可以作为自己的本次旅途来讲述；无须在正常读信时强调后台、生成模型或外部资料。明确标注开发验证/演示的卡片必须如实说明是演示，不把开发文案当作真实旅行经历。\r\n"
+    }
+  ]
+}

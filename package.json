@@ -1,0 +1,80 @@
+{
+  "name": "cortico-world-postcard",
+  "version": "0.7.3",
+  "type": "module",
+  "description": "让大肥鱼去远方走走，把想念寄回家：两小时旅行、水彩明信片、桌面邮箱取信与永久收藏。适用于 Coopanion。",
+  "license": "MIT",
+  "keywords": [
+    "cortico-world",
+    "cortico"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.28.6",
+  "main": "./src/index.ts",
+  "cortico": {
+    "kind": "world",
+    "api": 6,
+    "tags": [
+      "experimental"
+    ],
+    "describe": "describe.json",
+    "displayName": "旅行大肥鱼",
+    "webUiClient": "dist/webui.js",
+    "webUiStyle": "dist/webui.css",
+    "icon": "assets/branding/logo.png",
+    "screenshots": [
+      "assets/branding/poster.jpg"
+    ]
+  },
+  "files": [
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "USAGE.md",
+    "RECOVERY.md",
+    "describe.json",
+    "dist",
+    "assets",
+    "desktop",
+    "REFERENCE-REQUIREMENTS.md",
+    "LOCAL-IMAGE-API.md"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build:webui": "node scripts/build-webui.mjs",
+    "typecheck:web": "tsc -p tsconfig.web.json --noEmit",
+    "prepack": "node scripts/build-webui.mjs"
+  },
+  "devDependencies": {
+    "@types/jsdom": "21.1.7",
+    "@types/node": "^22.10.0",
+    "@types/pngjs": "6.0.5",
+    "cortico": "0.2.7",
+    "esbuild": "0.28.2",
+    "jsdom": "26.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "fflate": "0.8.3",
+    "koffi": "3.3.1",
+    "pngjs": "7.0.0",
+    "undici": "7.29.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oceanxuhaiao/Travel-Fish.git"
+  },
+  "homepage": "https://github.com/oceanxuhaiao/Travel-Fish#readme",
+  "bugs": {
+    "url": "https://github.com/oceanxuhaiao/Travel-Fish/issues"
+  },
+  "author": "oceanxuhaiao",
+  "os": [
+    "win32"
+  ]
+}
