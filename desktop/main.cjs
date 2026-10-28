@@ -10,7 +10,7 @@ const options={preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,
 function secure(win){win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());}
 app.whenReady().then(async()=>{
  const a=screen.getPrimaryDisplay().workArea;const positionFile=path.join(process.env.POSTCARD_MAIL_PROFILE,'position.json');const initial=await request('/state');const height=Math.max(260,(Number(initial.height)||120)+140);
- const clamp=(b)=>({x:Math.round(Math.max(a.x,Math.min(a.x+Math.max(0,a.width-260),b.x))),y:Math.round(Math.max(a.y,Math.min(a.y+Math.max(0,a.height-height),b.y))),width:260,height});let position=clamp({x:a.x+a.width*.7-130,y:a.y+a.height-height});try{const saved=JSON.parse(fs.readFileSync(positionFile,'utf8'));if(Number.isFinite(saved.x)&&Number.isFinite(saved.y))position=clamp(saved);}catch{}
+ const clamp=(b)=>({x:Math.round(Math.max(a.x,Math.min(a.x+Math.max(0,a.width-260),b.x))),y:Math.round(a.y+Math.max(0,a.height-height)),width:260,height});let position=clamp({x:a.x+a.width*.7-130,y:a.y+a.height-height});try{const saved=JSON.parse(fs.readFileSync(positionFile,'utf8'));if(Number.isFinite(saved.x)&&Number.isFinite(saved.y))position=clamp(saved);}catch{}
  mailbox=new BrowserWindow({...position,width:260,height,frame:false,transparent:true,alwaysOnTop:true,skipTaskbar:true,focusable:false,resizable:false,show:false,webPreferences:options});secure(mailbox);
  ipcMain.handle('postcard:call',async(event,action,id)=>{
   if(![mailbox?.webContents,reader?.webContents].includes(event.sender))throw Error('窗口已失效');
@@ -43,6 +43,7 @@ app.whenReady().then(async()=>{
  let moveTimer;mailbox.on('will-move',(event,bounds)=>{const safe=clamp(bounds);if(safe.x!==bounds.x||safe.y!==bounds.y){event.preventDefault();mailbox.setBounds(safe);}});
  mailbox.on('move',()=>{clearTimeout(moveTimer);moveTimer=setTimeout(async()=>{if(mailbox.isDestroyed())return;const geometry=geometryNow();try{fs.writeFileSync(positionFile,JSON.stringify({x:geometry.bounds.x,y:geometry.bounds.y}));fs.writeFileSync(path.join(process.env.POSTCARD_MAIL_PROFILE,'window-ready.json'),JSON.stringify(geometry,null,2));await request('/window',geometry);}catch{}},120);});mailbox.once('closed',()=>clearTimeout(moveTimer));
  const geometry=geometryNow();
+ fs.writeFileSync(positionFile,JSON.stringify({x:geometry.bounds.x,y:geometry.bounds.y}));
  fs.writeFileSync(path.join(process.env.POSTCARD_MAIL_PROFILE,'window-ready.json'),JSON.stringify(geometry,null,2));
  await request('/window',geometry);
  if(process.env.POSTCARD_MAIL_CAPTURE){setTimeout(async()=>{try{fs.writeFileSync(process.env.POSTCARD_MAIL_CAPTURE,(await mailbox.webContents.capturePage()).toPNG());}catch{}},2000);}
