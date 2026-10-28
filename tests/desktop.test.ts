@@ -33,3 +33,12 @@ it.each([true,false])('点击邮箱请求桌宠取信（未读=%s），不直接
  (dom.window.document.getElementById('mail') as HTMLButtonElement).click();await flush();await flush();
  expect(api.call).toHaveBeenCalledWith('pickup-request',id);expect(api.call.mock.calls.some(c=>['open-letter','presentation-done','mark-read'].includes(c[0]))).toBe(false);expect(dom.window.document.querySelector('.opening')).toBeNull();
 });
+
+it.each([[false,0,true],[false,1,false],[true,0,false]])('气泡显示按开发模式=%s及未读=%s决定',async(debug,unread,hidden)=>{
+ const dom=new JSDOM('<main id="root"></main>',{url:'https://local.test/'+(debug?'#debug=1':''),runScripts:'outside-only'});fixtures.push(dom);
+ const state={phase:'idle',trip:null,cards:[{tripId:'00000000-0000-0000-0000-000000000001',unread:!!unread}],unreadCount:unread,pickup:{active:null,pending:[]}};
+ const api={rects:vi.fn(),call:vi.fn(async(action:string)=>action==='state'?state:{})};(dom.window as any).postcard=api;(dom.window as any).ResizeObserver=class{observe(){}};(dom.window as any).setInterval=()=>1;
+ dom.window.eval(script);await flush();const doc=dom.window.document;expect((doc.querySelector('.status') as HTMLElement).hidden).toBe(hidden);expect((doc.querySelector('.buttons') as HTMLElement).hidden).toBe(!debug);
+ const mail=doc.getElementById('mail')!;const pointer=(type:string,x:number)=>{const event=new dom.window.Event(type);Object.assign(event,{button:0,pointerId:1,clientX:x,clientY:10});mail.dispatchEvent(event);};pointer('pointerdown',10);pointer('pointermove',30);pointer('pointerup',30);mail.click();await flush();
+ expect(api.call.mock.calls.some(c=>c[0]==='drag-move')).toBe(true);expect(api.call.mock.calls.some(c=>c[0]==='pickup-request')).toBe(false);
+});

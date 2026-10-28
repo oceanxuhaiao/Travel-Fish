@@ -4,7 +4,7 @@ app.disableHardwareAcceleration();
 fs.mkdirSync(process.env.POSTCARD_MAIL_PROFILE,{recursive:true});
 app.setPath('userData',process.env.POSTCARD_MAIL_PROFILE);
 const origin=process.env.POSTCARD_MAIL_ORIGIN,token=process.env.POSTCARD_MAIL_TOKEN;
-let mailbox,reader,rects=[];
+let mailbox,reader,rects=[],drag=null;
 async function request(route,payload){if(typeof payload==='string')payload={tripId:payload};const response=await fetch(origin+route,{method:payload?'POST':'GET',headers:{Authorization:'Bearer '+token,...(payload?{'Content-Type':'application/json'}:{})},...(payload?{body:JSON.stringify(payload)}:{}),signal:AbortSignal.timeout(5000)});if(!response.ok)throw Error('暂时联系不上邮箱，收藏仍保留');return response.json();}
 const options={preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true};
 function secure(win){win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());}
@@ -14,6 +14,12 @@ app.whenReady().then(async()=>{
  mailbox=new BrowserWindow({...position,width:260,height,frame:false,transparent:true,alwaysOnTop:true,skipTaskbar:true,focusable:false,resizable:false,show:false,webPreferences:options});secure(mailbox);
  ipcMain.handle('postcard:call',async(event,action,id)=>{
   if(![mailbox?.webContents,reader?.webContents].includes(event.sender))throw Error('窗口已失效');
+  if(action.startsWith('drag-')){
+    if(event.sender!==mailbox.webContents)throw Error('窗口已失效');
+    if(action==='drag-start'){drag={cursor:screen.getCursorScreenPoint(),bounds:mailbox.getBounds(),moved:false};return {};}
+    if(action==='drag-move'&&drag){const cursor=screen.getCursorScreenPoint(),dx=cursor.x-drag.cursor.x,dy=cursor.y-drag.cursor.y;if(Math.hypot(dx,dy)>=5)drag.moved=true;if(drag.moved)mailbox.setBounds(clamp({x:drag.bounds.x+dx,y:drag.bounds.y+dy}));return {moved:drag.moved};}
+    if(action==='drag-end'){const moved=!!drag?.moved;drag=null;return {moved};}return {};
+  }
   if(action==='state')return request('/state');
   if(action==='read')return request('/read',String(id));
   if(action==='pickup-request')return request('/pickup-request',String(id));
@@ -31,7 +37,7 @@ app.whenReady().then(async()=>{
   throw Error('未知邮箱操作');
  });
  ipcMain.on('postcard:rects',(event,value)=>{if(event.sender!==mailbox.webContents||!Array.isArray(value))return;rects=value.slice(0,12).filter(r=>['x','y','width','height'].every(k=>Number.isFinite(r[k])));});
- mailbox.setIgnoreMouseEvents(true,{forward:true});await mailbox.loadFile(path.join(__dirname,'mailbox.html'));mailbox.showInactive();
+ mailbox.setIgnoreMouseEvents(true,{forward:true});let debugUi=false;try{debugUi=JSON.parse(fs.readFileSync(path.join(process.env.POSTCARD_MAIL_PROFILE,'dev-ui.json'),'utf8')).enabled===true;}catch{}await mailbox.loadFile(path.join(__dirname,'mailbox.html'),{hash:debugUi?'debug=1':''});mailbox.showInactive();
  const layer=require('./layer.cjs').keepBehindPet(mailbox);let lastLayer='';const updateLayer=()=>{const result=layer.update(),key=JSON.stringify(result);if(!result.supported)mailbox.setAlwaysOnTop(false);if(key!==lastLayer){lastLayer=key;fs.writeFileSync(path.join(process.env.POSTCARD_MAIL_PROFILE,'layer-state.json'),JSON.stringify({...result,at:new Date().toISOString()},null,2));}};updateLayer();const layerTimer=setInterval(updateLayer,800);mailbox.once('closed',()=>{clearInterval(layerTimer);layer.dispose();});
  const geometryNow=()=>({at:new Date().toISOString(),bounds:mailbox.getBounds(),workArea:a,scaleFactor:screen.getPrimaryDisplay().scaleFactor});
  let moveTimer;mailbox.on('will-move',(event,bounds)=>{const safe=clamp(bounds);if(safe.x!==bounds.x||safe.y!==bounds.y){event.preventDefault();mailbox.setBounds(safe);}});
@@ -40,7 +46,7 @@ app.whenReady().then(async()=>{
  fs.writeFileSync(path.join(process.env.POSTCARD_MAIL_PROFILE,'window-ready.json'),JSON.stringify(geometry,null,2));
  await request('/window',geometry);
  if(process.env.POSTCARD_MAIL_CAPTURE){setTimeout(async()=>{try{fs.writeFileSync(process.env.POSTCARD_MAIL_CAPTURE,(await mailbox.webContents.capturePage()).toPNG());}catch{}},2000);}
- let ignored=true;setInterval(()=>{if(mailbox.isDestroyed())return;const p=screen.getCursorScreenPoint(),b=mailbox.getBounds(),x=p.x-b.x,y=p.y-b.y;const next=!rects.some(r=>x>=r.x&&x<r.x+r.width&&y>=r.y&&y<r.y+r.height);if(next!==ignored){ignored=next;mailbox.setIgnoreMouseEvents(next,{forward:true});}},60);
+ let ignored=true;setInterval(()=>{if(mailbox.isDestroyed())return;const p=screen.getCursorScreenPoint(),b=mailbox.getBounds(),x=p.x-b.x,y=p.y-b.y;const next=!drag&&!rects.some(r=>x>=r.x&&x<r.x+r.width&&y>=r.y&&y<r.y+r.height);if(next!==ignored){ignored=next;mailbox.setIgnoreMouseEvents(next,{forward:true});}},60);
 });
 app.on('window-all-closed',()=>app.quit());
 setInterval(()=>{try{process.kill(Number(process.env.POSTCARD_MAIL_PARENT),0);}catch{app.quit();}},1500).unref();

@@ -13,13 +13,19 @@ if(letterId){
  }catch{const error=el('p','来信暂时无法打开，请在收藏册检查。');error.className='error';root.append(error);}})();
 }else{
  root.className='mail-shell';const status=el('section');status.className='status';status.dataset.hit='';const title=el('strong','旅行邮箱'),label=el('p','正在连接'),progress=el('progress'),hint=el('p');hint.className='muted';progress.max=100;status.append(title,label,progress,hint);
- title.className='drag-handle';title.title='按住这里拖动邮箱，位置会自动保存（主屏内）';
+ const debugUi=letterParams.get('debug')==='1';
  const controls=el('div');controls.className='buttons';controls.dataset.hit='';const pickup=button('请它取信',requestPickup);controls.append(pickup,button('直接读信',openLetter),button('看开盖',previewAnimation),button('关闭',()=>api.call('close')));
- const mail=button('',requestPickup);mail.id='mail';mail.setAttribute('aria-label','请桌宠来取旅行来信');
+ let dragPointer=null,suppressClick=false;
+ const mail=button('',()=>{if(suppressClick){suppressClick=false;return;}return requestPickup();});mail.id='mail';mail.setAttribute('aria-label','请桌宠来取旅行来信');
  const closed=el('img');closed.className='mail-art closed';closed.src='art/mailbox-closed.png';closed.alt='水彩木质邮箱';closed.draggable=false;
  const opened=el('img');opened.className='mail-art opened';opened.src='art/mailbox-open.png';opened.alt='';opened.draggable=false;
  const floating=el('img');floating.className='floating-card';floating.alt='本次旅行明信片';
  for(const part of ['body','post','flag']){const hit=el('span');hit.className='hit-'+part;hit.dataset.hit='';mail.append(hit);}
+ mail.title='拖动邮箱可移动，轻点请它取信';
+ mail.addEventListener('pointerdown',event=>{if(event.button!==0)return;dragPointer={id:event.pointerId,x:event.clientX,y:event.clientY};suppressClick=false;mail.setPointerCapture?.(event.pointerId);void api.call('drag-start');});
+ mail.addEventListener('pointermove',event=>{if(!dragPointer||event.pointerId!==dragPointer.id)return;if(Math.hypot(event.clientX-dragPointer.x,event.clientY-dragPointer.y)>=5)suppressClick=true;if(suppressClick)void api.call('drag-move');});
+ const endDrag=event=>{if(!dragPointer||event.pointerId!==dragPointer.id)return;dragPointer=null;void api.call('drag-end');};
+ mail.addEventListener('pointerup',endDrag);mail.addEventListener('pointercancel',endDrag);mail.addEventListener('lostpointercapture',endDrag);
  mail.append(closed,opened,floating);root.append(status,controls,mail);
  let animation=null,starting=null,previewSequence=0;const played=new Set();
  function resetAnimation(){if(animation){clearTimeout(animation.timer);animation=null;}root.classList.remove('opening');floating.removeAttribute('src');regions();}
@@ -41,10 +47,11 @@ if(letterId){
  async function previewAnimation(){try{await refresh();if(animation||starting)return;const card=state?.cards.find(c=>c.unread)??state?.cards[0];if(!card){hint.textContent='收到第一封来信后可预览开盖';return;}if(state.pickup?.active){hint.textContent='正在安排取信，请等本次完成';return;}await animate({requestId:'preview-'+Date.now()+'-'+(++previewSequence),tripId:card.tripId,expiresAt:Date.now()+15000},true);}catch{hint.textContent='预览暂时无法打开';}}
  async function requestPickup(){try{await refresh();const card=state?.cards.find(c=>c.unread)??state?.cards[0];if(!card){hint.textContent='还没有来信';return;}const request=await api.call('pickup-request',card.tripId);if(!request){hint.textContent='邮箱尚未就绪，请稍后再点一次';return;}hint.textContent='已请求，等它空闲时来取信';await refresh();}catch{hint.textContent='暂时无法安排，来信仍可直接阅读';}}
  let state=null,receivedAt=0,loading=false;
- function regions(){api.rects([...root.querySelectorAll('[data-hit]')].map(n=>{const r=n.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};}));}
- function paint(){if(!state)return;root.style.setProperty('--mail-h',(state.height||120)+'px');root.style.height=Math.max(260,(state.height||120)+140)+'px';title.textContent='⠿ 旅行邮箱'+(state.unreadCount?' · '+state.unreadCount+'封未读':'');const t=state.trip,remaining=t?Math.max(0,t.dueAt-Date.now()):0;const pct=t?Math.max(0,Math.min(100,Math.floor((Date.now()-t.startedAt)/(t.dueAt-t.startedAt)*100))):0;progress.hidden=!t;progress.value=pct;progress.setAttribute('aria-label','旅行等待进度');
+ function regions(){api.rects([...root.querySelectorAll('[data-hit]')].filter(n=>!n.hidden&&!n.closest('[hidden]')).map(n=>{const r=n.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};}));}
+ function paint(){if(!state)return;root.style.setProperty('--mail-h',(state.height||120)+'px');root.style.height=Math.max(260,(state.height||120)+140)+'px';title.textContent='旅行邮箱'+(state.unreadCount?' · '+state.unreadCount+'封未读':'');const t=state.trip,remaining=t?Math.max(0,t.dueAt-Date.now()):0;const pct=t?Math.max(0,Math.min(100,Math.floor((Date.now()-t.startedAt)/(t.dueAt-t.startedAt)*100))):0;progress.hidden=!t;progress.value=pct;progress.setAttribute('aria-label','旅行等待进度');
   label.textContent=state.phase==='failed'?'来信暂未准备好':t?(remaining?'正在远方旅行':'旅行时间已到，来信待准备'):state.unreadCount?'有 '+state.unreadCount+' 封新来信':'等一封远方来信';
   hint.textContent=t&&remaining?'剩余约 '+Math.ceil(remaining/60000)+' 分钟 · '+pct+'%':t?'可在收藏册检查或继续准备':state.unreadCount?'点击邮箱，请它来取信':'点击邮箱，请它取出最近一封';root.classList.toggle('has-mail',state.unreadCount>0);
+  status.hidden=!debugUi&&!state.unreadCount&&!t;controls.hidden=!debugUi;
   const req=state.pickup?.active;pickup.hidden=!state.cards.length;pickup.disabled=!!req;
   if(req)label.textContent=req.phase==='presenting'?'正在取出这封来信':req.phase==='approaching'?'等它来到邮箱旁':'等它空闲时来取信';
   if(animation&&!animation.preview&&req?.requestId!==animation.requestId)resetAnimation();if(req?.phase==='presenting')void animate(req);regions();}

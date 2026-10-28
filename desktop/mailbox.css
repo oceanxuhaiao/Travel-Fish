@@ -13,4 +13,6 @@
 @keyframes postcard-rise{0%,12%{opacity:0;clip-path:inset(0 0 100% 0);transform:translate(0,8px) rotate(-3deg) scale(.65)}25%{opacity:1;clip-path:inset(0 0 65% 0);transform:translate(0,0) rotate(-3deg) scale(.75)}45%{opacity:1;clip-path:inset(0 0 10% 0);transform:translate(4px,-14px) rotate(-5deg) scale(.9)}75%,100%{opacity:1;clip-path:inset(0);transform:translate(20px,-55px) rotate(-7deg) scale(1)}}
 @media(prefers-reduced-motion:reduce){.mail-art{transition:none}.opening .floating-card{animation:none;opacity:1;transform:translate(20px,-35px)}}
 
-.drag-handle{display:block;-webkit-app-region:drag;app-region:drag;cursor:move;user-select:none;min-height:20px}.buttons,button{-webkit-app-region:no-drag;app-region:no-drag}
+.buttons,button{-webkit-app-region:no-drag;app-region:no-drag}
+
+#mail{touch-action:none;cursor:grab}#mail:active{cursor:grabbing}
