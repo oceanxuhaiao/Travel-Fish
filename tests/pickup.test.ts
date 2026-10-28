@@ -63,3 +63,8 @@ it('取信事件投递失败不自动重发或重画，用户仍可读已保存�
   await expect(world.pickupPulse()).rejects.toThrow('未送达');await world.pickupPulse();expect(world.pickup.snapshot().active).toBeNull();expect(world.mailbox.snapshot().unreadCount).toBe(1);expect(generator).toHaveBeenCalledTimes(1);
  }finally{await world.stop();}
 });
+
+it('已读且演出完成的来信，用户点击仍可重新取信，不恢复未读或新增收藏',async()=>{
+ const t=await complete(),first=queue.offer(true,t.id)!;queue.step(first.requestId,'approach');queue.step(first.requestId,'arrived');queue.finish(first.requestId,t.id);mail.markRead(t.id);
+ expect(queue.offer()).toBeNull();const replay=queue.offer(true,t.id)!;expect(replay.replay).toBe(true);expect(queue.snapshot().active?.requestId).toBe(replay.requestId);queue.step(replay.requestId,'approach');queue.step(replay.requestId,'arrived');queue.finish(replay.requestId,t.id);expect(mail.snapshot().unreadCount).toBe(0);expect(service.store.cards()).toHaveLength(1);
+});

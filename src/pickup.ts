@@ -4,7 +4,7 @@ import {join} from 'node:path';
 import {atomicJson} from './travel.ts';
 import type {MailboxSnapshot} from './mailbox.ts';
 
-export interface PickupRequest {requestId:string;tripId:string;to:number;phase:'offered'|'approaching'|'presenting';expiresAt:number;startedAt?:number;}
+export interface PickupRequest {requestId:string;tripId:string;to:number;phase:'offered'|'approaching'|'presenting';expiresAt:number;startedAt?:number;replay?:boolean;}
 interface State {schema:1;records:Array<{tripId:string;done:boolean;attempted:boolean}>;active?:PickupRequest;}
 const uuid=/^[a-f0-9-]{36}$/;
 /** A delivery performance is never the collection commit or the user's read receipt. */
@@ -26,17 +26,17 @@ export class PickupQueue {
     const cards=this.mail().cards,known=new Set(this.state.records.map(r=>r.tripId));const added=cards.filter(c=>!known.has(c.tripId));
     const next=structuredClone(this.state);let changed=false;
     for(const card of added){next.records.push({tripId:card.tripId,done:!card.unread,attempted:!card.unread});changed=true;}
-    if(next.active&&(next.active.expiresAt<=this.now()||!cards.some(c=>c.tripId===next.active!.tripId&&c.unread))){delete next.active;changed=true;}
+    if(next.active&&(next.active.expiresAt<=this.now()||!cards.some(c=>c.tripId===next.active!.tripId&&(c.unread||next.active!.replay)))){delete next.active;changed=true;}
     if(changed)this.save(next);
   }
   snapshot(){this.sync();return {active:this.state.active?structuredClone(this.state.active):null,pending:this.state.records.filter(r=>!r.done&&this.mail().cards.some(c=>c.tripId===r.tripId&&c.unread)).map(r=>r.tripId)};}
   offer(manual=false,tripId?:string):PickupRequest|null {
     this.sync();if(this.state.active)return structuredClone(this.state.active);
     const where=this.placement();if(!where)return null;
-    const cards=this.mail().cards;const record=this.state.records.find(r=>(manual||!r.done)&&(manual||!r.attempted)&&(!tripId||r.tripId===tripId)&&cards.some(c=>c.tripId===r.tripId&&c.unread));
+    const cards=this.mail().cards;const record=this.state.records.find(r=>(manual||!r.done)&&(manual||!r.attempted)&&(!tripId||r.tripId===tripId)&&cards.some(c=>c.tripId===r.tripId&&(manual||c.unread)));
     if(!record)return null;
     const next=structuredClone(this.state);next.records.find(r=>r.tripId===record.tripId)!.attempted=true;
-    next.active={requestId:randomUUID(),tripId:record.tripId,to:where.to,phase:'offered',expiresAt:this.now()+120000};this.save(next);return structuredClone(next.active);
+    next.active={requestId:randomUUID(),tripId:record.tripId,to:where.to,phase:'offered',expiresAt:this.now()+120000,...(!cards.find(c=>c.tripId===record.tripId)!.unread?{replay:true}:{})};this.save(next);return structuredClone(next.active);
   }
   step(requestId:string,action:'approach'|'arrived'|'defer'){
     this.sync();const req=this.state.active;if(!req||req.requestId!==requestId)throw Error('取信请求已过期、中断或被阅读操作替代，不再移动或展示');
