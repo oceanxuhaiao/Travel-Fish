@@ -17,7 +17,7 @@ const binary=(mime:string,bytes:Uint8Array)=>({$binary:{mime,base64:Buffer.from(
 /** Standard panel data surface; every mutation uses the existing travel service. */
 export class PostcardPanel {
   private thumbnails=new Map<string,Buffer>();
-  constructor(private service:TravelService,private settings:()=>{minutes:number;generatorConnected:boolean},private mail?:{snapshot:()=>MailboxSnapshot|undefined;markRead:(id:string)=>unknown;open:()=>Promise<MailboxWindowState>;windowState:()=>MailboxWindowState}){}
+  constructor(private service:TravelService,private settings:()=>{minutes:number;generatorConnected:boolean;cost?:unknown;readyForTravel?:boolean},private mail?:{snapshot:()=>MailboxSnapshot|undefined;markRead:(id:string)=>unknown;open:()=>Promise<MailboxWindowState>;windowState:()=>MailboxWindowState},private beforeStart?:()=>void){}
   snapshot():PanelSnapshot {const mailbox=this.mail?.snapshot();return {trip:tripView(this.service.status()),cards:this.service.store.cards().map(c=>({...cardView(c),...(mailbox?{unread:mailbox.cards.find(m=>m.tripId===c.tripId)?.unread??false}:{})})),...(mailbox?{mailbox,mailboxWindow:this.mail!.windowState()}:{}),...this.settings(),minutes:TRAVEL_MINUTES};}
   async invoke(panel:string,method:string,args:unknown[]):Promise<unknown>{
     if(panel!=='album')throw new Error('未知旅行面板');
@@ -25,7 +25,7 @@ export class PostcardPanel {
       case 'snapshot': return this.snapshot();
       case 'markRead': if(!this.mail)throw Error('邮箱未接入');this.mail.markRead(String(args[0]));return this.snapshot();
       case 'openMailbox':if(!this.mail)throw Error('邮箱未接入');await this.mail.open();return this.snapshot();
-      case 'start': this.service.start('surprise',TRAVEL_MINUTES);return this.snapshot();
+      case 'start': this.beforeStart?.();this.service.start('surprise',TRAVEL_MINUTES);return this.snapshot();
       case 'cancel': this.service.cancel(String(args[0]));return this.snapshot();
       case 'retry': this.service.retry(String(args[0]),args[1]===true);return this.snapshot();
       case 'image': case 'thumbnail': case 'png': case 'zip': {

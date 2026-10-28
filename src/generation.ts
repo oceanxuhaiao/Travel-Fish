@@ -17,9 +17,11 @@ export const SCENE_PROMPTS: Record<'forest'|'coast'|'snow',string> = {
 };
 const COMMON = '生成完整收藏级旅行明信片，竖版2:3，单张。图1仅作角色身份与服装参考：保持图1的发色、发型、脸部、头饰、服装主色与独特配件，不能把不同服饰强改成冬装或鲸鱼帽；自定义角色也严格跟随图1。图2仅作浅淡透明水彩、细铅笔线、象牙白纸与通透留白参考；必须舍弃图2背景，不能搬用海天水平线或沙堡布局。人物含帽约占画面高度18%至33%，具体按本次景别，风景主导，角色自然融入环境光。细节克制，不画文字、日期、签名、logo、邮票；无贴纸感、多余肢体或其他人物。本次场景：';
 type Json = Record<string,unknown>;
-export interface CloudOptions { imageModel?:string; hostReady?:()=>boolean; hostTransport?:Transport; useHostModel?:boolean; root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
-export type Transport = (kind:'image'|'text', payload:Json, signal:AbortSignal)=>Promise<Json>;
-interface Spec { policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; sceneSnapshot?:SceneSnapshot; placeScopeVersion?:'v1'|'v2'; noteReviewVersion?:'v1'|'v2'|'v3'; }
+export interface ImageRoute {backend?:'ark'|'compatible';baseUrl?:string;}
+export function imageEndpoint(base:string){let u:URL;try{u=new URL(base);}catch{throw new PipelineError('本地生图接口地址无效');}if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.search||u.hash)throw new PipelineError('生图接口只支持不含凭据或查询参数的HTTP(S)地址');return u.href.replace(/\/$/,'')+(u.pathname.replace(/\/$/,'').endsWith('/images/generations')?'':'/images/generations');}
+export interface CloudOptions { imageBackend?:'ark'|'compatible';imageBaseUrl?:string;imageSize?:string; imageModel?:string; hostReady?:()=>boolean; hostTransport?:Transport; useHostModel?:boolean; root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
+export type Transport = (kind:'image'|'text', payload:Json, signal:AbortSignal,route?:ImageRoute)=>Promise<Json>;
+interface Spec { imageBackend?:'ark'|'compatible';imageBaseUrl?:string;imageSize?:string;policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; sceneSnapshot?:SceneSnapshot; placeScopeVersion?:'v1'|'v2'; noteReviewVersion?:'v1'|'v2'|'v3'; }
 interface Checkpoint { schema:1; imageAttempt:number; pendingImage:boolean; stage:string; textRequests:Record<string,number>; errors:string[]; }
 export class PipelineError extends Error { constructor(message:string) {super(message);this.name='PostcardPipelineError';} }
 export class HttpError extends Error { constructor(readonly status:number) {super('Cloud HTTP '+status);} }
@@ -66,16 +68,17 @@ export function placeScopePrompt(note:Json,version:'v1'|'v2'='v2'):string {retur
 
 /** Only official cloud endpoints; credentials never enter checkpoints or errors. */
 export function cloudTransport(options:CloudOptions):Transport {
-  return async(kind,payload,signal)=>{
+  return async(kind,payload,signal,route)=>{
+    const backend=kind==='image'?(route?.backend??options.imageBackend??'ark'):'ark';
     const proxy=kind==='image'?options.imageProxyUrl:options.visionProxyUrl;
     if(proxy){const u=new URL(proxy);if(!['http:','https:'].includes(u.protocol)||u.username||u.password)throw new PipelineError('代理配置无效');}
-    const key=options.secret(kind==='image'?'POSTCARD_ARK_API_KEY':'POSTCARD_VISION_API_KEY');
-    if (!key) throw new PipelineError(kind==='image'?'未配置图片服务密钥':'未配置视觉服务密钥');
+    const key=options.secret(kind==='image'?(backend==='compatible'?'POSTCARD_IMAGE_API_KEY':'POSTCARD_ARK_API_KEY'):'POSTCARD_VISION_API_KEY');
+    if (!key&&backend!=='compatible') throw new PipelineError(kind==='image'?'未配置图片服务密钥':'未配置视觉服务密钥');
     // Empty means direct even when the host installs its own global proxy dispatcher.
     const agent=proxy?new ProxyAgent(proxy):new Agent({connect:{timeout:30000}});
     try {
-      const response=await fetch(kind==='image'?'https://ark.cn-beijing.volces.com/api/v3/images/generations':'https://api.deepseek.com/chat/completions',{
-        method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.any([signal,AbortSignal.timeout(240000)]),dispatcher:agent,
+      const response=await fetch(kind==='image'?(backend==='compatible'?imageEndpoint(route?.baseUrl??options.imageBaseUrl??''):'https://ark.cn-beijing.volces.com/api/v3/images/generations'):'https://api.deepseek.com/chat/completions',{
+        method:'POST',headers:{...(key?{Authorization:'Bearer '+key}:{}),'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.any([signal,AbortSignal.timeout(backend==='compatible'?900000:240000)]),dispatcher:agent,
       });
       if(!response.ok){await response.body?.cancel();throw new HttpError(response.status);}
       return await response.json() as Json;
@@ -94,6 +97,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
   };
   const generate:Generator=async(trip,signal,onPhase)=>{
     const folder=tripFolder(trip),spec=trip.generation as unknown as Spec;
+    if(spec?.imageBackend&&!['ark','compatible'].includes(spec.imageBackend))throw new PipelineError('生图通道版本不支持');
     if(!spec||![POLICY,CONTENT_POLICY,LEGACY_POLICY].includes(spec.policy)||(typeof spec.imageModel!=='string'||!spec.imageModel.trim())||![VISION_MODEL,'host-model'].includes(spec.visionModel))throw new PipelineError('旅程生成版本不支持或缺少固定输入');
     if(spec.policy!==LEGACY_POLICY&&(!spec.scenePrompt||!spec.sceneVariant||!spec.noteVoice))throw new PipelineError('旅程缺少固定内容策略');
     if(spec.policy===POLICY&&(!spec.sceneSnapshot||spec.sceneSnapshot.scene!==trip.scene||!spec.sceneSnapshot.core||!spec.sceneSnapshot.conflicts))throw new PipelineError('旅行缺少固定场景快照');
@@ -159,10 +163,10 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       if(cp.imageAttempt===0||!imageValid()||existsSync(join(folder,'image-'+cp.imageAttempt+'-rejected.json'))){
         if(cp.imageAttempt>=2)throw new PipelineError('本趟图片请求已达到两次上限');
         stage('generating_image');cp.imageAttempt++;cp.pendingImage=true;atomicJson(cpFile(trip),cp);
-        atomicJson(join(folder,'image-'+cp.imageAttempt+'-request.json'),{model:spec.imageModel,prompt:spec.prompt,referenceSha:[spec.characterSha,spec.styleSha],size:'2K',imageCount:2});
+        atomicJson(join(folder,'image-'+cp.imageAttempt+'-request.json'),{model:spec.imageModel,prompt:spec.prompt,referenceSha:[spec.characterSha,spec.styleSha],size:spec.imageSize??'2K',imageCount:2});
         const started=Date.now();
         try {
-          const result=await transport('image',{model:spec.imageModel,prompt:spec.prompt,image:refs.map(b=>'data:image/png;base64,'+b.toString('base64')),size:'2K',response_format:'b64_json',output_format:'png',watermark:false},signal);
+          const result=await transport('image',{model:spec.imageModel,prompt:spec.prompt,image:refs.map(b=>'data:image/png;base64,'+b.toString('base64')),size:spec.imageSize??'2K',response_format:'b64_json',...(spec.imageBackend==='compatible'?{}:{output_format:'png',watermark:false})},signal,{backend:spec.imageBackend??'ark',baseUrl:spec.imageBaseUrl});
           const items=result.data as {b64_json?:string}[];
           atomicJson(join(folder,'image-'+cp.imageAttempt+'-response.json'),{model:result.model,usage:result.usage,elapsedMs:Date.now()-started,imageItems:items?.length});
           if(!Array.isArray(items)||items.length!==1||typeof items[0].b64_json!=='string')throw new PipelineError('图片服务未返回单张PNG数据，请检查远端结果');
@@ -210,14 +214,15 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
   generate.prepare=trip=>{
     validateId(trip.id);
     if(options.useHostModel&&options.hostReady&&!options.hostReady())throw new PipelineError('宿主模型未连接或不支持PNG，尚未开始生图');
-    if(!options.secret('POSTCARD_ARK_API_KEY')||(!options.useHostModel&&!options.secret('POSTCARD_VISION_API_KEY')))throw new PipelineError('请配置图片与视觉服务的部署密钥');
+    const backend=options.imageBackend??'ark';if(backend==='compatible')imageEndpoint(options.imageBaseUrl??'');
+    if((backend==='ark'&&!options.secret('POSTCARD_ARK_API_KEY'))||(!options.useHostModel&&!options.secret('POSTCARD_VISION_API_KEY')))throw new PipelineError('请配置生图服务，并启用宿主模型看图写信或恢复原旅程通道');
     if(!options.characterReference||!options.styleReference)throw new PipelineError('请明确配置角色与画风参考图');
-    const refs=[options.characterReference,options.styleReference].map(file=>readFileSync(file));refs.forEach(b=>decodePng(b));
+    const refs=[options.characterReference,options.styleReference].map(file=>readFileSync(file));refs.forEach(b=>{if(b.length>30*1024*1024)throw new PipelineError('参考图不能超过30MB');decodePng(b);});
     const folder=tripFolder(trip);mkdirSync(join(folder,'input'),{recursive:true});
     ['character.png','style.png'].forEach((name,i)=>writeFileSync(join(folder,'input',name),refs[i],{flag:'wx'}));
     const sceneSnapshot=trip.sceneSnapshot??freezeScene(trip.id,trip.scene,[],options.recentVariants?.(trip.scene)??[]);
     const variant={id:sceneSnapshot.id,prompt:sceneSnapshot.prompt};
-    const spec:Spec={sceneSnapshot,placeScopeVersion:'v2',noteReviewVersion:'v3',policy:POLICY,imageModel:options.imageModel?.trim()||IMAGE_MODEL,visionModel:options.useHostModel?'host-model':VISION_MODEL,prompt:COMMON+variant.prompt,characterSha:hash(refs[0]),styleSha:hash(refs[1]),scenePrompt:variant.prompt,sceneVariant:variant.id,noteVoice:selectNoteVoice(trip.id)};
+    const spec:Spec={imageBackend:backend,...(backend==='compatible'?{imageBaseUrl:options.imageBaseUrl,imageSize:options.imageSize?.trim()||'1024x1536'}:{}),sceneSnapshot,placeScopeVersion:'v2',noteReviewVersion:'v3',policy:POLICY,imageModel:options.imageModel?.trim()||IMAGE_MODEL,visionModel:options.useHostModel?'host-model':VISION_MODEL,prompt:COMMON+variant.prompt,characterSha:hash(refs[0]),styleSha:hash(refs[1]),scenePrompt:variant.prompt,sceneVariant:variant.id,noteVoice:selectNoteVoice(trip.id)};
     atomicJson(join(folder,'spec.json'),spec);return {...spec};
   };
   generate.confirmRetry=(trip,confirmed)=>{

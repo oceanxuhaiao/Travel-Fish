@@ -1,3 +1,4 @@
+import {costEstimate} from './cost.ts';
 import {PickupQueue} from './pickup.ts';
 import {readFileSync} from 'node:fs';
 import {MailboxStore} from './mailbox.ts';
@@ -42,23 +43,23 @@ export class PostcardWorld implements World {
   private mailboxHealthy=true;
   private invitationsHealthy=true;
   constructor(private opts: { cfg: PostcardConfigSection; dataDir: string; generator?: Generator; now?:()=>number; setup?:SetupSecrets; bridge?:HostModelBridge; mailboxRuntime?:()=>string|null }) {
-    this.setup=new SetupPanel(opts.cfg,opts.setup,join(opts.dataDir,'postcard/character-imports'));
+    this.setup=new SetupPanel(opts.cfg,opts.setup,join(opts.dataDir,'postcard/character-imports'),()=>!!this.host?.modelFacts.accepts('image/png'));
     this.service = new TravelService(new TravelStore(join(opts.dataDir,'postcard')), opts.generator, opts.now,true);
     this.invitations=new InvitationSchedule(join(opts.dataDir,'postcard'),opts.now);
     this.mailbox=new MailboxStore(this.service,opts.now);
     this.mailboxHeight=Math.max(80,Math.min(180,Number(opts.cfg.mailboxHeight)||120));
     this.pickup=new PickupQueue(join(opts.dataDir,'postcard'),()=>this.mailbox.snapshot(),()=>this.mailboxWindow.placement(),opts.now);
     this.mailboxWindow=new MailboxWindow({profile:join(opts.dataDir,'postcard/mailbox-profile'),runtime:()=>opts.mailboxRuntime?.()??null,snapshot:()=>this.mailboxView(),pickupRequest:id=>this.pickup.request(id),presentationDone:(requestId,id)=>this.pickup.finish(requestId,id),pausePickup:id=>{if(this.pickupHealthy)this.pickup.pause(id);},markRead:id=>this.mailbox.markRead(id),read:id=>{const card=this.service.store.card(id);if(!card)throw Error('没有这封已入藏的来信');return {tripId:id,title:card.title,note:card.note,imageBase64:readFileSync(join(this.service.store.collection,id,'postcard.png')).toString('base64')};}});
-    this.panel=new PostcardPanel(this.service,()=>({minutes:TRAVEL_MINUTES,generatorConnected:!!this.opts.generator}),{snapshot:()=>this.mailboxHealthy?this.mailboxView():undefined,markRead:id=>this.mailbox.markRead(id),open:()=>this.openMailbox(),windowState:()=>this.mailboxWindow.status()});
+    this.panel=new PostcardPanel(this.service,()=>({minutes:TRAVEL_MINUTES,generatorConnected:!!this.opts.generator,cost:costEstimate(this.opts.cfg),readyForTravel:this.opts.setup?(this.setup.invoke('check') as {readyForTravel:boolean}).readyForTravel:!!this.opts.generator}),{snapshot:()=>this.mailboxHealthy?this.mailboxView():undefined,markRead:id=>this.mailbox.markRead(id),open:()=>this.openMailbox(),windowState:()=>this.mailboxWindow.status()},()=>this.assertReady());
   }
-  envPromptVars(): Record<string,string> { return { 'postcard.availability': this.opts.generator ? '已接入生成服务' : '旅行核心预览，生成服务尚未接入，不会实际生图' }; }
+  envPromptVars(): Record<string,string> {const ready=!this.opts.setup||(this.setup.invoke('check') as {readyForTravel:boolean}).readyForTravel;return { 'postcard.availability': this.opts.generator ? ready?'已配置生成能力；真实连通性以调用为准':'生成能力已启用，但配置尚未就绪，请先完成引导' : '旅行核心预览，生成能力已关闭，不会实际生图' }; }
   tools(): ToolDef[] {
     return [...(this.opts.bridge?.tools()??[]),...POSTCARD_TOOL_DECLS.map(decl => ({ ...decl, handler: async (args:Record<string,unknown>) => {
       let result: unknown;
       switch (decl.name) {
         case 'postcard_pickup': if(!this.pickupHealthy)throw Error('取信展示记录损坏，仍可在收藏册读信');result=this.pickup.step(String(args.requestId),args.step as 'approach'|'arrived'|'defer');break;
-        case 'postcard_start': result = this.service.start('surprise', TRAVEL_MINUTES); break;
-        case 'postcard_status': result = { trip: this.service.status(), generatorConnected: !!this.opts.generator, invitation:{enabled:this.opts.cfg.proactiveEnabled??true,intervalMinutes:this.opts.cfg.proactiveIntervalMinutes??360,nextAt:this.invitations.snapshot()?.nextAt??null,...(!this.invitationsHealthy?{error:'主动询问日程损坏，已暂停'}:{})} }; break;
+        case 'postcard_start': this.assertReady();result = this.service.start('surprise', TRAVEL_MINUTES); break;
+        case 'postcard_status': result = {readyForTravel:!this.opts.setup?!!this.opts.generator:(this.setup.invoke('check') as {readyForTravel:boolean}).readyForTravel,cost:costEstimate(this.opts.cfg), trip: this.service.status(), generatorConnected: !!this.opts.generator, invitation:{enabled:this.opts.cfg.proactiveEnabled??true,intervalMinutes:this.opts.cfg.proactiveIntervalMinutes??360,nextAt:this.invitations.snapshot()?.nextAt??null,...(!this.invitationsHealthy?{error:'主动询问日程损坏，已暂停'}:{})} }; break;
         case 'postcard_list': result = this.service.store.cards(); break;
         case 'postcard_read': { const card=this.service.store.card(String(args.tripId)); if (!card) throw new Error('没有这份已完成收藏'); result={...card,narrativeContext:'这是你（当前桌宠）旅行时写给用户、寄回家的明信片。你是旅行者和寄信人，用户是收信人。以第一人称陪用户重温自己的旅途，不称为别人寄给你的信，不猜测陌生寄信人。只依据这封信的内容，不编造用户同行或真实地名；明确标注为开发验证的卡片仍须如实称为演示，不能伪称真实旅行。'}; break; }
         case 'postcard_cancel': result = this.service.cancel(String(args.tripId)); break;
@@ -68,7 +69,16 @@ export class PostcardWorld implements World {
     } }))];
   }
   webUi(): WorldWebUiDecl {
-    return { label: '旅行明信片', panels:[{id:'album',title:'远方来信',description:'旅行、翻看明信片与保存收藏。'},{id:'setup',title:'配置引导',description:'配置云端 API、参考图及旅行选项。'}],invoke:async(panel,method,args)=>panel==='setup'?this.setup.invoke(method,args):this.panel.invoke(panel,method,args),config: [POSTCARD_CONFIG_GROUP], promptDocs: [{ key:'worlds.postcard.envPrompt', title:'旅行环境说明', description:'旅行状态、费用与生成服务边界。', path:ENV_PROMPT_FILE, role:'envPrompt', vars:[{name:'postcard.availability',description:'当前生成服务接入情况'}] }] };
+    return { label: '旅行明信片',lamps:this.lamps(), panels:[{id:'album',title:'远方来信',description:'旅行、翻看明信片与保存收藏。'},{id:'setup',title:'配置引导',description:'配置云端 API、参考图及旅行选项。'}],invoke:async(panel,method,args)=>panel==='setup'?this.setup.invoke(method,args):this.panel.invoke(panel,method,args),config: [POSTCARD_CONFIG_GROUP], promptDocs: [{ key:'worlds.postcard.envPrompt', title:'旅行环境说明', description:'旅行状态、费用与生成服务边界。', path:ENV_PROMPT_FILE, role:'envPrompt', vars:[{name:'postcard.availability',description:'当前生成服务接入情况'}] }] };
+  }
+  private assertReady(){if(!this.opts.cfg.cloudEnabled||!this.opts.setup)return;const c=this.setup.invoke('check') as {readyForTravel:boolean};if(!c.readyForTravel)throw Error('请先在配置引导检查生图接口、密钥、参考图及宿主看图能力；尚未开始旅行或发起图片请求');}
+  private lamps():NonNullable<WorldWebUiDecl['lamps']>{
+    if(!this.host)return [{label:'旅行',state:'offline',hint:'尚未启动'}];
+    const s=this.setup.snapshot(),trip=this.service.status();let unread=0;try{unread=this.mailbox.snapshot().unreadCount;}catch{}
+    const imageReady=(this.setup.invoke('check') as {imageReady:boolean}).imageReady;
+    return [{label:'生图服务',state:!this.opts.cfg.cloudEnabled||!imageReady?'offline':trip?.status==='failed'?'error':trip?.status==='generating'?'loading':'online',hint:!imageReady?'请先配置生图服务':trip?.status==='failed'?'本次来信未完成，请查看收藏册':'仅表示已配置，不代表服务连通性已验证'},
+      {label:'宿主模型',state:s.useHostModel?(s.hostVisionReady?'online':'offline'):'offline',hint:s.hostVisionReady?'宿主支持PNG看图与写信':'请为宿主选择支持PNG的模型'},
+      {label:'旅行与来信',state:trip?.status==='failed'?'error':trip&&['traveling','generating','awaiting_service'].includes(trip.status)?'loading':'online',hint:trip?.status==='failed'?'本次旅行未完成，已有收藏仍可阅读':unread?unread+'封未读来信':trip?.status==='traveling'&&trip?.phase==='ready_for_return'?'明信片已备妥，等待旅行结束':trip&&['traveling','generating'].includes(trip.status)?'正在旅行':'等待下一次出发'}];
   }
   mailboxView(){return {...this.mailbox.snapshot(),height:this.mailboxHeight,...(this.pickupHealthy?{pickup:this.pickup.snapshot()}:{})};}
   onRunPhase(phase:RunPhase):void{this.coreIdle=phase.state==='idle';}
@@ -107,7 +117,7 @@ export class PostcardWorld implements World {
     }
     const trip=this.service.status(),busy=!!trip&&['traveling','generating','awaiting_service','failed'].includes(trip.status);
     if(!this.invitationsHealthy)return;
-    await this.invitations.tick(this.opts.cfg.proactiveEnabled??true,this.opts.cfg.proactiveIntervalMinutes??360,!!this.opts.generator&&!busy,async()=>{
+    await this.invitations.tick(this.opts.cfg.proactiveEnabled??true,this.opts.cfg.proactiveIntervalMinutes??360,!!this.opts.generator&&!busy&&(!this.opts.setup||(this.setup.invoke('check') as {readyForTravel:boolean}).readyForTravel),async()=>{
       const host=this.host;if(!host)return;
       await host.pushEvent({type:'postcard.invitation_due',ts:new Date((this.opts.now??Date.now)()).toISOString(),source:this.id,origin:'internal',senderKey:this.id,text:'用户设置的旅行主动询问间隔已到，本次等待间隔已满'+(this.opts.cfg.proactiveIntervalMinutes??360)+'分钟。目前没有未结束旅行，明信片生成服务已连接。用户尚未同意新的旅行。',meta:{intervalMinutes:this.opts.cfg.proactiveIntervalMinutes??360,userApproved:false}},{trigger:'debounce'});
     });

@@ -5,3 +5,5 @@
 .pc-travel-progress{margin-top:16px;min-width:0}.pc-progress-label{font-size:14px;margin-bottom:6px}.pc-progress{appearance:none;display:block;width:100%;height:10px;border:0;border-radius:20px;overflow:hidden;background:#e0e6db;accent-color:#547d66}.pc-progress::-webkit-progress-bar{background:#e0e6db;border-radius:20px}.pc-progress::-webkit-progress-value{background:#547d66;border-radius:20px}.pc-progress::-moz-progress-bar{background:#547d66;border-radius:20px}
 
 .pc-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.pc-presets article{margin:0;display:flex;flex-direction:column;align-items:center}.pc-presets img{width:100%;height:auto;max-width:160px;background:#e7e9f0;border-radius:12px}
+
+.pc-setup label{display:block;margin-top:12px}.pc-setup label input{display:block;width:min(100%,620px)}.pc-presets button[aria-pressed="true"]{outline:2px solid #688f7d;background:#e6eee5}.pc-cost{font-size:12px;color:#6c786b}

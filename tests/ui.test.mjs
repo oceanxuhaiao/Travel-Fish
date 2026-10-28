@@ -57,9 +57,9 @@ it('不展示场景目录、分类徽章或目的地控件，未知类别收藏�
  vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:test');await mountAlbum(f.ctx);expect(f.ctx.root.querySelectorAll('select')).toHaveLength(0);expect(f.ctx.root.querySelectorAll('.pc-filters,.pc-place')).toHaveLength(0);expect(f.ctx.root.textContent).not.toContain('水边小镇');expect(f.ctx.root.querySelector('img').alt).toContain('一封安静的来信');
 });
 
-it('配置引导解释八项设置，密钥输入保存后清空且不缓存',async()=>{
+it('配置引导解释当前设置，密钥输入保存后清空且不缓存',async()=>{
  const f=fixture();f.ctx.invoke.mockImplementation(async(method)=>method==='snapshot'?{keys:{ark:false,vision:false},secureSaveAvailable:true,cloudEnabled:false,characterReference:'',styleReference:''}:{keys:{ark:true,vision:false}});
- await mountSetup(f.ctx);expect(f.ctx.root.querySelectorAll('dt')).toHaveLength(10);expect(f.ctx.root.textContent).toContain('不调用 API');
+ await mountSetup(f.ctx);expect(f.ctx.root.querySelectorAll('dt').length).toBeGreaterThanOrEqual(15);expect(f.ctx.root.textContent).toContain('不调用 API');
  const input=f.ctx.root.querySelector('input');expect(input.type).toBe('password');input.value='mock-only-key';[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='保存此服务密钥').click();await flush();expect(input.value).toBe('');expect(f.memo.size).toBe(0);expect(f.ctx.root.textContent).not.toContain('mock-only-key');
 });
 
@@ -74,4 +74,10 @@ it('旅行进度按保存的起止时间计算，制作阶段不冒充已收到'
 it('内置三服饰展示并通过标准配置接口选择，保留自定义入口',async()=>{
  vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:preset');vi.spyOn(URL,'revokeObjectURL').mockImplementation(()=>{});
  const f=fixture();f.ctx.setConfig=vi.fn(async()=> 'saved');f.ctx.invoke.mockResolvedValue({presets:[{id:'maid',label:'女仆装'},{id:'winter',label:'冬装'},{id:'crew',label:'店员装'}],characterPreset:'auto',keys:{ark:false,vision:false},secureSaveAvailable:true,characterReference:'',styleReference:''});await mountSetup(f.ctx);expect(f.ctx.root.querySelectorAll('.pc-presets img')).toHaveLength(3);[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='店员装').click();await flush();expect(f.ctx.setConfig).toHaveBeenCalledWith('world:postcard',{'worlds.postcard.characterPreset':'crew'});expect(f.ctx.root.textContent).toContain('当前角色：店员装');expect(f.ctx.root.textContent).toContain('选择角色参考 PNG');
+});
+
+it('新引导仅配置生图、展示本地接口与费用，上传图和三内置图并列选择',async()=>{
+ vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:ref');vi.spyOn(URL,'revokeObjectURL').mockImplementation(()=>{});const f=fixture();f.ctx.setConfig=vi.fn(async()=> 'saved');
+ f.ctx.invoke.mockResolvedValue({presets:[{id:'maid',label:'女仆装'},{id:'winter',label:'冬装'},{id:'crew',label:'店员装'}],customReferences:[{id:'custom:abc',label:'我的兔子',path:'C:/imports/rabbit.png'}],characterPreset:'winter',keys:{ark:false,compatible:false},secureSaveAvailable:true,useHostModel:true,cloudEnabled:true,characterReference:'',styleReference:''});
+ await mountSetup(f.ctx);expect(f.ctx.root.textContent).not.toContain('DeepSeek');expect(f.ctx.root.textContent).toContain('¥0.12');expect(f.ctx.root.querySelectorAll('input[type="password"]')).toHaveLength(1);expect(f.ctx.root.querySelectorAll('.pc-presets img')).toHaveLength(4);[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='我的兔子').click();await flush();expect(f.ctx.setConfig).toHaveBeenCalledWith('world:postcard',{'worlds.postcard.characterPreset':'custom','worlds.postcard.characterReference':'C:/imports/rabbit.png'});expect(f.ctx.root.querySelector('input[aria-label="本地/兼容接口地址"]')).not.toBeNull();expect(f.ctx.root.textContent).toContain('交给你的Agent');
 });

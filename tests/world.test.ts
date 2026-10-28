@@ -27,7 +27,7 @@ describe('Postcard World',()=>{
     const result=await dryMountWorld(POSTCARD,{scratchDir});expect(result.failures).toEqual([]);
   });
   it('工具只返回可确认状态，支持出发和取消，停止后释放存档锁',async()=>{
-    const world=POSTCARD.create(fakeWorldContext(POSTCARD,{scratchDir})),host=new FakeHost();
+    const world=POSTCARD.create({...fakeWorldContext(POSTCARD,{scratchDir}),cfg:{...POSTCARD_DEFAULTS,cloudEnabled:false}}),host=new FakeHost();
     await world.start(host);
     try {
       expect(host.events.map(e=>e.type)).toEqual(['postcard.started']);
@@ -39,6 +39,6 @@ describe('Postcard World',()=>{
       expect(JSON.parse(await tool('postcard_list').handler({},call) as string)).toEqual([]);
       await tool('postcard_cancel').handler({tripId:trip.id},call);
     } finally {await world.stop();}
-    const next=POSTCARD.create(fakeWorldContext(POSTCARD,{scratchDir}));await next.start(new FakeHost());await next.stop();
+    const next=POSTCARD.create({...fakeWorldContext(POSTCARD,{scratchDir}),cfg:{...POSTCARD_DEFAULTS,cloudEnabled:false}});await next.start(new FakeHost());await next.stop();
   });
 });

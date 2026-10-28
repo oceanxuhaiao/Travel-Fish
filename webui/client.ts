@@ -3,7 +3,7 @@ import type {WebUiPanelContext} from 'cortico/web/shared/client-panel.ts';
 
 interface Card {tripId:string;scene:string;title:string;note:string;completedAt:number;unread?:boolean;}
 interface Trip {id:string;scene:string;status:string;startedAt:number;dueAt:number;error?:string;}
-interface Snapshot {trip:Trip|null;cards:Card[];minutes:number;generatorConnected:boolean;mailbox?:{unreadCount:number};mailboxWindow?:{phase:string;detail:string};}
+interface Snapshot {cost?:{normalImageCost:number|null;maxImageCost:number|null;hostCost:string};readyForTravel?:boolean;trip:Trip|null;cards:Card[];minutes:number;generatorConnected:boolean;mailbox?:{unreadCount:number};mailboxWindow?:{phase:string;detail:string};}
 const date=(n:number)=>new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:'long',day:'numeric'}).format(new Date(n));
 const active=(t:Trip|null)=>!!t&&['traveling','generating','awaiting_service','failed'].includes(t.status);
 
@@ -49,7 +49,8 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
     }else{
       title.textContent='让它去远方走走';
       sub.textContent=data.generatorConnected?'每趟旅行固定 2 小时。明信片在旅途中制作，到时交付；云端生成按服务计费。':'先在扩展配置中连接图片与视觉服务，再让它出发。已收到的来信随时可以翻看。';
-      const start=button('带一封来信回来',()=>action('start'),'pc-button pc-primary');start.disabled=!data.generatorConnected||busy;controls.append(start);
+      if(data.cost)text.append(el('p','pc-cost',data.cost.normalImageCost===null?'下一趟图片费用按所选模型费率，另加宿主模型用量。':'下一趟图片通常约 ¥'+data.cost.normalImageCost.toFixed(2)+'，两张候选约 ¥'+data.cost.maxImageCost!.toFixed(2)+'；另加宿主模型用量。'));
+      const start=button('带一封来信回来',()=>action('start'),'pc-button pc-primary');start.disabled=!data.generatorConnected||data.readyForTravel===false||busy;controls.append(start);
     }
     if(data.mailboxWindow)controls.append(button('显示桌面邮箱',()=>action('openMailbox')));
     if(active(t)){
