@@ -18,6 +18,7 @@ export class MailboxWindow {
   private server?:Server;private child?:ChildProcess;private opening?:Promise<MailboxWindowState>;
   private geometry?:{to:number;screenWidth:number};private seen=0;
   placement(){return this.state.phase==='running'&&Date.now()-this.seen<6000&&this.geometry?{...this.geometry}:null;}
+  private lastBounds?:{x:number;y:number};
   private state:MailboxWindowState={phase:'closed',detail:'桌面邮箱未打开'};
   constructor(private opts:{profile:string;runtime:()=>string|null;snapshot:()=>MailboxSnapshot;read:(id:string)=>unknown;markRead:(id:string)=>unknown;pickupRequest?:(id:string)=>unknown;presentationDone?:(requestId:string,id:string)=>unknown;pausePickup?:(id?:string)=>unknown}){}
   status():MailboxWindowState{return {...this.state};}
@@ -35,7 +36,7 @@ export class MailboxWindow {
         if(req.method!=='POST'||!['/read','/mark-read','/window','/pickup-request','/presentation-done','/skip-pickup'].includes(req.url??'')){res.writeHead(404).end('{}');return;}
         let body='';for await(const bytes of req){body+=bytes;if(body.length>2048){res.writeHead(413).end('{}');return;}}
         const payload=JSON.parse(body);
-        if(req.url==='/window'){const {bounds,workArea}=payload;if(!bounds||!workArea||!['x','y','width','height'].every(k=>Number.isFinite(bounds[k])&&Number.isFinite(workArea[k]))||workArea.width<=0||bounds.width!==260)throw Error('无效窗口位置');this.geometry={to:Math.max(.1,Math.min(.9,(bounds.x+130-workArea.x-75)/workArea.width)),screenWidth:workArea.width};this.seen=Date.now();res.end('{}');return;}
+        if(req.url==='/window'){const {bounds,workArea}=payload;if(!bounds||!workArea||!['x','y','width','height'].every(k=>Number.isFinite(bounds[k])&&Number.isFinite(workArea[k]))||workArea.width<=0||bounds.width!==260)throw Error('无效窗口位置');if(this.lastBounds&&(this.lastBounds.x!==bounds.x||this.lastBounds.y!==bounds.y))this.opts.pausePickup?.();this.lastBounds={x:bounds.x,y:bounds.y};this.geometry={to:Math.max(.1,Math.min(.9,(bounds.x+130-workArea.x-75)/workArea.width)),screenWidth:workArea.width};this.seen=Date.now();res.end('{}');return;}
         const {tripId}=payload;if(typeof tripId!=='string'||!/^[a-f0-9-]{36}$/.test(tripId)){res.writeHead(400).end('{}');return;}
         let value:unknown;
         if(req.url==='/pickup-request')value=this.opts.pickupRequest?.(tripId);
