@@ -142,3 +142,10 @@ G5实际Coopanion0.2.11独立profile18789加载0.2.0；随机旅行waterside真�
 
 ## 2026-10-28 配置引导排版修复（0.7.2）
 对齐新用户配置体验：四个步骤独立卡片；主标题30px、步骤22px、小标题17px、正文14px、辅助13px，字段加粗，费用独立底色，词条分隔、窄屏布局。仅修改展示结构和样式，保留原控件与事件。11项UI测试、Web类型检查与构建通过。无在途旅程后备份更新日常17788，实际宿主截图确认标题层级及步骤卡片生效；未改配置值，未调用云生成。备份data/backups/postcard-setup-layout-072；证据output/stage-x-setup-layout/verified.png。
+
+
+## 2026-10-28 旅行大肥鱼公开发布
+用户明确要求改名并发布npm、指定GitHub仓库、市场收录及Pal AI World标记，另要求Logo与QQ宣传。展示名改旅行大肥鱼，保留npm技术包名cortico-world-postcard、World id postcard、配置和收藏路径。下一版回忆功能仍仅方案。使用imagegen生成蓝发鲸鱼帽Logo与水彩宣传海报；保留高清PNG，市场Logo导出透明WebP340136B，海报JPEG819035B。官方scan脚本MAX_ICON=512KB，原0.7.3图标过大，补发0.7.4更改图标路径。
+155项测试、前后端类型检查、构建、官方describe/check通过；包文件白名单审查不含密钥、环境配置、用户收藏或开发UI。npm用户oceanxuhaiao，本人执行双重验证发布0.7.3/0.7.4；已核验0.7.4公开版本且SHA1匹配，本地SHA256=3a6d9779d95bdda0cbb1b7a45d714d7613a2640da374617f5e3040a16667b9e2。Git推送两次网络失败，改GitHub官方Git Data API上传不含私人开发历史的源码快照；main提交d0af17acf22e06fc64251f0f50d9245289fa8340，公开预发布v0.7.4附安装包、Logo、海报。未更改日常实例或发QQ消息。
+素材边界已向用户明确说明，上游角色声明不授予另外再分发；用户回答“这三个参考图是coopanion自带的，而这个扩展本身就是用在coopanion的扩展，默认获取授权”，并要求继续。按用户范围分发并如实保留来源/未取得另行授权证明，不将角色图视作MIT或官方背书。这是开发者发布决定，不记录为权利核验通过。
+市场同步issue420，Pal AI World评估issue421。官方标记仅维护者可授予，manifest不自行声明。当前npm与GitHub发布已完成，市场索引及官方标记待查/待审核；记录output/stage-y-publication/publication.json与market-submission.json，群宣传文案及PNG海报已交付准备，不自动向群发送。

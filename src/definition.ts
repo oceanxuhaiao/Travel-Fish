@@ -8,7 +8,7 @@ import { POSTCARD_TOOL_DECLS, PostcardWorld } from './world.ts';
 import { createCloudGenerator } from './generation.ts';
 import { join } from 'node:path';
 export const POSTCARD: WorldDefinition<PostcardConfigSection> = {
-  id:'postcard', label:'旅行明信片', defaults:()=>({...POSTCARD_DEFAULTS}),
+  id:'postcard', label:'旅行大肥鱼', defaults:()=>({...POSTCARD_DEFAULTS}),
   create:ctx=>{
     let world:PostcardWorld;
     const bridge=new HostModelBridge(join(ctx.dataDir,'postcard/host-tasks'));

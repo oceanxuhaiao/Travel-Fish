@@ -1,8 +1,8 @@
 {
   "name": "cortico-world-postcard",
-  "version": "0.7.2",
+  "version": "0.7.4",
   "type": "module",
-  "description": "桌宠旅行明信片：云端旅行来信、永久收藏与标准面板",
+  "description": "让大肥鱼去远方走走，把想念寄回家：两小时旅行、水彩明信片、桌面邮箱取信与永久收藏。适用于 Coopanion。",
   "license": "MIT",
   "keywords": [
     "cortico-world",
@@ -20,9 +20,13 @@
       "experimental"
     ],
     "describe": "describe.json",
-    "displayName": "旅行明信片",
+    "displayName": "旅行大肥鱼",
     "webUiClient": "dist/webui.js",
-    "webUiStyle": "dist/webui.css"
+    "webUiStyle": "dist/webui.css",
+    "icon": "assets/branding/logo.webp",
+    "screenshots": [
+      "assets/branding/poster.jpg"
+    ]
   },
   "files": [
     "src",
@@ -32,7 +36,6 @@
     "RECOVERY.md",
     "describe.json",
     "dist",
-    "VALIDATION.md",
     "assets",
     "desktop",
     "REFERENCE-REQUIREMENTS.md",
@@ -61,5 +64,17 @@
     "koffi": "3.3.1",
     "pngjs": "7.0.0",
     "undici": "7.29.1"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oceanxuhaiao/Travel-Fish.git"
+  },
+  "homepage": "https://github.com/oceanxuhaiao/Travel-Fish#readme",
+  "bugs": {
+    "url": "https://github.com/oceanxuhaiao/Travel-Fish/issues"
+  },
+  "author": "oceanxuhaiao",
+  "os": [
+    "win32"
+  ]
 }

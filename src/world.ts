@@ -69,7 +69,7 @@ export class PostcardWorld implements World {
     } }))];
   }
   webUi(): WorldWebUiDecl {
-    return { label: '旅行明信片',lamps:this.lamps(), panels:[{id:'album',title:'远方来信',description:'旅行、翻看明信片与保存收藏。'},{id:'setup',title:'配置引导',description:'配置云端 API、参考图及旅行选项。'}],invoke:async(panel,method,args)=>panel==='setup'?this.setup.invoke(method,args):this.panel.invoke(panel,method,args),config: [POSTCARD_CONFIG_GROUP], promptDocs: [{ key:'worlds.postcard.envPrompt', title:'旅行环境说明', description:'旅行状态、费用与生成服务边界。', path:ENV_PROMPT_FILE, role:'envPrompt', vars:[{name:'postcard.availability',description:'当前生成服务接入情况'}] }] };
+    return { label: '旅行大肥鱼',lamps:this.lamps(), panels:[{id:'album',title:'远方来信',description:'旅行、翻看明信片与保存收藏。'},{id:'setup',title:'配置引导',description:'配置云端 API、参考图及旅行选项。'}],invoke:async(panel,method,args)=>panel==='setup'?this.setup.invoke(method,args):this.panel.invoke(panel,method,args),config: [POSTCARD_CONFIG_GROUP], promptDocs: [{ key:'worlds.postcard.envPrompt', title:'旅行环境说明', description:'旅行状态、费用与生成服务边界。', path:ENV_PROMPT_FILE, role:'envPrompt', vars:[{name:'postcard.availability',description:'当前生成服务接入情况'}] }] };
   }
   private assertReady(){if(!this.opts.cfg.cloudEnabled||!this.opts.setup)return;const c=this.setup.invoke('check') as {readyForTravel:boolean};if(!c.readyForTravel)throw Error('请先在配置引导检查生图接口、密钥、参考图及宿主看图能力；尚未开始旅行或发起图片请求');}
   private lamps():NonNullable<WorldWebUiDecl['lamps']>{
