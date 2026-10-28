@@ -4,7 +4,7 @@ app.disableHardwareAcceleration();
 fs.mkdirSync(process.env.POSTCARD_MAIL_PROFILE,{recursive:true});
 app.setPath('userData',process.env.POSTCARD_MAIL_PROFILE);
 const origin=process.env.POSTCARD_MAIL_ORIGIN,token=process.env.POSTCARD_MAIL_TOKEN;
-let mailbox,reader,rects=[],drag=null;
+let mailbox,reader,readerTrip,readerOpening,rects=[],drag=null;
 async function request(route,payload){if(typeof payload==='string')payload={tripId:payload};const response=await fetch(origin+route,{method:payload?'POST':'GET',headers:{Authorization:'Bearer '+token,...(payload?{'Content-Type':'application/json'}:{})},...(payload?{body:JSON.stringify(payload)}:{}),signal:AbortSignal.timeout(5000)});if(!response.ok)throw Error('暂时联系不上邮箱，收藏仍保留');return response.json();}
 const options={preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true};
 function secure(win){win.webContents.on('render-process-gone',()=>{if(win===mailbox)app.quit();else if(!win.isDestroyed())win.close();});win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());}
@@ -29,9 +29,11 @@ app.whenReady().then(async()=>{
   if(action==='open-letter'){
     const automatic=typeof id==='object'&&id?.automatic===true;id=typeof id==='object'?id.tripId:id;
     if(!/^[a-f0-9-]{36}$/.test(String(id)))throw Error('没有这封来信');
-    await request('/skip-pickup',String(id));
+    if(readerOpening)return readerOpening;
+    if(reader&&!reader.isDestroyed()&&readerTrip===id){if(!automatic)reader.show();return {};}
+    readerOpening=(async()=>{await request('/skip-pickup',String(id));
     if(reader&&!reader.isDestroyed())reader.close();
-    reader=new BrowserWindow({width:570,height:760,title:'远方来信',show:false,autoHideMenuBar:true,webPreferences:options});const current=reader;current.once('closed',()=>{if(reader===current)reader=undefined;});secure(reader);await reader.loadFile(path.join(__dirname,'mailbox.html'),{hash:'letter='+id+(automatic?'&preview=1':'')});if(automatic)reader.showInactive();else reader.show();return {};
+    reader=new BrowserWindow({width:570,height:760,title:'远方来信',show:false,autoHideMenuBar:true,webPreferences:options});readerTrip=id;const current=reader;current.once('closed',()=>{if(reader===current){reader=undefined;readerTrip=undefined;}});secure(reader);await reader.loadFile(path.join(__dirname,'mailbox.html'),{hash:'letter='+id+(automatic?'&preview=1':'')});if(automatic)reader.showInactive();else reader.show();return {};})();try{return await readerOpening;}finally{readerOpening=undefined;}
   }
   if(action==='close'){if(event.sender===mailbox.webContents)app.quit();else reader?.close();return {};}
   throw Error('未知邮箱操作');

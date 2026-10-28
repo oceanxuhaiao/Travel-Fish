@@ -42,3 +42,10 @@ it.each([[false,0,true],[false,1,false],[true,0,false]])('气泡显示按开发�
  const mail=doc.getElementById('mail')!;const pointer=(type:string,x:number)=>{const event=new dom.window.Event(type);Object.assign(event,{button:0,pointerId:1,clientX:x,clientY:10});mail.dispatchEvent(event);};pointer('pointerdown',10);pointer('pointermove',30);pointer('pointerup',30);mail.click();await flush();
  expect(api.call.mock.calls.some(c=>c[0]==='drag-move')).toBe(true);expect(api.call.mock.calls.some(c=>c[0]==='pickup-request')).toBe(false);
 });
+
+it.each(['requested','open_local','cooldown','error'])('100次前端连点合并一次IPC，结果%s处理正确且失败后可重试',async(kind)=>{
+ const dom=new JSDOM('<main id="root"></main>',{url:'https://local.test/',runScripts:'outside-only'});fixtures.push(dom);const id='00000000-0000-0000-0000-000000000001',state={phase:'idle',trip:null,cards:[{tripId:id,unread:true}],unreadCount:1,pickup:{active:null,pending:[id]}};
+ let release!:()=>void;const gate=new Promise<void>(r=>{release=r;});const api={rects:vi.fn(),call:vi.fn(async(action:string)=>{if(action==='state')return state;if(action==='pickup-request'){await gate;if(kind==='error')throw Error('network');return {kind};}return {};})};
+ (dom.window as any).postcard=api;(dom.window as any).ResizeObserver=class{observe(){}};(dom.window as any).setInterval=()=>1;dom.window.eval(script);await flush();const mail=dom.window.document.getElementById('mail')!;for(let i=0;i<100;i++)mail.click();await flush();expect(api.call.mock.calls.filter(c=>c[0]==='pickup-request')).toHaveLength(1);release();await flush();await flush();expect(api.call.mock.calls.filter(c=>c[0]==='open-letter')).toHaveLength(kind==='open_local'?1:0);
+ if(kind==='error'){mail.click();await flush();await flush();expect(api.call.mock.calls.filter(c=>c[0]==='pickup-request')).toHaveLength(2);}
+});
