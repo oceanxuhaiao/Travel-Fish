@@ -45,3 +45,13 @@ it('面板忽略旧设置与额外参数，新旅行固定两小时',async()=>{
  const state=await panel.invoke('album','start',[1]) as PanelSnapshot;
  expect(state.minutes).toBe(120);expect(state.trip!.dueAt-state.trip!.startedAt).toBe(7200000);
 });
+
+it('邮箱显隐操作幂等且不改变进行中的旅行或收藏',async()=>{
+ let phase='running';let closes=0;
+ panel=new PostcardPanel(service,()=>({minutes:120,generatorConnected:true}),{snapshot:()=>({unreadCount:0} as any),markRead:()=>{},open:async()=>{phase='running';return {phase:'running',detail:'opened'};},close:async()=>{phase='closed';closes++;},windowState:()=>({phase:phase as any,detail:phase})});
+ const trip=service.start('forest',120);
+ for(let i=0;i<2;i++)expect((await panel.invoke('album','closeMailbox',[]) as PanelSnapshot).mailboxWindow?.phase).toBe('closed');
+ expect(closes).toBe(2);expect(service.status()?.id).toBe(trip.id);expect(service.status()?.status).toBe('traveling');
+ expect((await panel.invoke('album','openMailbox',[]) as PanelSnapshot).mailboxWindow?.phase).toBe('running');
+ expect(service.store.cards()).toHaveLength(0);
+});

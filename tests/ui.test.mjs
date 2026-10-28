@@ -81,3 +81,16 @@ it('新引导仅配置生图、展示本地接口与费用，上传图和三内�
  f.ctx.invoke.mockResolvedValue({presets:[{id:'maid',label:'女仆装'},{id:'winter',label:'冬装'},{id:'crew',label:'店员装'}],customReferences:[{id:'custom:abc',label:'我的兔子',path:'C:/imports/rabbit.png'}],characterPreset:'winter',keys:{ark:false,compatible:false},secureSaveAvailable:true,useHostModel:true,cloudEnabled:true,characterReference:'',styleReference:''});
  await mountSetup(f.ctx);expect(f.ctx.root.textContent).not.toContain('DeepSeek');expect(f.ctx.root.textContent).toContain('¥0.12');expect(f.ctx.root.querySelectorAll('input[type="password"]')).toHaveLength(1);expect(f.ctx.root.querySelectorAll('.pc-presets img')).toHaveLength(4);[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='我的兔子').click();await flush();expect(f.ctx.setConfig).toHaveBeenCalledWith('world:postcard',{'worlds.postcard.characterPreset':'custom','worlds.postcard.characterReference':'C:/imports/rabbit.png'});expect(f.ctx.root.querySelector('input[aria-label="本地/兼容接口地址"]')).not.toBeNull();expect(f.ctx.root.textContent).toContain('交给你的Agent');
 });
+
+it('邮箱按钮随实际窗口状态切换，忙碌中不能重复提交',async()=>{
+ const f=fixture();let phase='running',resolve;
+ const state=()=>({trip:null,cards:[],minutes:120,generatorConnected:true,mailboxWindow:{phase,detail:phase}});
+ f.ctx.invoke.mockImplementation(async method=>{if(method==='closeMailbox')await new Promise(r=>resolve=r);if(method==='closeMailbox')phase='closed';if(method==='openMailbox')phase='running';return state();});
+ await mountAlbum(f.ctx);
+ const find=text=>[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent===text);
+ find('关闭桌面邮箱').click();expect(find('关闭桌面邮箱').disabled).toBe(true);find('关闭桌面邮箱').click();
+ expect(f.ctx.invoke.mock.calls.filter(c=>c[0]==='closeMailbox')).toHaveLength(1);
+ resolve();await flush();find('显示桌面邮箱').click();await flush();expect(find('关闭桌面邮箱')).toBeTruthy();
+ expect(f.ctx.invoke).toHaveBeenCalledWith('openMailbox',[]);
+ phase='closed';await f.timers[0]();await flush();expect(find('显示桌面邮箱')).toBeTruthy();
+});

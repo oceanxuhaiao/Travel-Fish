@@ -30,7 +30,7 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
   function remember(){ctx.memo.set('selected',selected);ctx.memo.set('flipped',flipped);}
   async function action(method:string,args:unknown[]=[]){
     if(busy||ctx.signal.aborted)return;revision++;busy=true;renderJourney();
-    try {data=await ctx.invoke<Snapshot>(method,args);tell(method==='start'?'已经出发了，等它带一封来信回来。':method==='cancel'?'这次先回家，下一段风景还在等它。':method==='openMailbox'?(data.mailboxWindow?.detail??'已请求打开桌面邮箱'):'已继续准备这封来信。');render();}
+    try {data=await ctx.invoke<Snapshot>(method,args);tell(method==='start'?'已经出发了，等它带一封来信回来。':method==='cancel'?'这次先回家，下一段风景还在等它。':(method==='openMailbox'||method==='closeMailbox')?(data.mailboxWindow?.detail??'已请求打开桌面邮箱'):'已继续准备这封来信。');render();}
     catch(error){if(!ctx.signal.aborted)tell(error instanceof Error?error.message:'操作暂时没有完成，请稍后再试。',true);}
     finally {busy=false;if(!ctx.signal.aborted)renderJourney();}
   }
@@ -52,7 +52,7 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
       if(data.cost)text.append(el('p','pc-cost',data.cost.normalImageCost===null?'下一趟图片费用按所选模型费率，另加宿主模型用量。':'下一趟图片通常约 ¥'+data.cost.normalImageCost.toFixed(2)+'，两张候选约 ¥'+data.cost.maxImageCost!.toFixed(2)+'；另加宿主模型用量。'));
       const start=button('带一封来信回来',()=>action('start'),'pc-button pc-primary');start.disabled=!data.generatorConnected||data.readyForTravel===false||busy;controls.append(start);
     }
-    if(data.mailboxWindow)controls.append(button('显示桌面邮箱',()=>action('openMailbox')));
+    if(data.mailboxWindow){const shown=data.mailboxWindow.phase==='running';const mailbox=button(shown?'关闭桌面邮箱':'显示桌面邮箱',()=>action(shown?'closeMailbox':'openMailbox'));mailbox.disabled=busy;controls.append(mailbox);}
     if(active(t)){
       const meter=el('div','pc-travel-progress');
       const total=t!.dueAt-t!.startedAt;
