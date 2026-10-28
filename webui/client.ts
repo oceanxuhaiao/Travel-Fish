@@ -1,9 +1,9 @@
 import {mountSetup} from './setup.ts';
 import type {WebUiPanelContext} from 'cortico/web/shared/client-panel.ts';
 
-interface Card {tripId:string;scene:string;title:string;note:string;completedAt:number;}
+interface Card {tripId:string;scene:string;title:string;note:string;completedAt:number;unread?:boolean;}
 interface Trip {id:string;scene:string;status:string;startedAt:number;dueAt:number;error?:string;}
-interface Snapshot {trip:Trip|null;cards:Card[];minutes:number;generatorConnected:boolean;}
+interface Snapshot {trip:Trip|null;cards:Card[];minutes:number;generatorConnected:boolean;mailbox?:{unreadCount:number};mailboxWindow?:{phase:string;detail:string};}
 const date=(n:number)=>new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:'long',day:'numeric'}).format(new Date(n));
 const active=(t:Trip|null)=>!!t&&['traveling','generating','awaiting_service','failed'].includes(t.status);
 
@@ -30,7 +30,7 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
   function remember(){ctx.memo.set('selected',selected);ctx.memo.set('flipped',flipped);}
   async function action(method:string,args:unknown[]=[]){
     if(busy||ctx.signal.aborted)return;revision++;busy=true;renderJourney();
-    try {data=await ctx.invoke<Snapshot>(method,args);tell(method==='start'?'已经出发了，等它带一封来信回来。':method==='cancel'?'这次先回家，下一段风景还在等它。':'已继续准备这封来信。');render();}
+    try {data=await ctx.invoke<Snapshot>(method,args);tell(method==='start'?'已经出发了，等它带一封来信回来。':method==='cancel'?'这次先回家，下一段风景还在等它。':method==='openMailbox'?(data.mailboxWindow?.detail??'已请求打开桌面邮箱'):'已继续准备这封来信。');render();}
     catch(error){if(!ctx.signal.aborted)tell(error instanceof Error?error.message:'操作暂时没有完成，请稍后再试。',true);}
     finally {busy=false;if(!ctx.signal.aborted)renderJourney();}
   }
@@ -51,6 +51,7 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
       sub.textContent=data.generatorConnected?'每趟旅行固定 2 小时。明信片在旅途中制作，到时交付；云端生成按服务计费。':'先在扩展配置中连接图片与视觉服务，再让它出发。已收到的来信随时可以翻看。';
       const start=button('带一封来信回来',()=>action('start'),'pc-button pc-primary');start.disabled=!data.generatorConnected||busy;controls.append(start);
     }
+    if(data.mailboxWindow)controls.append(button('显示桌面邮箱',()=>action('openMailbox')));
     if(active(t)){
       const meter=el('div','pc-travel-progress');
       const total=t!.dueAt-t!.startedAt;
@@ -70,12 +71,12 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
     catch{if(!ctx.signal.aborted&&img.isConnected)img.alt='暂时无法载入图片，可点击查看短笺';}
   }
   function renderCollection(){
-    if(!data)return;count.textContent=data.cards.length+' 封旅途来信';grid.replaceChildren();
+    if(!data)return;count.textContent=data.cards.length+' 封旅途来信'+(data.mailbox?.unreadCount?' · '+data.mailbox.unreadCount+' 封未读':'');grid.replaceChildren();
     const cards=[...data.cards].sort((a,b)=>b.completedAt-a.completedAt);
     if(!cards.length){const empty=el('div','pc-empty');empty.append(el('span','pc-empty-symbol','✉'),el('h3','','第一封来信，还在路上'),el('p','','让它去远方走走，等一封属于这趟旅程的来信。'));grid.append(empty);}
     for(const card of cards){const open=button('',()=>{selected=card.tripId;flipped=false;remember();void renderDetail(true);},'pc-postcard');open.setAttribute('aria-label','打开来信：'+card.title);
       const image=el('img');image.alt=card.title+'旅行明信片';image.loading='lazy';image.width=360;image.height=540;
-      const footer=el('div','pc-card-footer');footer.append(el('h3','',card.title),el('time','',date(card.completedAt)));open.append(image,footer);grid.append(open);void thumbnail(card,image);
+      const footer=el('div','pc-card-footer');footer.append(el('h3','',card.title+(card.unread?' · 新来信':'')),el('time','',date(card.completedAt)));open.append(image,footer);grid.append(open);void thumbnail(card,image);
     }
     if(selected&&!data.cards.some(c=>c.tripId===selected)){selected=null;remember();}
     void renderDetail(false);
@@ -86,13 +87,17 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
   }
   async function renderDetail(scroll:boolean){
     const epoch=++imageEpoch;releaseDetail();detail.replaceChildren();const card=data?.cards.find(c=>c.tripId===selected);detail.hidden=!card;if(!card)return;
+    let readInFlight=false;
+    async function acknowledgeRead(){if(!card?.unread||readInFlight||ctx.signal.aborted||epoch!==imageEpoch)return;readInFlight=true;try{const next=await ctx.invoke<Snapshot>('markRead',[card.tripId]);if(!ctx.signal.aborted&&epoch===imageEpoch){data=next;render();}}catch{if(!ctx.signal.aborted)tell('来信已打开，已读状态保存失败，稍后可重试。',true);}}
     const bar=el('div','pc-detail-bar');bar.append(el('h2','','旅途寄来的信'),button('收起来',()=>{selected=null;remember();void renderDetail(false);}));
     const content=el('div','pc-letter');
     if(flipped){content.classList.add('pc-letter-back');content.append(el('span','pc-postmark','旅途留念 · '+date(card.completedAt)),el('h3','',card.title),el('p','pc-note',card.note),el('span','pc-signature','把这一刻，寄给你。'));}
-    else {const image=el('img','pc-full-image');image.alt=card.title;content.append(image);try{const blob=await ctx.invokeBinary('image',[card.tripId]);if(ctx.signal.aborted||epoch!==imageEpoch)return;detailUrl=URL.createObjectURL(blob);image.src=detailUrl;}catch{if(epoch===imageEpoch)content.append(el('p','pc-error','图片暂时无法载入，仍可翻到背面读信。'));}}
+    else {const image=el('img','pc-full-image');image.onload=()=>{void acknowledgeRead();};image.alt=card.title;content.append(image);try{const blob=await ctx.invokeBinary('image',[card.tripId]);if(ctx.signal.aborted||epoch!==imageEpoch)return;detailUrl=URL.createObjectURL(blob);image.src=detailUrl;}catch{if(epoch===imageEpoch)content.append(el('p','pc-error','图片暂时无法载入，仍可翻到背面读信。'));}}
     if(ctx.signal.aborted||epoch!==imageEpoch)return;
     const actions=el('div','pc-detail-actions');const flip=button(flipped?'看看风景':'翻到背面读信',()=>{flipped=!flipped;remember();void renderDetail(false);},'pc-button pc-primary');flip.setAttribute('aria-pressed',String(flipped));actions.append(flip,button('保存图片',()=>download(card,'png')),button('打包带走',()=>download(card,'zip')));
-    detail.append(bar,content,actions);if(scroll)detail.scrollIntoView({behavior:'smooth',block:'start'});
+    detail.append(bar,content,actions);
+    if(flipped)await acknowledgeRead();
+    if(scroll)detail.scrollIntoView({behavior:'smooth',block:'start'});
   }
   function render(){renderJourney();const key=JSON.stringify(data?.cards);if(key!==lastCards){lastCards=key;renderCollection();}}
   async function refresh(){if(loading||busy||ctx.signal.aborted)return;loading=true;const version=revision;try{const next=await ctx.invoke<Snapshot>('snapshot');if(!ctx.signal.aborted&&version===revision){data=next;render();}}catch{if(!ctx.signal.aborted)tell('暂时联系不上旅行册，已打开的来信仍留在这里。',true);}finally{loading=false;}}

@@ -1,3 +1,6 @@
+import {readFileSync} from 'node:fs';
+import {MailboxStore} from './mailbox.ts';
+import {MailboxWindow} from './mailbox-window.ts';
 import type {HostModelBridge} from './host-model.ts';
 import {SetupPanel,type SetupSecrets} from './setup.ts';
 import { fileURLToPath } from 'node:url';
@@ -29,12 +32,17 @@ export class PostcardWorld implements World {
   readonly panel:PostcardPanel;
   readonly setup:SetupPanel;
   readonly invitations:InvitationSchedule;
+  readonly mailbox:MailboxStore;
+  readonly mailboxWindow:MailboxWindow;
+  private mailboxHealthy=true;
   private invitationsHealthy=true;
-  constructor(private opts: { cfg: PostcardConfigSection; dataDir: string; generator?: Generator; now?:()=>number; setup?:SetupSecrets; bridge?:HostModelBridge }) {
+  constructor(private opts: { cfg: PostcardConfigSection; dataDir: string; generator?: Generator; now?:()=>number; setup?:SetupSecrets; bridge?:HostModelBridge; mailboxRuntime?:()=>string|null }) {
     this.setup=new SetupPanel(opts.cfg,opts.setup,join(opts.dataDir,'postcard/character-imports'));
     this.service = new TravelService(new TravelStore(join(opts.dataDir,'postcard')), opts.generator, opts.now,true);
     this.invitations=new InvitationSchedule(join(opts.dataDir,'postcard'),opts.now);
-    this.panel=new PostcardPanel(this.service,()=>({minutes:TRAVEL_MINUTES,generatorConnected:!!this.opts.generator}));
+    this.mailbox=new MailboxStore(this.service,opts.now);
+    this.mailboxWindow=new MailboxWindow({profile:join(opts.dataDir,'postcard/mailbox-profile'),runtime:()=>opts.mailboxRuntime?.()??null,snapshot:()=>this.mailbox.snapshot(),markRead:id=>this.mailbox.markRead(id),read:id=>{const card=this.service.store.card(id);if(!card)throw Error('没有这封已入藏的来信');return {tripId:id,title:card.title,note:card.note,imageBase64:readFileSync(join(this.service.store.collection,id,'postcard.png')).toString('base64')};}});
+    this.panel=new PostcardPanel(this.service,()=>({minutes:TRAVEL_MINUTES,generatorConnected:!!this.opts.generator}),{snapshot:()=>this.mailboxHealthy?this.mailbox.snapshot():undefined,markRead:id=>this.mailbox.markRead(id),open:()=>this.openMailbox(),windowState:()=>this.mailboxWindow.status()});
   }
   envPromptVars(): Record<string,string> { return { 'postcard.availability': this.opts.generator ? '已接入生成服务' : '旅行核心预览，生成服务尚未接入，不会实际生图' }; }
   tools(): ToolDef[] {
@@ -54,8 +62,11 @@ export class PostcardWorld implements World {
   webUi(): WorldWebUiDecl {
     return { label: '旅行明信片', panels:[{id:'album',title:'远方来信',description:'旅行、翻看明信片与保存收藏。'},{id:'setup',title:'配置引导',description:'配置云端 API、参考图及旅行选项。'}],invoke:async(panel,method,args)=>panel==='setup'?this.setup.invoke(method,args):this.panel.invoke(panel,method,args),config: [POSTCARD_CONFIG_GROUP], promptDocs: [{ key:'worlds.postcard.envPrompt', title:'旅行环境说明', description:'旅行状态、费用与生成服务边界。', path:ENV_PROMPT_FILE, role:'envPrompt', vars:[{name:'postcard.availability',description:'当前生成服务接入情况'}] }] };
   }
+  async openMailbox(){if(!this.mailboxHealthy)throw Error('邮箱已读记录损坏，请恢复备份，收藏未改动');if(this.opts.cfg.mailboxEnabled===false)throw Error('桌面邮箱已在配置中关闭');return this.mailboxWindow.open();}
   async start(host: WorldHost): Promise<void> {
     this.host = host; this.opts.bridge?.attach(host); this.service.open();
+    try{this.mailbox.open();}catch{this.mailboxHealthy=false;host.log.error('邮箱已读记录损坏，请恢复备份；旅行收藏未改动');}
+    if(this.mailboxHealthy&&this.opts.cfg.mailboxEnabled!==false)await this.mailboxWindow.open();
     try {this.invitations.open();} catch {this.invitationsHealthy=false;host.log.error('主动旅行询问日程损坏，已暂停询问；旅行和收藏仍可使用，请恢复日程备份');}
     this.timer = setInterval(() => { void this.pulse().catch(() => host.log.error('旅行状态推进失败，请检查存档')); }, 1000);
     this.timer.unref?.();
@@ -86,6 +97,6 @@ export class PostcardWorld implements World {
   }
   async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
-    this.timer = undefined; this.opts.bridge?.detach(); this.host = undefined; await this.service.close();
+    this.timer = undefined; this.opts.bridge?.detach(); this.host = undefined; await this.mailboxWindow.close(); await this.service.close();
   }
 }

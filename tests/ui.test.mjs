@@ -16,6 +16,16 @@ function fixture(cards=[]){
 }
 const card=(id,scene)=>({tripId:id,scene,title:'一封安静的来信',note:'像把一阵风轻轻留在信里。',completedAt:1700000000000});
 const flush=()=>new Promise(r=>setImmediate(r));
+it('收到图片数据不提前清未读，实际显示图片或翻面读信才确认',async()=>{
+ vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:test');vi.spyOn(URL,'revokeObjectURL').mockImplementation(()=>{});
+ const unread={...card('a','forest'),unread:true};const f=fixture([unread]);
+ const state={trip:null,cards:[unread],minutes:120,generatorConnected:true,mailbox:{unreadCount:1}};f.setState(state);
+ const invoke=f.ctx.invoke.getMockImplementation();f.ctx.invoke.mockImplementation(async(method,args)=>{if(method==='markRead')f.setState({...state,cards:[{...unread,unread:false}],mailbox:{unreadCount:0}});return invoke(method,args);});
+ await mountAlbum(f.ctx);await flush();expect(f.ctx.root.textContent).toContain('1 封未读');f.ctx.root.querySelector('.pc-postcard').click();await flush();
+ expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='markRead')).toBe(false);
+ [...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='翻到背面读信').click();await flush();await flush();
+ expect(f.ctx.invoke).toHaveBeenCalledWith('markRead',['a']);expect(f.ctx.root.textContent).not.toContain('1 封未读');
+});
 afterEach(()=>{fixtures.forEach(f=>f.dispose());fixtures=[];vi.restoreAllMocks();});
 it('空态、出发、等待和取消通过标准invoke调用',async()=>{
   const f=fixture();await mountAlbum(f.ctx);expect(f.ctx.root.textContent).toContain('第一封来信');

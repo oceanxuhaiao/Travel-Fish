@@ -1,3 +1,5 @@
+import type {MailboxSnapshot} from './mailbox.ts';
+import type {MailboxWindowState} from './mailbox-window.ts';
 import {TRAVEL_MINUTES} from './config.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -7,7 +9,7 @@ import type { Card,Scene,TravelService,Trip } from './travel.ts';
 
 export type PublicTrip=Omit<Trip,'generation'|'sceneSnapshot'>;
 export type PublicCard=Pick<Card,'tripId'|'scene'|'title'|'note'|'completedAt'|'sceneLabel'>;
-export interface PanelSnapshot { trip:PublicTrip|null; cards:PublicCard[]; minutes:number; generatorConnected:boolean; }
+export interface PanelSnapshot { trip:PublicTrip|null; cards:Array<PublicCard&{unread?:boolean}>; mailbox?:MailboxSnapshot; mailboxWindow?:MailboxWindowState; minutes:number; generatorConnected:boolean; }
 function tripView(trip:Trip|null):PublicTrip|null {if(!trip)return null;const {generation,sceneSnapshot,...view}=trip;return view;}
 function cardView(card:Card):PublicCard {const {tripId,scene,title,note,completedAt,sceneLabel}=card;return {tripId,scene,title,note,completedAt,...(sceneLabel?{sceneLabel}:{})};}
 const binary=(mime:string,bytes:Uint8Array)=>({$binary:{mime,base64:Buffer.from(bytes).toString('base64')}});
@@ -15,12 +17,14 @@ const binary=(mime:string,bytes:Uint8Array)=>({$binary:{mime,base64:Buffer.from(
 /** Standard panel data surface; every mutation uses the existing travel service. */
 export class PostcardPanel {
   private thumbnails=new Map<string,Buffer>();
-  constructor(private service:TravelService,private settings:()=>{minutes:number;generatorConnected:boolean}){}
-  snapshot():PanelSnapshot {return {trip:tripView(this.service.status()),cards:this.service.store.cards().map(cardView),...this.settings(),minutes:TRAVEL_MINUTES};}
+  constructor(private service:TravelService,private settings:()=>{minutes:number;generatorConnected:boolean},private mail?:{snapshot:()=>MailboxSnapshot|undefined;markRead:(id:string)=>unknown;open:()=>Promise<MailboxWindowState>;windowState:()=>MailboxWindowState}){}
+  snapshot():PanelSnapshot {const mailbox=this.mail?.snapshot();return {trip:tripView(this.service.status()),cards:this.service.store.cards().map(c=>({...cardView(c),...(mailbox?{unread:mailbox.cards.find(m=>m.tripId===c.tripId)?.unread??false}:{})})),...(mailbox?{mailbox,mailboxWindow:this.mail!.windowState()}:{}),...this.settings(),minutes:TRAVEL_MINUTES};}
   async invoke(panel:string,method:string,args:unknown[]):Promise<unknown>{
     if(panel!=='album')throw new Error('未知旅行面板');
     switch(method){
       case 'snapshot': return this.snapshot();
+      case 'markRead': if(!this.mail)throw Error('邮箱未接入');this.mail.markRead(String(args[0]));return this.snapshot();
+      case 'openMailbox':if(!this.mail)throw Error('邮箱未接入');await this.mail.open();return this.snapshot();
       case 'start': this.service.start('surprise',TRAVEL_MINUTES);return this.snapshot();
       case 'cancel': this.service.cancel(String(args[0]));return this.snapshot();
       case 'retry': this.service.retry(String(args[0]),args[1]===true);return this.snapshot();

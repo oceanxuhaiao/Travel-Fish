@@ -1,6 +1,6 @@
 {
   "name": "cortico-world-postcard",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "description": "桌宠旅行明信片：云端旅行来信、永久收藏与标准面板",
   "license": "MIT",
@@ -33,14 +33,15 @@
     "describe.json",
     "dist",
     "VALIDATION.md",
-    "assets"
+    "assets",
+    "desktop"
   ],
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "build:webui": "node scripts/build-webui.mjs",
     "typecheck:web": "tsc -p tsconfig.web.json --noEmit",
-    "prepack": "pnpm build:webui"
+    "prepack": "node scripts/build-webui.mjs"
   },
   "devDependencies": {
     "@types/jsdom": "21.1.7",
