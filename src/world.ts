@@ -1,3 +1,4 @@
+import {PickupQueue} from './pickup.ts';
 import {readFileSync} from 'node:fs';
 import {MailboxStore} from './mailbox.ts';
 import {MailboxWindow} from './mailbox-window.ts';
@@ -5,7 +6,7 @@ import type {HostModelBridge} from './host-model.ts';
 import {SetupPanel,type SetupSecrets} from './setup.ts';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import type { World, WorldHost, ToolDef, WorldWebUiDecl } from 'cortico/core/types.ts';
+import type { World, WorldHost, ToolDef, WorldWebUiDecl, RunPhase } from 'cortico/core/types.ts';
 import type { PostcardConfigSection } from './config.ts';
 import { TRAVEL_MINUTES, POSTCARD_CONFIG_GROUP } from './config.ts';
 import { TravelService, TravelStore, type Generator, type Scene } from './travel.ts';
@@ -13,8 +14,10 @@ import {InvitationSchedule} from './invitations.ts';
 import { PostcardPanel } from './panel.ts';
 
 const ENV_PROMPT_FILE = fileURLToPath(new URL('./ENV_PROMPT.md', import.meta.url));
+const pickupParam={type:'object',additionalProperties:false,properties:{requestId:{type:'string'},step:{type:'string',enum:['approach','arrived','defer']}},required:['requestId','step']};
 const idParam = { type: 'object', additionalProperties: false, properties: { tripId: { type: 'string', description: 'Trip id from postcard_status.' } }, required: ['tripId'] };
 export const POSTCARD_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
+  {name:'postcard_pickup',description:'Manage a saved postcard pickup performance only for postcard.pickup_due requestId. First approach obtains target, then use pet_move_to on the primary display ONLY when idle and await its real arrival receipt; then arrived starts the mailbox animation. Defer on busy, missing tool, interrupted/failed movement, wrong screen or user interaction. Never infer arrival from chat. Expired requests fail. This does not save cards, prove physical position, or mark a letter read.',tags:['write'],parameters:pickupParam},
   { name: 'postcard_start', description: 'Start one surprise virtual pet trip when the user asks. The pet chooses the scenery internally; do not ask the user to choose a destination. Duration is fixed at two hours of real waiting time and cannot be changed by user configuration; the postcard is prepared during this wait and delivered at return if ready; service failures may delay delivery. Only one unfinished trip is allowed. Start only for an explicit user request or affirmative reply to a travel invitation. An invitation event, silence or a refusal is never consent.', tags: ['write'], parameters: { type: 'object', additionalProperties: false, properties: {} } },
   { name: 'postcard_status', description: 'Read the current trip and availability. awaiting_service means a generator is not connected; do not claim a postcard exists.', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'postcard_list', description: 'List permanently saved postcards.', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
@@ -33,6 +36,8 @@ export class PostcardWorld implements World {
   readonly setup:SetupPanel;
   readonly invitations:InvitationSchedule;
   readonly mailbox:MailboxStore;
+  readonly pickup:PickupQueue;private pickupHealthy=true;private coreIdle=false;private pickupFlight?:Promise<void>;private pickupSent=new Set<string>();
+  readonly mailboxHeight:number;
   readonly mailboxWindow:MailboxWindow;
   private mailboxHealthy=true;
   private invitationsHealthy=true;
@@ -41,14 +46,17 @@ export class PostcardWorld implements World {
     this.service = new TravelService(new TravelStore(join(opts.dataDir,'postcard')), opts.generator, opts.now,true);
     this.invitations=new InvitationSchedule(join(opts.dataDir,'postcard'),opts.now);
     this.mailbox=new MailboxStore(this.service,opts.now);
-    this.mailboxWindow=new MailboxWindow({profile:join(opts.dataDir,'postcard/mailbox-profile'),runtime:()=>opts.mailboxRuntime?.()??null,snapshot:()=>this.mailbox.snapshot(),markRead:id=>this.mailbox.markRead(id),read:id=>{const card=this.service.store.card(id);if(!card)throw Error('没有这封已入藏的来信');return {tripId:id,title:card.title,note:card.note,imageBase64:readFileSync(join(this.service.store.collection,id,'postcard.png')).toString('base64')};}});
-    this.panel=new PostcardPanel(this.service,()=>({minutes:TRAVEL_MINUTES,generatorConnected:!!this.opts.generator}),{snapshot:()=>this.mailboxHealthy?this.mailbox.snapshot():undefined,markRead:id=>this.mailbox.markRead(id),open:()=>this.openMailbox(),windowState:()=>this.mailboxWindow.status()});
+    this.mailboxHeight=Math.max(80,Math.min(180,Number(opts.cfg.mailboxHeight)||120));
+    this.pickup=new PickupQueue(join(opts.dataDir,'postcard'),()=>this.mailbox.snapshot(),()=>this.mailboxWindow.placement(),opts.now);
+    this.mailboxWindow=new MailboxWindow({profile:join(opts.dataDir,'postcard/mailbox-profile'),runtime:()=>opts.mailboxRuntime?.()??null,snapshot:()=>this.mailboxView(),pickupRequest:id=>this.pickup.offer(true,id),presentationDone:(requestId,id)=>this.pickup.finish(requestId,id),pausePickup:id=>{if(this.pickupHealthy)this.pickup.pause(id);},markRead:id=>this.mailbox.markRead(id),read:id=>{const card=this.service.store.card(id);if(!card)throw Error('没有这封已入藏的来信');return {tripId:id,title:card.title,note:card.note,imageBase64:readFileSync(join(this.service.store.collection,id,'postcard.png')).toString('base64')};}});
+    this.panel=new PostcardPanel(this.service,()=>({minutes:TRAVEL_MINUTES,generatorConnected:!!this.opts.generator}),{snapshot:()=>this.mailboxHealthy?this.mailboxView():undefined,markRead:id=>this.mailbox.markRead(id),open:()=>this.openMailbox(),windowState:()=>this.mailboxWindow.status()});
   }
   envPromptVars(): Record<string,string> { return { 'postcard.availability': this.opts.generator ? '已接入生成服务' : '旅行核心预览，生成服务尚未接入，不会实际生图' }; }
   tools(): ToolDef[] {
     return [...(this.opts.bridge?.tools()??[]),...POSTCARD_TOOL_DECLS.map(decl => ({ ...decl, handler: async (args:Record<string,unknown>) => {
       let result: unknown;
       switch (decl.name) {
+        case 'postcard_pickup': if(!this.pickupHealthy)throw Error('取信展示记录损坏，仍可在收藏册读信');result=this.pickup.step(String(args.requestId),args.step as 'approach'|'arrived'|'defer');break;
         case 'postcard_start': result = this.service.start('surprise', TRAVEL_MINUTES); break;
         case 'postcard_status': result = { trip: this.service.status(), generatorConnected: !!this.opts.generator, invitation:{enabled:this.opts.cfg.proactiveEnabled??true,intervalMinutes:this.opts.cfg.proactiveIntervalMinutes??360,nextAt:this.invitations.snapshot()?.nextAt??null,...(!this.invitationsHealthy?{error:'主动询问日程损坏，已暂停'}:{})} }; break;
         case 'postcard_list': result = this.service.store.cards(); break;
@@ -62,13 +70,22 @@ export class PostcardWorld implements World {
   webUi(): WorldWebUiDecl {
     return { label: '旅行明信片', panels:[{id:'album',title:'远方来信',description:'旅行、翻看明信片与保存收藏。'},{id:'setup',title:'配置引导',description:'配置云端 API、参考图及旅行选项。'}],invoke:async(panel,method,args)=>panel==='setup'?this.setup.invoke(method,args):this.panel.invoke(panel,method,args),config: [POSTCARD_CONFIG_GROUP], promptDocs: [{ key:'worlds.postcard.envPrompt', title:'旅行环境说明', description:'旅行状态、费用与生成服务边界。', path:ENV_PROMPT_FILE, role:'envPrompt', vars:[{name:'postcard.availability',description:'当前生成服务接入情况'}] }] };
   }
+  mailboxView(){return {...this.mailbox.snapshot(),height:this.mailboxHeight,...(this.pickupHealthy?{pickup:this.pickup.snapshot()}:{})};}
+  onRunPhase(phase:RunPhase):void{this.coreIdle=phase.state==='idle';}
+  pickupPulse():Promise<void>{if(this.pickupFlight)return this.pickupFlight;this.pickupFlight=this.advancePickup().finally(()=>{this.pickupFlight=undefined;});return this.pickupFlight;}
+  private async advancePickup(){
+    const host=this.host;if(!host||!this.pickupHealthy||!this.mailboxHealthy||!this.coreIdle)return;
+    const request=this.pickup.offer();if(!request||request.phase!=='offered'||this.pickupSent.has(request.requestId))return;this.pickupSent.add(request.requestId);
+    try{await host.pushEvent({type:'postcard.pickup_due',source:this.id,origin:'internal',senderKey:this.id,ts:new Date().toISOString(),text:'明信片已永久入藏，邮箱有一封待取来信。空闲且桌宠在主屏时，先用postcard_pickup的approach取得位置，使用pet_move_to走到邮箱旁，等待真实到达回执后才提交arrived。忙碌、操作电脑、被拖拽、移动失败或无移动工具则defer；不要抢占用户活动。requestId='+request.requestId+'，tripId='+request.tripId+'。取信只是表现，不再生图、不开始旅行，不把演出完成说成用户已读。',meta:{requestId:request.requestId,tripId:request.tripId}},{trigger:'debounce'});}catch{this.pickup.pause();throw Error('取信事件未送达，已保留来信，可点击重试');}
+  }
   async openMailbox(){if(!this.mailboxHealthy)throw Error('邮箱已读记录损坏，请恢复备份，收藏未改动');if(this.opts.cfg.mailboxEnabled===false)throw Error('桌面邮箱已在配置中关闭');return this.mailboxWindow.open();}
   async start(host: WorldHost): Promise<void> {
     this.host = host; this.opts.bridge?.attach(host); this.service.open();
     try{this.mailbox.open();}catch{this.mailboxHealthy=false;host.log.error('邮箱已读记录损坏，请恢复备份；旅行收藏未改动');}
+    if(this.mailboxHealthy){try{this.pickup.open();}catch{this.pickupHealthy=false;host.log.error('取信展示记录损坏，演出暂停，收藏仍可阅读');}}else this.pickupHealthy=false;
     if(this.mailboxHealthy&&this.opts.cfg.mailboxEnabled!==false)await this.mailboxWindow.open();
     try {this.invitations.open();} catch {this.invitationsHealthy=false;host.log.error('主动旅行询问日程损坏，已暂停询问；旅行和收藏仍可使用，请恢复日程备份');}
-    this.timer = setInterval(() => { void this.pulse().catch(() => host.log.error('旅行状态推进失败，请检查存档')); }, 1000);
+    this.timer = setInterval(() => { void this.pickupPulse().catch(()=>host.log.error('取信展示未推进，收藏仍保留'));void this.pulse().catch(() => host.log.error('旅行状态推进失败，请检查存档')); }, 1000);
     this.timer.unref?.();
     try {
       await host.pushEvent({ type:'postcard.started', ts:new Date().toISOString(), source:this.id, origin:'internal', senderKey:this.id, text:'旅行核心已加载。'+this.envPromptVars()['postcard.availability'] }, { trigger:'piggyback' });

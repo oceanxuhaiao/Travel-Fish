@@ -1,6 +1,6 @@
 {
   "name": "cortico-world-postcard",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "description": "桌宠旅行明信片：云端旅行来信、永久收藏与标准面板",
   "license": "MIT",
@@ -56,6 +56,7 @@
   },
   "dependencies": {
     "fflate": "0.8.3",
+    "koffi": "3.3.1",
     "pngjs": "7.0.0",
     "undici": "7.29.1"
   }

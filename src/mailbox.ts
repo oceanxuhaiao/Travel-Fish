@@ -1,9 +1,11 @@
+import type {PickupRequest} from './pickup.ts';
 import {existsSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {atomicJson,type TravelService} from './travel.ts';
 
 interface MailState {schema:1;entries:Array<{tripId:string;readAt:number|null}>;}
 export interface MailboxSnapshot {
+  height?:number;pickup?:{active:PickupRequest|null;pending:string[]};
   phase:'idle'|'traveling'|'waiting'|'mail_waiting'|'failed';
   trip:{id:string;startedAt:number;dueAt:number;status:string}|null;
   progress:number;remainingMs:number;unreadCount:number;
