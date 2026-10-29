@@ -22,7 +22,7 @@ if(letterId){
  const closed=el('img');closed.className='mail-art closed';closed.src='art/mailbox-closed.png';closed.alt='水彩木质邮箱';closed.draggable=false;
  const opened=el('img');opened.className='mail-art opened';opened.src='art/mailbox-open.png';opened.alt='';opened.draggable=false;
  const floating=el('img');floating.className='floating-card';floating.alt='本次旅行明信片';
- for(const part of ['body','post','flag']){const hit=el('span');hit.className='hit-'+part;hit.dataset.hit='';mail.append(hit);}
+ const hit=el('span');hit.className='hit-art';hit.dataset.hit='';mail.append(hit);
  mail.title='左右拖动邮箱可移动，轻点请它取信';
  mail.addEventListener('pointerenter',()=>{hovering=true;updateVisibility();});mail.addEventListener('pointerleave',()=>{hovering=false;updateVisibility();});
  mail.addEventListener('pointerdown',event=>{if(event.button!==0)return;dragPointer={id:event.pointerId,x:event.screenX??event.clientX,y:event.screenY??event.clientY};suppressClick=false;reveal();try{mail.setPointerCapture?.(event.pointerId);}catch{}void api.call('drag-start').catch(()=>{dragPointer=null;});});

@@ -36,7 +36,16 @@ export class MailboxWindow {
         if(req.method!=='POST'||!['/read','/mark-read','/window','/pickup-request','/presentation-done','/skip-pickup'].includes(req.url??'')){res.writeHead(404).end('{}');return;}
         let body='';for await(const bytes of req){body+=bytes;if(body.length>2048){res.writeHead(413).end('{}');return;}}
         const payload=JSON.parse(body);
-        if(req.url==='/window'){const {bounds,workArea}=payload;if(!bounds||!workArea||!['x','y','width','height'].every(k=>Number.isFinite(bounds[k])&&Number.isFinite(workArea[k]))||workArea.width<=0||bounds.width!==260)throw Error('无效窗口位置');if(this.lastBounds&&(this.lastBounds.x!==bounds.x||this.lastBounds.y!==bounds.y))this.opts.pausePickup?.();this.lastBounds={x:bounds.x,y:bounds.y};this.geometry={to:Math.max(.1,Math.min(.9,(bounds.x+130-workArea.x-75)/workArea.width)),screenWidth:workArea.width};this.seen=Date.now();res.end('{}');return;}
+        if(req.url==='/window'){
+          const {bounds,workArea}=payload;
+          // Windows may round the requested DIP size or include invisible frame margins.
+          if(!bounds||!workArea||!['x','y','width','height'].every(k=>Number.isFinite(bounds[k])&&Number.isFinite(workArea[k]))||![bounds,workArea].every(r=>r.width>0&&r.height>0))throw Error('无效窗口位置');
+          if(this.lastBounds&&(this.lastBounds.x!==bounds.x||this.lastBounds.y!==bounds.y))this.opts.pausePickup?.();
+          this.lastBounds={x:bounds.x,y:bounds.y};
+          // The art remains anchored at CSS x=130; it does not center in the native frame.
+          this.geometry={to:Math.max(.1,Math.min(.9,(bounds.x+130-workArea.x-75)/workArea.width)),screenWidth:workArea.width};
+          this.seen=Date.now();res.end('{}');return;
+        }
         const {tripId}=payload;if(typeof tripId!=='string'||!/^[a-f0-9-]{36}$/.test(tripId)){res.writeHead(400).end('{}');return;}
         let value:unknown;
         if(req.url==='/pickup-request')value=this.opts.pickupRequest?.(tripId);

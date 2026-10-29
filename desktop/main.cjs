@@ -44,21 +44,33 @@ app.whenReady().then(async()=>{
  mailbox.setIgnoreMouseEvents(true,{forward:true});let debugUi=false;try{debugUi=JSON.parse(fs.readFileSync(path.join(process.env.POSTCARD_MAIL_PROFILE,'dev-ui.json'),'utf8')).enabled===true;}catch{}await mailbox.loadFile(path.join(__dirname,'mailbox.html'),{hash:debugUi?'debug=1':''});mailbox.showInactive();
  const layer=require('./layer.cjs').keepBehindPet(mailbox);let lastLayer='';const updateLayer=()=>{const result=layer.update(),key=JSON.stringify(result);if(!result.supported)mailbox.setAlwaysOnTop(false);if(key!==lastLayer){lastLayer=key;fs.writeFileSync(path.join(process.env.POSTCARD_MAIL_PROFILE,'layer-state.json'),JSON.stringify({...result,at:new Date().toISOString()},null,2));}};updateLayer();const layerTimer=setInterval(updateLayer,800);mailbox.once('closed',()=>{clearInterval(layerTimer);layer.dispose();});
  const geometryNow=()=>({at:new Date().toISOString(),bounds:mailbox.getBounds(),workArea:a,scaleFactor:screen.getPrimaryDisplay().scaleFactor});
+ // Geometry reporting must never own the lifetime of local mouse interaction.
+ const saveProfile=(name,value)=>{try{fs.writeFileSync(path.join(process.env.POSTCARD_MAIL_PROFILE,name),JSON.stringify(value,null,2));}catch{}};
+ let reportTimer,reporting=false,reportPending=false;
+ const reportGeometry=async(attempt=1)=>{
+  clearTimeout(reportTimer);if(mailbox.isDestroyed())return;
+  if(reporting){reportPending=true;return;}reporting=true;
+  const geometry=geometryNow();
+  saveProfile('position.json',{x:geometry.bounds.x,y:geometry.bounds.y});
+  saveProfile('window-ready.json',{...geometry,displays:screen.getAllDisplays().map(d=>({id:d.id,bounds:d.bounds,workArea:d.workArea,scaleFactor:d.scaleFactor}))});
+  try{await request('/window',geometry);saveProfile('window-report.json',{phase:'reported',attempt,at:new Date().toISOString()});}
+  catch{saveProfile('window-report.json',{phase:'unavailable',attempt,at:new Date().toISOString()});if(attempt<3&&!mailbox.isDestroyed())reportTimer=setTimeout(()=>void reportGeometry(attempt+1),1000*attempt);}
+  finally{reporting=false;if(reportPending&&!mailbox.isDestroyed()){reportPending=false;void reportGeometry();}}
+ };
+ mailbox.once('closed',()=>clearTimeout(reportTimer));
  let moveTimer;mailbox.on('will-move',(event,bounds)=>{const safe=clamp(bounds);if(safe.x!==bounds.x||safe.y!==bounds.y){event.preventDefault();mailbox.setBounds(safe);}});
- mailbox.on('move',()=>{clearTimeout(moveTimer);moveTimer=setTimeout(async()=>{if(mailbox.isDestroyed())return;const geometry=geometryNow();try{fs.writeFileSync(positionFile,JSON.stringify({x:geometry.bounds.x,y:geometry.bounds.y}));fs.writeFileSync(path.join(process.env.POSTCARD_MAIL_PROFILE,'window-ready.json'),JSON.stringify(geometry,null,2));await request('/window',geometry);}catch{}},120);});mailbox.once('closed',()=>clearTimeout(moveTimer));
- const geometry=geometryNow();
- fs.writeFileSync(positionFile,JSON.stringify({x:geometry.bounds.x,y:geometry.bounds.y}));
- fs.writeFileSync(path.join(process.env.POSTCARD_MAIL_PROFILE,'window-ready.json'),JSON.stringify(geometry,null,2));
- await request('/window',geometry);
- let refreshTimer;const refreshDisplay=()=>{clearTimeout(refreshTimer);refreshTimer=setTimeout(async()=>{if(mailbox.isDestroyed())return;drag=null;a=screen.getPrimaryDisplay().workArea;mailbox.setBounds(clamp(mailbox.getBounds()));const geometry=geometryNow();try{fs.writeFileSync(positionFile,JSON.stringify({x:geometry.bounds.x,y:geometry.bounds.y}));fs.writeFileSync(path.join(process.env.POSTCARD_MAIL_PROFILE,'window-ready.json'),JSON.stringify({...geometry,displays:screen.getAllDisplays().map(d=>({id:d.id,bounds:d.bounds,workArea:d.workArea,scaleFactor:d.scaleFactor}))},null,2));await request('/window',geometry);}catch{}},150);};
+ mailbox.on('move',()=>{clearTimeout(moveTimer);moveTimer=setTimeout(()=>void reportGeometry(),120);});mailbox.once('closed',()=>clearTimeout(moveTimer));
+ let refreshTimer;const refreshDisplay=()=>{clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>{if(mailbox.isDestroyed())return;drag=null;a=screen.getPrimaryDisplay().workArea;mailbox.setBounds(clamp(mailbox.getBounds()));void reportGeometry();},150);};
  for(const event of ['display-added','display-removed','display-metrics-changed'])screen.on(event,refreshDisplay);powerMonitor.on('resume',refreshDisplay);
  mailbox.once('closed',()=>{clearTimeout(refreshTimer);for(const event of ['display-added','display-removed','display-metrics-changed'])screen.removeListener(event,refreshDisplay);powerMonitor.removeListener('resume',refreshDisplay);});
- fs.writeFileSync(path.join(process.env.POSTCARD_MAIL_PROFILE,'display-state.json'),JSON.stringify(screen.getAllDisplays().map(d=>({id:d.id,bounds:d.bounds,workArea:d.workArea,scaleFactor:d.scaleFactor})),null,2));
+ saveProfile('display-state.json',screen.getAllDisplays().map(d=>({id:d.id,bounds:d.bounds,workArea:d.workArea,scaleFactor:d.scaleFactor})));
  if(process.env.POSTCARD_MAIL_CAPTURE){setTimeout(async()=>{try{fs.writeFileSync(process.env.POSTCARD_MAIL_CAPTURE,(await mailbox.webContents.capturePage()).toPNG());}catch{}},2000);}
  // Follow the system cursor even when moving a transparent window stops renderer pointermove.
  const dragTimer=setInterval(()=>{if(!drag||mailbox.isDestroyed())return;if((leftPressed&&!leftPressed())||Date.now()-drag.startedAt>60000){drag=null;return;}const cursor=screen.getCursorScreenPoint(),dx=cursor.x-drag.cursor.x,dy=cursor.y-drag.cursor.y;if(Math.hypot(dx,dy)>=5)drag.moved=true;if(drag.moved)mailbox.setBounds(clamp({x:drag.bounds.x+dx,y:drag.bounds.y}));},16);
  mailbox.once('closed',()=>{clearInterval(dragTimer);drag=null;});
- let ignored=true;setInterval(()=>{if(mailbox.isDestroyed())return;const p=screen.getCursorScreenPoint(),b=mailbox.getBounds(),x=p.x-b.x,y=p.y-b.y;const next=!drag&&!rects.some(r=>x>=r.x&&x<r.x+r.width&&y>=r.y&&y<r.y+r.height);if(next!==ignored){ignored=next;mailbox.setIgnoreMouseEvents(next,{forward:true});}},60);
+ let ignored=true;const hitTimer=setInterval(()=>{if(mailbox.isDestroyed())return;const p=screen.getCursorScreenPoint(),b=mailbox.getContentBounds(),x=p.x-b.x,y=p.y-b.y,pad=ignored?0:3;const next=!drag&&!rects.some(r=>x>=r.x-pad&&x<r.x+r.width+pad&&y>=r.y-pad&&y<r.y+r.height+pad);if(next!==ignored){ignored=next;mailbox.setIgnoreMouseEvents(next,{forward:true});}},60);
+ mailbox.once('closed',()=>clearInterval(hitTimer));
+ void reportGeometry();
 });
 app.on('window-all-closed',()=>app.quit());
 setInterval(()=>{try{process.kill(Number(process.env.POSTCARD_MAIL_PARENT),0);}catch{app.quit();}},1500).unref();
