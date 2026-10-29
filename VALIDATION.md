@@ -149,3 +149,11 @@ G5实际Coopanion0.2.11独立profile18789加载0.2.0；随机旅行waterside真�
 155项测试、前后端类型检查、构建、官方describe/check通过；包文件白名单审查不含密钥、环境配置、用户收藏或开发UI。npm用户oceanxuhaiao，本人执行双重验证发布0.7.3/0.7.4；已核验0.7.4公开版本且SHA1匹配，本地SHA256=3a6d9779d95bdda0cbb1b7a45d714d7613a2640da374617f5e3040a16667b9e2。Git推送两次网络失败，改GitHub官方Git Data API上传不含私人开发历史的源码快照；main提交d0af17acf22e06fc64251f0f50d9245289fa8340，公开预发布v0.7.4附安装包、Logo、海报。未更改日常实例或发QQ消息。
 素材边界已向用户明确说明，上游角色声明不授予另外再分发；用户回答“这三个参考图是coopanion自带的，而这个扩展本身就是用在coopanion的扩展，默认获取授权”，并要求继续。按用户范围分发并如实保留来源/未取得另行授权证明，不将角色图视作MIT或官方背书。这是开发者发布决定，不记录为权利核验通过。
 市场同步issue420，Pal AI World评估issue421。官方标记仅维护者可授予，manifest不自行声明。当前npm与GitHub发布已完成，市场索引及官方标记待查/待审核；记录output/stage-y-publication/publication.json与market-submission.json，群宣传文案及PNG海报已交付准备，不自动向群发送。
+
+
+## 2026-10-29 群友反馈修复候选0.7.5
+用户反馈发布版邮箱不能水平拖动、希望文字悬停/点击显示、第三方云端API填写不清楚。现有拖动依赖renderer pointermove，怀疑透明窗口移动/鼠标穿透变化中断事件；尚未在群友机器重现，不把推断写成已证实根因。修复加入主进程16ms系统光标跟踪、Windows GetAsyncKeyState左键释放保护与60秒兜底；pointer capture异常不阻断IPC，renderer阈值改screen坐标防窗口移动抵消，CSS禁止浏览器原生拖动/触摸滚动。保持水平落地与已有位置保存，未修改其他宿主窗口。
+文字气泡正式模式默认隐藏，邮箱悬停显示、离开隐藏，点击/按下后约5秒显示；旅行时同样不常驻，未读信封标记保留。补测试覆盖未读/旅行状态与5秒隐藏。
+引导改“其他云端 / 本地（兼容接口）”，分别说明服务商Key、根地址、模型、尺寸、估价与重启；LOCAL-IMAGE-API.md扩充填写表及排错。真实协议仍为/images/generations同步JSON双参考图→单张PNG/base64；未声称通用支持所有OpenAI兼容生图、URL输出、multipart、异步或原生ComfyUI。没有为说明文档发付费请求。
+155项全量测试通过，随后新增1项提示时序测试，受影响桌面14项复测通过，累计156项；前后端类型检查/构建、官方describe/check通过。原生模拟验证无renderer move时系统光标移动可改变x且y不变，mouseup后停止；实际Windows拖动与群友机器仍待目击。已打包output/stage-z-feedback-075/cortico-world-postcard-0.7.5.tgz。
+日常17788确认无在途旅程（completed）后备份到E:/zcdfy/Coopanion/data/backups/postcard-075-20261029-104505，更新已有稳定目录并重启Core/重新启用World；实际0.7.5、邮箱running，4张收藏、未读0。未发旅行、生图、或新增桌宠。已请求用户验证水平拖动/提示/配置说明，0.7.5未公开发布；npm与GitHub仍为已发布0.7.4。主计划为反馈修复插入项，下一版旅行回忆路线不变。

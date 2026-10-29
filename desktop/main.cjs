@@ -5,6 +5,8 @@ fs.mkdirSync(process.env.POSTCARD_MAIL_PROFILE,{recursive:true});
 app.setPath('userData',process.env.POSTCARD_MAIL_PROFILE);
 const origin=process.env.POSTCARD_MAIL_ORIGIN,token=process.env.POSTCARD_MAIL_TOKEN;
 let mailbox,reader,readerTrip,readerOpening,rects=[],drag=null;
+let leftPressed;try{if(process.platform==='win32'){const ffi=require('koffi');const key=ffi.load('user32.dll').func('short __stdcall GetAsyncKeyState(int key)');leftPressed=()=>!!(key(1)&0x8000);}}catch{}
+
 async function request(route,payload){if(typeof payload==='string')payload={tripId:payload};const response=await fetch(origin+route,{method:payload?'POST':'GET',headers:{Authorization:'Bearer '+token,...(payload?{'Content-Type':'application/json'}:{})},...(payload?{body:JSON.stringify(payload)}:{}),signal:AbortSignal.timeout(5000)});if(!response.ok)throw Error('暂时联系不上邮箱，收藏仍保留');return response.json();}
 const options={preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true};
 function secure(win){win.webContents.on('render-process-gone',()=>{if(win===mailbox)app.quit();else if(!win.isDestroyed())win.close();});win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());}
@@ -16,7 +18,7 @@ app.whenReady().then(async()=>{
   if(![mailbox?.webContents,reader?.webContents].includes(event.sender))throw Error('窗口已失效');
   if(action.startsWith('drag-')){
     if(event.sender!==mailbox.webContents)throw Error('窗口已失效');
-    if(action==='drag-start'){drag={cursor:screen.getCursorScreenPoint(),bounds:mailbox.getBounds(),moved:false};return {};}
+    if(action==='drag-start'){drag={cursor:screen.getCursorScreenPoint(),bounds:mailbox.getBounds(),moved:false,startedAt:Date.now()};mailbox.setIgnoreMouseEvents(false);return {};}
     if(action==='drag-move'&&drag){const cursor=screen.getCursorScreenPoint(),dx=cursor.x-drag.cursor.x,dy=cursor.y-drag.cursor.y;if(Math.hypot(dx,dy)>=5)drag.moved=true;if(drag.moved)mailbox.setBounds(clamp({x:drag.bounds.x+dx,y:drag.bounds.y+dy}));return {moved:drag.moved};}
     if(action==='drag-end'){const moved=!!drag?.moved;drag=null;return {moved};}return {};
   }
@@ -53,6 +55,9 @@ app.whenReady().then(async()=>{
  mailbox.once('closed',()=>{clearTimeout(refreshTimer);for(const event of ['display-added','display-removed','display-metrics-changed'])screen.removeListener(event,refreshDisplay);powerMonitor.removeListener('resume',refreshDisplay);});
  fs.writeFileSync(path.join(process.env.POSTCARD_MAIL_PROFILE,'display-state.json'),JSON.stringify(screen.getAllDisplays().map(d=>({id:d.id,bounds:d.bounds,workArea:d.workArea,scaleFactor:d.scaleFactor})),null,2));
  if(process.env.POSTCARD_MAIL_CAPTURE){setTimeout(async()=>{try{fs.writeFileSync(process.env.POSTCARD_MAIL_CAPTURE,(await mailbox.webContents.capturePage()).toPNG());}catch{}},2000);}
+ // Follow the system cursor even when moving a transparent window stops renderer pointermove.
+ const dragTimer=setInterval(()=>{if(!drag||mailbox.isDestroyed())return;if((leftPressed&&!leftPressed())||Date.now()-drag.startedAt>60000){drag=null;return;}const cursor=screen.getCursorScreenPoint(),dx=cursor.x-drag.cursor.x,dy=cursor.y-drag.cursor.y;if(Math.hypot(dx,dy)>=5)drag.moved=true;if(drag.moved)mailbox.setBounds(clamp({x:drag.bounds.x+dx,y:drag.bounds.y}));},16);
+ mailbox.once('closed',()=>{clearInterval(dragTimer);drag=null;});
  let ignored=true;setInterval(()=>{if(mailbox.isDestroyed())return;const p=screen.getCursorScreenPoint(),b=mailbox.getBounds(),x=p.x-b.x,y=p.y-b.y;const next=!drag&&!rects.some(r=>x>=r.x&&x<r.x+r.width&&y>=r.y&&y<r.y+r.height);if(next!==ignored){ignored=next;mailbox.setIgnoreMouseEvents(next,{forward:true});}},60);
 });
 app.on('window-all-closed',()=>app.quit());

@@ -25,7 +25,7 @@
 在 Coopanion 扩展市场搜索 **旅行大肥鱼**，或按 npm 包名 `cortico-world-postcard` 安装。发布/收录状态以 npm 和市场实际结果为准。
 
 1. 启用“旅行大肥鱼”，打开“配置引导”。
-2. 配置生图服务：默认推荐 Seedream 5.0 Flash，也支持约定协议的本地/自定义接口。
+2. 配置生图服务：默认推荐 Seedream 5.0 Flash，也支持约定协议的其他云端/本地接口。
 3. 宿主当前模型须支持 PNG 看图。看图和写信默认复用宿主，无需再配置 DeepSeek Key。
 4. 选择角色参考，运行本地配置检查；准备就绪后，可以主动让她出发，或等她来问你。
 
@@ -48,3 +48,6 @@
 改名保留 World 标识 `postcard`、配置键和 `postcard/collection` 数据目录，不会为了更新重新生成旧卡。迁移、降级前请备份数据，详见[恢复说明](RECOVERY.md)。
 
 扩展代码采用 MIT 许可。角色参考、商标和其他第三方素材不自动适用 MIT；来源与权利边界见[角色素材说明](assets/characters/SOURCE.md)、[画风来源](assets/STYLE_SOURCE.md)及[邮箱素材说明](desktop/art/SOURCE.md)。本项目是第三方扩展，不代表 DeepSeek、Coopanion 或 Pal AI Lab 官方背书。Pal AI World 官方标记需由市场维护者审核授予。
+
+### 0.7.5 候选改进
+邮箱水平拖动增加原生系统光标跟踪；文字提示仅悬停或点击后短暂显示，未读仍有信封标记。其他云端API的填写示例与协议限制见LOCAL-IMAGE-API.md。此补丁开发候选状态以发布记录为准。
