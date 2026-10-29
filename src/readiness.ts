@@ -3,7 +3,8 @@ import {readFileSync,statSync} from 'node:fs';
 import {join} from 'node:path';
 import {atomicJson,type Generator,type Trip} from './travel.ts';
 import {characterReference,styleReference} from './characters.ts';
-import {decodePng,HttpError} from './generation.ts';
+import {imageKeyName,protocolEndpoint,validateImageSettings} from './image-protocol.ts';
+import {decodePng,HttpError,IMAGE_MODEL,VISION_MODEL} from './generation.ts';
 import type {PostcardConfigSection} from './config.ts';
 const phases:Record<string,string>={preparing:'检查配置与参考图',generating_image:'生图服务生成图片',reviewing_image:'宿主看图审核',image_rejected:'候选图片检查',writing_note:'宿主撰写短笺',reviewing_note:'宿主核对图文',committing:'整理成品',checking_output:'检查最终图片与短笺'};
 export function verificationFailure(error:unknown,stage:string){
@@ -22,15 +23,42 @@ export function verificationFailure(error:unknown,stage:string){
 export class ReadinessCheck {
  private running=false;private controller?:AbortController;
  constructor(private root:string,private cfg:PostcardConfigSection,private secret:(n:string)=>string,private model:()=>string,private generator?:Generator,private now=()=>Date.now()){}
- private fingerprint(){try{return createHash('sha256').update(JSON.stringify({settings:[this.cfg.cloudEnabled,this.cfg.useHostModel,this.cfg.imageBackend,this.cfg.imageModel,this.cfg.imageBaseUrl,this.cfg.imageSize,this.cfg.imageProxyUrl,this.cfg.visionProxyUrl],model:this.model(),keys:['POSTCARD_ARK_API_KEY','POSTCARD_IMAGE_API_KEY','POSTCARD_VISION_API_KEY','POSTCARD_QWEN_API_KEY','POSTCARD_GEMINI_API_KEY'].map(n=>this.secret(n)),refs:[characterReference(this.cfg),styleReference(this.cfg)].map(p=>{const s=statSync(p,{bigint:true});return [p,String(s.size),String(s.mtimeNs),String(s.ctimeNs)];})})).digest('hex');}catch{return '';}}
+ private referenceHashes=new Map<string,{metadata:string;hash:string}>();
+ private referenceHash(path:string){
+  const stat=statSync(path,{bigint:true});if(!stat.isFile()||stat.size>30n*1024n*1024n)throw Error('参考图不可读取');
+  const metadata=[stat.ino,stat.size,stat.mtimeNs,stat.ctimeNs].join(':');const cached=this.referenceHashes.get(path);if(cached?.metadata===metadata)return cached.hash;
+  const hash=createHash('sha256').update(readFileSync(path)).digest('hex');this.referenceHashes.set(path,{metadata,hash});
+  if(this.referenceHashes.size>8)this.referenceHashes.delete(this.referenceHashes.keys().next().value!);return hash;
+ }
+ /** Only effective inputs enter the proof. File paths/times and package versions do not. */
+ private fingerprint(){try{
+  const backend=this.cfg.imageBackend??'ark',model=this.cfg.imageModel?.trim()||IMAGE_MODEL;
+  const size=backend==='ark'?'2K':this.cfg.imageSize?.trim()||(backend==='gemini'?'2K':backend==='qwen'?'1024*1536':'1024x1536');
+  validateImageSettings(backend,this.cfg.imageBaseUrl??'',model,size);
+  const host=this.cfg.useHostModel??true;
+  return createHash('sha256').update(JSON.stringify({schema:2,image:{backend,model,endpoint:protocolEndpoint(backend,this.cfg.imageBaseUrl??'',model),size,proxy:this.cfg.imageProxyUrl??''},text:host?{mode:'host',model:this.model()}:{mode:'independent',model:VISION_MODEL,proxy:this.cfg.visionProxyUrl??''},keys:[this.secret(imageKeyName(backend)),...(host?[]:[this.secret('POSTCARD_VISION_API_KEY')])],refs:[characterReference(this.cfg),styleReference(this.cfg)].map(p=>this.referenceHash(p))})).digest('hex');
+ }catch{return '';}}
+ /** Exact legacy proof match only; never infer a pass from a saved image or successful HTTP. */
+ private legacyFingerprint(keys:string[]){try{return createHash('sha256').update(JSON.stringify({settings:[this.cfg.cloudEnabled,this.cfg.useHostModel,this.cfg.imageBackend,this.cfg.imageModel,this.cfg.imageBaseUrl,this.cfg.imageSize,this.cfg.imageProxyUrl,this.cfg.visionProxyUrl],model:this.model(),keys:keys.map(n=>this.secret(n)),refs:[characterReference(this.cfg),styleReference(this.cfg)].map(p=>{const s=statSync(p,{bigint:true});return [p,String(s.size),String(s.mtimeNs),String(s.ctimeNs)];})})).digest('hex');}catch{return '';}}
+ private matchesLegacy(fingerprint:string){return [['POSTCARD_ARK_API_KEY','POSTCARD_IMAGE_API_KEY','POSTCARD_VISION_API_KEY','POSTCARD_QWEN_API_KEY','POSTCARD_GEMINI_API_KEY'],['POSTCARD_ARK_API_KEY','POSTCARD_IMAGE_API_KEY','POSTCARD_VISION_API_KEY']].some(keys=>fingerprint===this.legacyFingerprint(keys));}
+
  private file(){return join(this.root,'readiness.json');}
- state(){let r:any;try{r=JSON.parse(readFileSync(this.file(),'utf8'));}catch{}const fingerprint=this.fingerprint(),same=!!fingerprint&&r?.fingerprint===fingerprint,valid=!this.running&&r?.passed===true&&same&&this.now()>=r.at;
+ state(){let r:any;try{r=JSON.parse(readFileSync(this.file(),'utf8'));}catch{}
+ const fingerprint=this.fingerprint(),oldSchema=!!r&&(r.schema===undefined||r.schema===1);
+ const legacyMatch=oldSchema&&typeof r.fingerprint==='string'&&/^[a-f0-9]{64}$/.test(r.fingerprint)&&this.matchesLegacy(r.fingerprint);
+ const timestampValid=Number.isFinite(r?.at)&&r.at>=0&&this.now()>=r.at;
+ if(!this.running&&oldSchema&&r?.passed===true&&legacyMatch&&fingerprint&&timestampValid){
+  const next={schema:2,passed:true,at:r.at,fingerprint,migratedFrom:1};
+  try{atomicJson(this.file(),next);r=next;}catch{return {phase:'required',valid:false,checkedAt:null,stage:undefined,failure:undefined,failedAt:undefined,legacyProofNeedsVerification:true};}
+ }
+ const same=!!fingerprint&&(r?.schema===2?r.fingerprint===fingerprint:legacyMatch),valid=!this.running&&r?.passed===true&&same&&timestampValid;
  const legacy=r?.passed===false&&!r?.fingerprint;const interrupted=!this.running&&same&&r?.pending===true;
  const failure=same&&r?.failure?r.failure:interrupted?verificationFailure(new Error('验证中断'),r.stage):legacy?{code:'LEGACY',stage:'旧版验证',reason:'上次验证没有保存失败详情，无法还原具体原因',advice:'新版会记录失败步骤与处理建议。再次验证可能计费，请先核对服务调用记录。'}:undefined;
- return {phase:this.running?'checking':valid?'passed':failure?'failed':'required',valid,checkedAt:r?.passed===true?r.at:null,stage:this.running?phases[r?.stage]??'制作过程':undefined,...(failure?{failure,failedAt:r.at}:{})};}
+ return {phase:this.running?'checking':valid?'passed':failure?'failed':'required',valid,checkedAt:r?.passed===true?r.at:null,stage:this.running?phases[r?.stage]??'制作过程':undefined,...(oldSchema&&r?.passed===true&&!valid?{legacyProofNeedsVerification:true}:{}),...(failure?{failure,failedAt:r.at}:{})};}
 
- start(){if(this.running)return this.state();if(!this.generator)throw Error('生图服务尚未启用，不能验证');const fingerprint=this.fingerprint();if(!fingerprint)throw Error('配置或参考图不完整');atomicJson(this.file(),{passed:false,pending:true,fingerprint,stage:'preparing',at:this.now()});this.running=true;this.controller=new AbortController();const controller=this.controller,generator=this.generator;
-  void(async()=>{const trip:Trip={id:randomUUID(),scene:'forest',startedAt:this.now(),dueAt:this.now(),status:'generating'};let stage='preparing';const update=(next:string)=>{stage=next in phases?next:stage;atomicJson(this.file(),{passed:false,pending:true,fingerprint,stage,at:this.now()});};try{trip.generation=generator.prepare?.(trip);const artifact=await generator(trip,AbortSignal.any([controller.signal,AbortSignal.timeout(1200000)]),update);update('checking_output');controller.signal.throwIfAborted();decodePng(Buffer.from(artifact.image));if(!artifact.title?.trim()||!artifact.note?.trim())throw Error('短笺不完整');if(fingerprint!==this.fingerprint())throw Error('验证过程中配置变化');atomicJson(this.file(),{passed:true,at:this.now(),fingerprint});}catch(error){try{atomicJson(this.file(),{passed:false,pending:false,fingerprint,stage,failure:verificationFailure(error,stage),at:this.now()});}catch{}}finally{this.running=false;this.controller=undefined;}})();return this.state();}
- invalidate(){if(this.state().valid)atomicJson(this.file(),{passed:false,fingerprint:this.fingerprint(),at:this.now()});}
+
+ start(){const current=this.state();if(this.running||current.valid)return current;if(!this.generator)throw Error('生图服务尚未启用，不能验证');const fingerprint=this.fingerprint();if(!fingerprint)throw Error('配置或参考图不完整');atomicJson(this.file(),{schema:2,passed:false,pending:true,fingerprint,stage:'preparing',at:this.now()});this.running=true;this.controller=new AbortController();const controller=this.controller,generator=this.generator;
+  void(async()=>{const trip:Trip={id:randomUUID(),scene:'forest',startedAt:this.now(),dueAt:this.now(),status:'generating'};let stage='preparing';const update=(next:string)=>{stage=next in phases?next:stage;atomicJson(this.file(),{schema:2,passed:false,pending:true,fingerprint,stage,at:this.now()});};try{trip.generation=generator.prepare?.(trip);const artifact=await generator(trip,AbortSignal.any([controller.signal,AbortSignal.timeout(1200000)]),update);update('checking_output');controller.signal.throwIfAborted();decodePng(Buffer.from(artifact.image));if(!artifact.title?.trim()||!artifact.note?.trim())throw Error('短笺不完整');if(fingerprint!==this.fingerprint())throw Error('验证过程中配置变化');atomicJson(this.file(),{schema:2,passed:true,at:this.now(),fingerprint});}catch(error){try{atomicJson(this.file(),{schema:2,passed:false,pending:false,fingerprint,stage,failure:verificationFailure(error,stage),at:this.now()});}catch{}}finally{this.running=false;this.controller=undefined;}})();return this.state();}
+ invalidate(){if(this.state().valid)atomicJson(this.file(),{schema:2,passed:false,fingerprint:this.fingerprint(),at:this.now()});}
  stop(){this.controller?.abort();}
 }
