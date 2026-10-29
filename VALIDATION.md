@@ -164,3 +164,9 @@ G5实际Coopanion0.2.11独立profile18789加载0.2.0；随机旅行waterside真�
 新增ReadinessCheck与引导第5步，用户明确确认计费后才运行现有完整Generator（生图→宿主看图→短笺→审核），不创建旅行、不加入收藏；最大候选数沿用2张。不自动触发、不偷测用户API。凭证只存配置/Key/参考文件指纹/宿主公开模型标识的SHA256与时间，不存Key值；配置/Key/参考/宿主模型标识变化或旅行制作失败撤销，重启保留同配置通过结果。验证并发合并、失败/中断/无效PNG不授予权限；未来服务故障仍不可绝对保证。相同宿主模型标识下的供应商内部变动不在公开modelFacts可判定范围内，不冒称捕获一切后端变化。
 160项全量回归通过；后续调整后相关18项/14项通过，前后端类型检查、构建、官方describe/check通过。新增验证测试使用替身服务，不代表真实云端链路已成功；未发起用户付费生图。旧cloudEnabled=false预览出发测试改为两入口必须拒绝，保留关闭/重启锁测试。验证任务事件澄清可为配置验证，不能将其说成收藏或已旅行。
 日常无在途旅程后备份到E:/zcdfy/Coopanion/data/backups/postcard-076-20261029-110127并更新0.7.6，保留此前拖动/悬停/API说明修复。实际setup.check configurationReady=true、readyForTravel=false、verification=required；实际album/start返回拒绝，随后trip仍completed、cards=4、邮箱running。未改旧卡与在途状态。制作验证成功的真实链路待用户明确在界面付费确认；0.7.6未公开发布，npm/市场仍0.7.4。候选包output/stage-z-feedback-075/cortico-world-postcard-0.7.6.tgz。主计划、日志同步，不偏离下一版本旅行回忆路线。
+
+
+## 2026-10-29 API填写来源引导（0.7.7本地候选）
+用户要求按建议修改普通用户找不到模型ID/API地址的问题。字段改为“服务商提供的模型名称或接入点 ID”“生图 API 请求地址”，说明去API文档→图像生成→请求示例复制model值与POST完整URL，保留根地址/完整images/generations后缀不重复追加。方舟已验证Flash模型一键预填，不自动保存、不替换密钥；官方教程查证含doubao-seedream-5-0-flash-260915：https://docs.volcengine.com/docs/ark/seedream-4-0-5-0?lang=zh。未添加未经测试的其他云端预设。
+增加分服务帮助、带箭头注释的示例及可展开/复制的客服Agent询问文本，原生剪贴板不可用时选择文本手工Ctrl+C；文本不含用户Key或配置。明确“不会填写”与协议不支持之别，仍保留制作验证门槛；未更改生成协议/出发同意/计费策略。
+12项UI测试通过，前后端类型检查/构建与官方describe/check通过；新增测试覆盖保存值保留、查找提示、示例、推荐预填不保存或调用API。日常确认无在途旅行与无正在进行的制作验证后，备份到E:/zcdfy/Coopanion/data/backups/postcard-077-20261029-111533，更新0.7.7。实际cards=4、trip=completed、ready=false；未改用户已保存服务模型密钥或发起生图。真实浏览器已目击新字段、请求示例及可展开询问文本，截图output/stage-aa-api-guidance/verified.png。0.7.7未公开发布，公开版本仍0.7.4；此前拖动目击与真实付费验证等待项保留，不将本次UI验证替代它们。

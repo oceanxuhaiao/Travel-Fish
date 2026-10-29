@@ -79,7 +79,7 @@ it('内置三服饰展示并通过标准配置接口选择，保留自定义入�
 it('新引导仅配置生图、展示本地接口与费用，上传图和三内置图并列选择',async()=>{
  vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:ref');vi.spyOn(URL,'revokeObjectURL').mockImplementation(()=>{});const f=fixture();f.ctx.setConfig=vi.fn(async()=> 'saved');
  f.ctx.invoke.mockResolvedValue({presets:[{id:'maid',label:'女仆装'},{id:'winter',label:'冬装'},{id:'crew',label:'店员装'}],customReferences:[{id:'custom:abc',label:'我的兔子',path:'C:/imports/rabbit.png'}],characterPreset:'winter',keys:{ark:false,compatible:false},secureSaveAvailable:true,useHostModel:true,cloudEnabled:true,characterReference:'',styleReference:''});
- await mountSetup(f.ctx);expect(f.ctx.root.textContent).not.toContain('DeepSeek');expect(f.ctx.root.textContent).toContain('¥0.12');expect(f.ctx.root.querySelectorAll('input[type="password"]')).toHaveLength(1);expect(f.ctx.root.querySelectorAll('.pc-presets img')).toHaveLength(4);[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='我的兔子').click();await flush();expect(f.ctx.setConfig).toHaveBeenCalledWith('world:postcard',{'worlds.postcard.characterPreset':'custom','worlds.postcard.characterReference':'C:/imports/rabbit.png'});expect(f.ctx.root.querySelector('input[aria-label="云端/本地兼容接口地址"]')).not.toBeNull();expect(f.ctx.root.textContent).toContain('交给你的Agent');
+ await mountSetup(f.ctx);expect(f.ctx.root.textContent).not.toContain('DeepSeek');expect(f.ctx.root.textContent).toContain('¥0.12');expect(f.ctx.root.querySelectorAll('input[type="password"]')).toHaveLength(1);expect(f.ctx.root.querySelectorAll('.pc-presets img')).toHaveLength(4);[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='我的兔子').click();await flush();expect(f.ctx.setConfig).toHaveBeenCalledWith('world:postcard',{'worlds.postcard.characterPreset':'custom','worlds.postcard.characterReference':'C:/imports/rabbit.png'});expect(f.ctx.root.querySelector('input[aria-label="生图 API 请求地址"]')).not.toBeNull();expect(f.ctx.root.textContent).toContain('交给你的Agent');
 });
 
 it('邮箱按钮随实际窗口状态切换，忙碌中不能重复提交',async()=>{
@@ -93,4 +93,12 @@ it('邮箱按钮随实际窗口状态切换，忙碌中不能重复提交',async
  resolve();await flush();find('显示桌面邮箱').click();await flush();expect(find('关闭桌面邮箱')).toBeTruthy();
  expect(f.ctx.invoke).toHaveBeenCalledWith('openMailbox',[]);
  phase='closed';await f.timers[0]();await flush();expect(find('显示桌面邮箱')).toBeTruthy();
+});
+
+it('配置引导说明复制来源，按服务切换帮助，推荐预填不自动保存或调用生图',async()=>{
+ const f=fixture();f.ctx.setConfig=vi.fn();f.ctx.invoke.mockResolvedValue({imageBackend:'compatible',imageModel:'my-model',imageBaseUrl:'https://custom.example/v1/images/generations',keys:{ark:false},presets:[]});await mountSetup(f.ctx);
+ const doc=f.ctx.root.ownerDocument,model=doc.querySelector('input[aria-label="服务商提供的模型名称或接入点 ID"]'),endpoint=doc.querySelector('input[aria-label="生图 API 请求地址"]');
+ expect(model.value).toBe('my-model');expect(endpoint.value).toContain('/images/generations');expect(f.ctx.root.textContent).toContain('复制 model 字段的值');expect(f.ctx.root.querySelector('pre').textContent).toContain('POST https://api.example.com');
+ const prompt=f.ctx.root.querySelector('textarea');expect(prompt.readOnly).toBe(true);expect(prompt.value).toContain('请求和响应JSON示例');expect(prompt.value).not.toContain('my-model');
+ const backend=f.ctx.root.querySelector('select');backend.value='ark';backend.dispatchEvent(new f.dom.window.Event('change'));const preset=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='填入推荐的方舟 Flash 配置');expect(preset.hidden).toBe(false);preset.click();await flush();expect(model.value).toBe('doubao-seedream-5-0-flash-260915');expect(endpoint.value).toBe('https://custom.example/v1/images/generations');expect(f.ctx.setConfig).not.toHaveBeenCalled();expect(f.ctx.invoke.mock.calls.every(c=>['snapshot','verification'].includes(c[0]))).toBe(true);
 });
