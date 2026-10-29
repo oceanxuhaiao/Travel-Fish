@@ -157,3 +157,10 @@ G5实际Coopanion0.2.11独立profile18789加载0.2.0；随机旅行waterside真�
 引导改“其他云端 / 本地（兼容接口）”，分别说明服务商Key、根地址、模型、尺寸、估价与重启；LOCAL-IMAGE-API.md扩充填写表及排错。真实协议仍为/images/generations同步JSON双参考图→单张PNG/base64；未声称通用支持所有OpenAI兼容生图、URL输出、multipart、异步或原生ComfyUI。没有为说明文档发付费请求。
 155项全量测试通过，随后新增1项提示时序测试，受影响桌面14项复测通过，累计156项；前后端类型检查/构建、官方describe/check通过。原生模拟验证无renderer move时系统光标移动可改变x且y不变，mouseup后停止；实际Windows拖动与群友机器仍待目击。已打包output/stage-z-feedback-075/cortico-world-postcard-0.7.5.tgz。
 日常17788确认无在途旅程（completed）后备份到E:/zcdfy/Coopanion/data/backups/postcard-075-20261029-104505，更新已有稳定目录并重启Core/重新启用World；实际0.7.5、邮箱running，4张收藏、未读0。未发旅行、生图、或新增桌宠。已请求用户验证水平拖动/提示/配置说明，0.7.5未公开发布；npm与GitHub仍为已发布0.7.4。主计划为反馈修复插入项，下一版旅行回忆路线不变。
+
+
+## 2026-10-29 出发必须具备明信片制作能力（0.7.6本地候选）
+用户要求初始配置未完成禁止出发。发现assertReady在cloudEnabled=false时直接return，可从工具绕过按钮出发；兼容接口原检查只看URL格式。已统一要求生成开启/生成器存在，生产World还须配置完整与全链路验证凭证通过；按钮、工具、邀请共用检查，关闭生图不能作为预览旅行。第三方远程接口缺专用Key、空白模型/尺寸、不合规参考或代理均不就绪（本机无鉴权允许进入验证）。
+新增ReadinessCheck与引导第5步，用户明确确认计费后才运行现有完整Generator（生图→宿主看图→短笺→审核），不创建旅行、不加入收藏；最大候选数沿用2张。不自动触发、不偷测用户API。凭证只存配置/Key/参考文件指纹/宿主公开模型标识的SHA256与时间，不存Key值；配置/Key/参考/宿主模型标识变化或旅行制作失败撤销，重启保留同配置通过结果。验证并发合并、失败/中断/无效PNG不授予权限；未来服务故障仍不可绝对保证。相同宿主模型标识下的供应商内部变动不在公开modelFacts可判定范围内，不冒称捕获一切后端变化。
+160项全量回归通过；后续调整后相关18项/14项通过，前后端类型检查、构建、官方describe/check通过。新增验证测试使用替身服务，不代表真实云端链路已成功；未发起用户付费生图。旧cloudEnabled=false预览出发测试改为两入口必须拒绝，保留关闭/重启锁测试。验证任务事件澄清可为配置验证，不能将其说成收藏或已旅行。
+日常无在途旅程后备份到E:/zcdfy/Coopanion/data/backups/postcard-076-20261029-110127并更新0.7.6，保留此前拖动/悬停/API说明修复。实际setup.check configurationReady=true、readyForTravel=false、verification=required；实际album/start返回拒绝，随后trip仍completed、cards=4、邮箱running。未改旧卡与在途状态。制作验证成功的真实链路待用户明确在界面付费确认；0.7.6未公开发布，npm/市场仍0.7.4。候选包output/stage-z-feedback-075/cortico-world-postcard-0.7.6.tgz。主计划、日志同步，不偏离下一版本旅行回忆路线。

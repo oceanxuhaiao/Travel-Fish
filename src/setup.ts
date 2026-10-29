@@ -9,7 +9,7 @@ export interface SetupSecrets {secret:(name:string)=>string;storeSecret:(name:st
 const names={ark:'POSTCARD_ARK_API_KEY',vision:'POSTCARD_VISION_API_KEY',compatible:'POSTCARD_IMAGE_API_KEY'};
 export class SetupPanel {
  private referenceCache=new Map<string,{fingerprint:string;valid:boolean}>();
- constructor(private cfg:PostcardConfigSection,private secrets?:SetupSecrets,private importRoot?:string,private hostReady?:()=>boolean){}
+ constructor(private cfg:PostcardConfigSection,private secrets?:SetupSecrets,private importRoot?:string,private hostReady?:()=>boolean,private validation?:{state:()=>{valid:boolean;phase:string;checkedAt:number|null};start:()=>unknown}){}
  library(){
   const items:Array<{id:string;label:string;path:string}>=[];
   if(this.importRoot&&existsSync(this.importRoot))for(const file of readdirSync(this.importRoot).filter(n=>/^[a-f0-9]{64}\.png$/.test(n))){let label='我的角色 '+file.slice(0,6);try{const meta=JSON.parse(readFileSync(join(this.importRoot,file+'.json'),'utf8'));if(typeof meta.label==='string')label=meta.label.slice(0,80);}catch{}items.push({id:'custom:'+file.slice(0,-4),label,path:join(this.importRoot,file)});}
@@ -25,6 +25,8 @@ export class SetupPanel {
   }
   if(method==='requirements')return {$binary:{mime:'text/markdown; charset=utf-8',base64:readFileSync(new URL('../REFERENCE-REQUIREMENTS.md',import.meta.url)).toString('base64')}};
   if(method==='reference'){const id=String(args[0]);const file=id.startsWith('custom')?this.library().find(i=>i.id===id)?.path:presetPath(id);if(!file)throw Error('未知角色参考图');const bytes=readFileSync(file);return {$binary:{mime:'image/png',base64:bytes.toString('base64')}};}
+  if(method==='verification')return this.validation?.state()??{valid:false,phase:'required'};
+  if(method==='verify'){if(args[0]!==true)throw Error('验证可能产生生图和宿主模型费用，请先明确确认');const c=this.invoke('check') as {configurationReady:boolean};if(!c.configurationReady)throw Error('配置尚不完整，请先修正本地检查中的问题');if(!this.validation)throw Error('验证通道尚未接入');return this.validation.start();}
   if(method==='snapshot')return this.snapshot();
   if(method==='setKey'){
    const [provider,value]=args;
@@ -38,8 +40,9 @@ export class SetupPanel {
    const reference=(path:string)=>{try{const stat=statSync(path,{bigint:true});const fingerprint=[stat.size,stat.mtimeNs,stat.ctimeNs].join(':');const cached=this.referenceCache.get(path);if(cached?.fingerprint===fingerprint)return cached.valid;let valid=false;try{if(stat.size<=30n*1024n*1024n){decodePng(readFileSync(path));valid=true;}}catch{}this.referenceCache.set(path,{fingerprint,valid});return valid;}catch{return false;}};
    const proxy=(value:string)=>{if(!value)return true;try{return ['http:','https:'].includes(new URL(value).protocol);}catch{return false;}};
    let endpoint=true;if(s.imageBackend==='compatible')try{imageEndpoint(s.imageBaseUrl);}catch{endpoint=false;}
-   const hostReady=s.useHostModel?s.hostVisionReady:s.keys.vision;const imageReady=s.imageBackend==='compatible'?endpoint:s.keys.ark;const references=(()=>{try{return reference(characterReference(this.cfg))&&reference(styleReference(this.cfg));}catch{return false;}})();
-   return {readyForTravel:s.cloudEnabled&&hostReady&&imageReady&&references&&proxy(this.cfg.imageProxyUrl),hostVisionReady:s.hostVisionReady,imageEndpoint:endpoint,imageReady,useHostModel:s.useHostModel,visionKeyRequired:!s.useHostModel,keys:s.keys,characterReference:(()=>{try{return reference(characterReference(this.cfg));}catch{return false;}})(),styleReference:reference(styleReference(this.cfg)),imageProxy:proxy(this.cfg.imageProxyUrl),visionProxy:proxy(this.cfg.visionProxyUrl),cloudEnabled:s.cloudEnabled};
+   const hostReady=s.useHostModel?s.hostVisionReady:s.keys.vision;const local=(()=>{try{return ['localhost','127.0.0.1','[::1]'].includes(new URL(s.imageBaseUrl).hostname);}catch{return false;}})();const imageReady=s.imageBackend==='compatible'?endpoint&&(local||s.keys.compatible):s.keys.ark;const references=(()=>{try{return reference(characterReference(this.cfg))&&reference(styleReference(this.cfg));}catch{return false;}})();
+   const configurationReady=!!(s.cloudEnabled&&hostReady&&imageReady&&references&&proxy(this.cfg.imageProxyUrl)&&proxy(this.cfg.visionProxyUrl)&&s.imageModel.trim()&&(s.imageBackend!=='compatible'||s.imageSize.trim()));
+   return {configurationReady,verification:this.validation?.state(),readyForTravel:configurationReady&&(!this.validation||this.validation.state().valid),hostVisionReady:s.hostVisionReady,imageEndpoint:endpoint,imageReady,useHostModel:s.useHostModel,visionKeyRequired:!s.useHostModel,keys:s.keys,characterReference:(()=>{try{return reference(characterReference(this.cfg));}catch{return false;}})(),styleReference:reference(styleReference(this.cfg)),imageProxy:proxy(this.cfg.imageProxyUrl),visionProxy:proxy(this.cfg.visionProxyUrl),cloudEnabled:s.cloudEnabled};
   }
   throw new Error('未知配置操作');
  }

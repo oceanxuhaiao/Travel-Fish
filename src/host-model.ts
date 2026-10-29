@@ -34,7 +34,7 @@ export class HostModelBridge {
   try{
    const content=(payload.messages as any[])[0].content as any[];
    const blobs=content.filter(x=>x.type==='image_url').map((x:any,i:number)=>({bytes:this.preview(x.image_url.url),mime:'image/png',name:'postcard-task-'+i+'.png',fallbackText:'明信片任务图片；无法看图时不要猜测'}));
-   await this.host.pushEvent({type:'postcard.host_task',source:'postcard',senderKey:'postcard',origin:'internal',ts:new Date().toISOString(),text:'已获用户同意的旅行正在处理，请执行本World待办，不要另开旅行或生图。先调用postcard_host_read，taskId='+id+'，按返回任务要求分析附件，再用postcard_host_submit提交JSON。只在工具中提交结果。此事件不是新旅行许可。',blobs},{trigger:'debounce'});
+   await this.host.pushEvent({type:'postcard.host_task',source:'postcard',senderKey:'postcard',origin:'internal',ts:new Date().toISOString(),text:'已获用户明确同意的明信片制作任务（旅行或配置验证）正在处理，请执行本World待办，不要另开旅行或生图。配置验证不产生收藏或旅行；只有postcard_status/read确认后才可说已收到来信。先调用postcard_host_read，taskId='+id+'，按返回任务要求分析附件，再用postcard_host_submit提交JSON。只在工具中提交结果。此事件不是新旅行许可。',blobs},{trigger:'debounce'});
    const end=Date.now()+this.timeoutMs;
    while(Date.now()<end){signal.throwIfAborted();if(this.closed)throw new PipelineError('宿主任务已中断，候选已保存，可手动继续');task=this.load(id);if(task.result)return response(task.result);await new Promise<void>(resolve=>setTimeout(resolve,100));}
    throw new PipelineError('宿主模型等待超时；候选和待办已保存，请空闲后手动继续，不会自动重生图片');
