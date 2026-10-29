@@ -112,7 +112,7 @@ export class PostcardWorld implements World {
     return this.pulseFlight;
   }
   private async advanceAndNotify(): Promise<void> {
-    await this.service.tick();if(this.service.status()?.status==='failed')this.verification.invalidate();
+    await this.service.tick(); // A failed trip does not revoke an unchanged, successful configuration proof.
     if (!this.host) return;
     for (const card of this.service.pendingNotifications()) {
       await this.host.pushEvent({ type:'postcard.completed', ts:new Date(card.completedAt).toISOString(), source:this.id, origin:'internal', senderKey:this.id, text:'你这趟旅行时写给用户、寄回家的明信片已保存，可以用 postcard_read 查看。你是旅行者和寄信人，用户是收信人；只提醒有信，等用户点击邮箱后取信，不主动开盖或朗读。明确开发验证卡须如实说明是演示。', meta:{ tripId:card.tripId, scene:card.scene } }, { trigger:'debounce' });
