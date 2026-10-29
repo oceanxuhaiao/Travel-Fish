@@ -16,3 +16,5 @@
 .buttons,button{-webkit-app-region:no-drag;app-region:no-drag}
 
 #mail{touch-action:none;cursor:grab}#mail:active{cursor:grabbing}
+
+#mail{touch-action:none;user-select:none;cursor:grab}#mail:active{cursor:grabbing}

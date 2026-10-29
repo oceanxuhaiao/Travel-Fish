@@ -1,6 +1,6 @@
 {
   "name": "cortico-world-postcard",
-  "version": "0.7.4",
+  "version": "0.7.12",
   "type": "module",
   "description": "让大肥鱼去远方走走，把想念寄回家：两小时旅行、水彩明信片、桌面邮箱取信与永久收藏。适用于 Coopanion。",
   "license": "MIT",
@@ -39,7 +39,8 @@
     "assets",
     "desktop",
     "REFERENCE-REQUIREMENTS.md",
-    "LOCAL-IMAGE-API.md"
+    "LOCAL-IMAGE-API.md",
+    "IMAGE-SERVICES.md"
   ],
   "scripts": {
     "test": "vitest run",

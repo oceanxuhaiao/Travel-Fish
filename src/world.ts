@@ -1,3 +1,4 @@
+import {ReadinessCheck} from './readiness.ts';
 import {costEstimate} from './cost.ts';
 import {PickupQueue} from './pickup.ts';
 import {readFileSync} from 'node:fs';
@@ -30,6 +31,7 @@ export const POSTCARD_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
 export class PostcardWorld implements World {
   readonly id = 'postcard';
   readonly service: TravelService;
+  private verification:ReadinessCheck;
   private timer?: ReturnType<typeof setInterval>;
   private host?: WorldHost;
   private pulseFlight?: Promise<void>;
@@ -42,8 +44,10 @@ export class PostcardWorld implements World {
   readonly mailboxWindow:MailboxWindow;
   private mailboxHealthy=true;
   private invitationsHealthy=true;
-  constructor(private opts: { cfg: PostcardConfigSection; dataDir: string; generator?: Generator; now?:()=>number; setup?:SetupSecrets; bridge?:HostModelBridge; mailboxRuntime?:()=>string|null }) {
-    this.setup=new SetupPanel(opts.cfg,opts.setup,join(opts.dataDir,'postcard/character-imports'),()=>!!this.host?.modelFacts.accepts('image/png'));
+  constructor(private opts: { cfg: PostcardConfigSection; dataDir: string; generator?: Generator; now?:()=>number; setup?:SetupSecrets; bridge?:HostModelBridge; mailboxRuntime?:()=>string|null;restart?:()=>Promise<void> }) {
+    const signature=()=>JSON.stringify([opts.cfg.cloudEnabled,opts.cfg.useHostModel,opts.cfg.imageBackend,opts.cfg.imageModel,opts.cfg.imageBaseUrl,opts.cfg.imageSize,opts.cfg.characterPreset,opts.cfg.characterReference,opts.cfg.styleReference,opts.cfg.imageProxyUrl,opts.cfg.visionProxyUrl]);const applied=signature(),appliedModel=opts.cfg.imageModel??'';
+    this.verification=new ReadinessCheck(join(opts.dataDir,'postcard'),opts.cfg,n=>opts.setup?.secret(n)??'',()=>this.host?.modelFacts.model()??'',opts.generator,opts.now);
+    this.setup=new SetupPanel(opts.cfg,opts.setup,join(opts.dataDir,'postcard/character-imports'),()=>!!this.host?.modelFacts.accepts('image/png'),opts.setup?{state:()=>this.verification.state(),start:()=>{if(this.service.status()&&['traveling','generating','failed','awaiting_service'].includes(this.service.status()!.status))throw Error('请先结束已有旅行，再验证配置');return this.verification.start();}}:undefined,opts.restart?{required:()=>signature()!==applied,appliedModel:()=>appliedModel,restart:async()=>{if(this.verification.state().phase==='checking'||this.service.status()&&['traveling','generating','awaiting_service','failed'].includes(this.service.status()!.status))throw Error('旅行或制作验证尚未结束，暂不能重启；请先完成或处理当前任务');await opts.restart!();}}:undefined);
     this.service = new TravelService(new TravelStore(join(opts.dataDir,'postcard')), opts.generator, opts.now,true);
     this.invitations=new InvitationSchedule(join(opts.dataDir,'postcard'),opts.now);
     this.mailbox=new MailboxStore(this.service,opts.now);
@@ -71,12 +75,12 @@ export class PostcardWorld implements World {
   webUi(): WorldWebUiDecl {
     return { label: '旅行大肥鱼',lamps:this.lamps(), panels:[{id:'album',title:'远方来信',description:'旅行、翻看明信片与保存收藏。'},{id:'setup',title:'配置引导',description:'配置云端 API、参考图及旅行选项。'}],invoke:async(panel,method,args)=>panel==='setup'?this.setup.invoke(method,args):this.panel.invoke(panel,method,args),config: [POSTCARD_CONFIG_GROUP], promptDocs: [{ key:'worlds.postcard.envPrompt', title:'旅行环境说明', description:'旅行状态、费用与生成服务边界。', path:ENV_PROMPT_FILE, role:'envPrompt', vars:[{name:'postcard.availability',description:'当前生成服务接入情况'}] }] };
   }
-  private assertReady(){if(!this.opts.cfg.cloudEnabled||!this.opts.setup)return;const c=this.setup.invoke('check') as {readyForTravel:boolean};if(!c.readyForTravel)throw Error('请先在配置引导检查生图接口、密钥、参考图及宿主看图能力；尚未开始旅行或发起图片请求');}
+  private assertReady(){if(!this.opts.cfg.cloudEnabled||!this.opts.generator)throw Error('明信片生成能力未启用，尚未开始旅行');if(!this.opts.setup)return;const c=this.setup.invoke('check') as {readyForTravel:boolean};if(!c.readyForTravel)throw Error('请先完成配置引导并通过“验证明信片制作”；尚未开始旅行或发起图片请求');}
   private lamps():NonNullable<WorldWebUiDecl['lamps']>{
     if(!this.host)return [{label:'旅行',state:'offline',hint:'尚未启动'}];
     const s=this.setup.snapshot(),trip=this.service.status();let unread=0;try{unread=this.mailbox.snapshot().unreadCount;}catch{}
-    const imageReady=(this.setup.invoke('check') as {imageReady:boolean}).imageReady;
-    return [{label:'生图服务',state:!this.opts.cfg.cloudEnabled||!imageReady?'offline':trip?.status==='failed'?'error':trip?.status==='generating'?'loading':'online',hint:!imageReady?'请先配置生图服务':trip?.status==='failed'?'本次来信未完成，请查看收藏册':'仅表示已配置，不代表服务连通性已验证'},
+    const check=this.setup.invoke('check') as {imageReady:boolean;readyForTravel:boolean};const imageReady=check.imageReady;
+    return [{label:'生图服务',state:!this.opts.cfg.cloudEnabled||!imageReady?'offline':trip?.status==='failed'?'error':trip?.status==='generating'?'loading':'online',hint:!imageReady?'请先配置生图服务':trip?.status==='failed'?'本次来信未完成，请查看收藏册':check.readyForTravel?'制作验证已通过；外部服务后续仍可能故障':'配置已填写，但尚未通过明信片制作验证，不能出发'},
       {label:'宿主模型',state:s.useHostModel?(s.hostVisionReady?'online':'offline'):'offline',hint:s.hostVisionReady?'宿主支持PNG看图与写信':'请为宿主选择支持PNG的模型'},
       {label:'旅行与来信',state:trip?.status==='failed'?'error':trip&&['traveling','generating','awaiting_service'].includes(trip.status)?'loading':'online',hint:trip?.status==='failed'?'本次旅行未完成，已有收藏仍可阅读':unread?unread+'封未读来信':trip?.status==='traveling'&&trip?.phase==='ready_for_return'?'明信片已备妥，等待旅行结束':trip&&['traveling','generating'].includes(trip.status)?'正在旅行':'等待下一次出发'}];
   }
@@ -108,7 +112,7 @@ export class PostcardWorld implements World {
     return this.pulseFlight;
   }
   private async advanceAndNotify(): Promise<void> {
-    await this.service.tick();
+    await this.service.tick();if(this.service.status()?.status==='failed')this.verification.invalidate();
     if (!this.host) return;
     for (const card of this.service.pendingNotifications()) {
       await this.host.pushEvent({ type:'postcard.completed', ts:new Date(card.completedAt).toISOString(), source:this.id, origin:'internal', senderKey:this.id, text:'你这趟旅行时写给用户、寄回家的明信片已保存，可以用 postcard_read 查看。你是旅行者和寄信人，用户是收信人；只提醒有信，等用户点击邮箱后取信，不主动开盖或朗读。明确开发验证卡须如实说明是演示。', meta:{ tripId:card.tripId, scene:card.scene } }, { trigger:'debounce' });
@@ -124,7 +128,7 @@ export class PostcardWorld implements World {
   }
   async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
-    this.timer = undefined; this.opts.bridge?.detach(); this.host = undefined; await this.mailboxWindow.close(); await this.service.close();
+    this.timer = undefined;this.verification.stop(); this.opts.bridge?.detach(); this.host = undefined; await this.mailboxWindow.close(); await this.service.close();
   }
 }
 

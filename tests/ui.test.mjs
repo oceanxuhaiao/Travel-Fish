@@ -4,7 +4,7 @@ import {JSDOM} from 'jsdom';
 import {mountAlbum} from '../webui/client.ts';
 let fixtures=[];
 function fixture(cards=[]){
-  const dom=new JSDOM('<main id="root"></main>');const w=dom.window;w.HTMLElement.prototype.scrollIntoView=()=>{};
+  const dom=new JSDOM('<main id="root"></main>',{url:'https://local.test/'});const w=dom.window;w.HTMLElement.prototype.scrollIntoView=()=>{};
   const controller=new w.AbortController(),memo=new Map(),resources=[],timers=[];
   let state={trip:null,cards,minutes:30,generatorConnected:true};
   const ctx={root:w.document.getElementById('root'),signal:controller.signal,memo:{get:(k,d)=>memo.has(k)?memo.get(k):d,set:(k,v)=>memo.set(k,v)},own:d=>{resources.push(d);return d;},interval:f=>{timers.push(f);return {dispose(){}};},timeout:()=>({dispose(){}}),ui:{confirm:vi.fn(async()=>true)},invoke:vi.fn(async(method,args)=>{
@@ -79,7 +79,7 @@ it('内置三服饰展示并通过标准配置接口选择，保留自定义入�
 it('新引导仅配置生图、展示本地接口与费用，上传图和三内置图并列选择',async()=>{
  vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:ref');vi.spyOn(URL,'revokeObjectURL').mockImplementation(()=>{});const f=fixture();f.ctx.setConfig=vi.fn(async()=> 'saved');
  f.ctx.invoke.mockResolvedValue({presets:[{id:'maid',label:'女仆装'},{id:'winter',label:'冬装'},{id:'crew',label:'店员装'}],customReferences:[{id:'custom:abc',label:'我的兔子',path:'C:/imports/rabbit.png'}],characterPreset:'winter',keys:{ark:false,compatible:false},secureSaveAvailable:true,useHostModel:true,cloudEnabled:true,characterReference:'',styleReference:''});
- await mountSetup(f.ctx);expect(f.ctx.root.textContent).not.toContain('DeepSeek');expect(f.ctx.root.textContent).toContain('¥0.12');expect(f.ctx.root.querySelectorAll('input[type="password"]')).toHaveLength(1);expect(f.ctx.root.querySelectorAll('.pc-presets img')).toHaveLength(4);[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='我的兔子').click();await flush();expect(f.ctx.setConfig).toHaveBeenCalledWith('world:postcard',{'worlds.postcard.characterPreset':'custom','worlds.postcard.characterReference':'C:/imports/rabbit.png'});expect(f.ctx.root.querySelector('input[aria-label="本地/兼容接口地址"]')).not.toBeNull();expect(f.ctx.root.textContent).toContain('交给你的Agent');
+ await mountSetup(f.ctx);expect(f.ctx.root.textContent).not.toContain('DeepSeek');expect(f.ctx.root.textContent).toContain('¥0.12');expect(f.ctx.root.querySelectorAll('input[type="password"]')).toHaveLength(1);expect(f.ctx.root.querySelectorAll('.pc-presets img')).toHaveLength(4);[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='我的兔子').click();await flush();expect(f.ctx.setConfig).toHaveBeenCalledWith('world:postcard',{'worlds.postcard.characterPreset':'custom','worlds.postcard.characterReference':'C:/imports/rabbit.png'});expect(f.ctx.root.querySelector('input[aria-label="生图 API 请求地址"]')).not.toBeNull();expect(f.ctx.root.textContent).toContain('交给你的Agent');
 });
 
 it('邮箱按钮随实际窗口状态切换，忙碌中不能重复提交',async()=>{
@@ -93,4 +93,37 @@ it('邮箱按钮随实际窗口状态切换，忙碌中不能重复提交',async
  resolve();await flush();find('显示桌面邮箱').click();await flush();expect(find('关闭桌面邮箱')).toBeTruthy();
  expect(f.ctx.invoke).toHaveBeenCalledWith('openMailbox',[]);
  phase='closed';await f.timers[0]();await flush();expect(find('显示桌面邮箱')).toBeTruthy();
+});
+
+it('配置引导说明复制来源，按服务切换帮助，推荐预填不自动保存或调用生图',async()=>{
+ const f=fixture();f.ctx.setConfig=vi.fn();f.ctx.invoke.mockResolvedValue({imageBackend:'compatible',imageModel:'my-model',imageBaseUrl:'https://custom.example/v1/images/generations',keys:{ark:false},presets:[]});await mountSetup(f.ctx);
+ const doc=f.ctx.root.ownerDocument,model=doc.querySelector('input[aria-label="服务商提供的模型名称或接入点 ID"]'),endpoint=doc.querySelector('input[aria-label="生图 API 请求地址"]');
+ expect(model.value).toBe('my-model');expect(endpoint.value).toContain('/images/generations');expect(f.ctx.root.textContent).toContain('复制 model 字段的值');expect(f.ctx.root.querySelector('pre').textContent).toContain('POST https://api.example.com');
+ const prompt=f.ctx.root.querySelector('textarea');expect(prompt.readOnly).toBe(true);expect(prompt.value).toContain('请求和响应JSON示例');expect(prompt.value).not.toContain('my-model');
+ const backend=f.ctx.root.querySelector('select');backend.value='ark';backend.dispatchEvent(new f.dom.window.Event('change'));const preset=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='填入推荐的方舟 Flash 配置');expect(preset.hidden).toBe(false);preset.click();await flush();expect(model.value).toBe('doubao-seedream-5-0-flash-260915');expect(endpoint.value).toBe('https://custom.example/v1/images/generations');expect(f.ctx.setConfig).not.toHaveBeenCalled();expect(f.ctx.invoke.mock.calls.every(c=>['snapshot','verification','restartStatus'].includes(c[0]))).toBe(true);
+});
+
+it('禁用出发显示原因，前往验证定位第5步，不自动启动付费验证',async()=>{
+ const f=fixture();f.setState({trip:null,cards:[],minutes:120,generatorConnected:true,readyForTravel:false});await mountAlbum(f.ctx);
+ const start=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='带一封来信回来');expect(start.disabled).toBe(true);expect(f.ctx.root.textContent).toContain('配置已更改，请先验证明信片制作');expect(start.getAttribute('aria-describedby')).toBe('pc-start-disabled-reason');
+ const link=f.ctx.root.querySelector('.pc-start-blocked a');expect(link.getAttribute('href')).toBe('#/provider/world%3Apostcard/setup');link.click();expect(f.dom.window.sessionStorage.getItem('postcard:focus-verification')).toBe('1');
+ f.ctx.root.replaceChildren();f.ctx.invoke.mockImplementation(async method=>method==='verification'?{phase:'required'}:{keys:{ark:false},presets:[]});const scroll=vi.spyOn(f.dom.window.HTMLElement.prototype,'scrollIntoView');await mountSetup(f.ctx);expect(scroll).toHaveBeenCalled();expect(f.dom.window.document.activeElement.id).toBe('pc-setup-step-5');expect(f.dom.window.sessionStorage.getItem('postcard:focus-verification')).toBeNull();expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='verify'||c[0]==='start')).toBe(false);
+});
+
+it('制作验证失败呈现步骤、原因、建议与错误编号，不再只显示尚未通过',async()=>{
+ const f=fixture();f.ctx.invoke.mockImplementation(async method=>method==='verification'?{phase:'failed',failedAt:1700000000000,failure:{code:'HTTP_401',stage:'生图服务生成图片',reason:'服务身份验证失败',advice:'检查当前失败步骤对应服务的API Key是否正确'}}:{keys:{ark:false},presets:[]});await mountSetup(f.ctx);const status=f.ctx.root.querySelector('.pc-verification-status');expect(status.dataset.state).toBe('failed');expect(status.textContent).toContain('失败步骤：生图服务生成图片');expect(status.textContent).toContain('原因：服务身份验证失败');expect(status.textContent).toContain('处理建议：检查');expect(status.textContent).toContain('错误编号：HTTP_401');expect(status.textContent).toContain('重新验证可能再次计费');expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='verify')).toBe(false);
+});
+
+it('保存后显示重启提示，不自动重启或验证；诊断显示未应用模型',async()=>{
+ const f=fixture();let pending=false;f.ctx.setConfig=vi.fn(async()=> 'saved');f.ctx.invoke.mockImplementation(async method=>{if(method==='settingsSaved')pending=true;if(method==='restartStatus')return {required:pending,supported:true,appliedModel:'old-image',savedModel:'new-image'};if(method==='verification')return {phase:pending?'restart_required':'required',appliedModel:'old-image',savedModel:'new-image'};return {keys:{ark:false},presets:[]};});await mountSetup(f.ctx);
+ [...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='保存生图模型与接口').click();await flush();await flush();expect(f.ctx.root.querySelector('.pc-restart-needed').hidden).toBe(false);expect(f.ctx.root.textContent).toContain('当前生成器：old-image；已保存模型：new-image');expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='restart'||c[0]==='verify')).toBe(false);
+ f.timers.forEach(fn=>fn());await flush();expect(f.ctx.root.querySelector('.pc-verification-status').textContent).toContain('配置已保存但尚未应用');
+});
+
+it('千问与Gemini预填原生配置，不自动保存、不调用付费验证',async()=>{
+ const f=fixture();f.ctx.setConfig=vi.fn();f.ctx.invoke.mockResolvedValue({imageBackend:'ark',keys:{ark:false},presets:[]});await mountSetup(f.ctx);
+ const d=f.ctx.root,backend=d.querySelector('[aria-label="生图服务"]');expect([...backend.options].map(o=>o.value)).toEqual(['ark','qwen','gemini','compatible']);
+ const click=text=>[...d.querySelectorAll('button')].find(b=>b.textContent===text).click();
+ backend.value='qwen';backend.dispatchEvent(new f.dom.window.Event('change'));click('填入所选服务的推荐配置');await flush();expect(d.querySelector('[aria-label="服务商提供的模型名称或接入点 ID"]').value).toBe('qwen-image-2.0');expect(d.querySelector('[aria-label="兼容接口出图尺寸"]').value).toBe('1024*1536');
+ backend.value='gemini';backend.dispatchEvent(new f.dom.window.Event('change'));click('填入所选服务的推荐配置');await flush();expect(d.querySelector('[aria-label="生图 API 请求地址"]').value).toBe('https://generativelanguage.googleapis.com/v1beta');expect(d.querySelector('[aria-label="兼容接口出图尺寸"]').value).toBe('2K');expect(f.ctx.setConfig).not.toHaveBeenCalled();expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='verify')).toBe(false);
 });

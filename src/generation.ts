@@ -1,3 +1,4 @@
+import {IMAGE_BACKENDS,imageKeyName,imageWireRequest,normalizeImageResponse,validateImageSettings,type ImageBackend} from './image-protocol.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
@@ -17,11 +18,11 @@ export const SCENE_PROMPTS: Record<'forest'|'coast'|'snow',string> = {
 };
 const COMMON = '生成完整收藏级旅行明信片，竖版2:3，单张。图1仅作角色身份与服装参考：保持图1的发色、发型、脸部、头饰、服装主色与独特配件，不能把不同服饰强改成冬装或鲸鱼帽；自定义角色也严格跟随图1。图2仅作浅淡透明水彩、细铅笔线、象牙白纸与通透留白参考；必须舍弃图2背景，不能搬用海天水平线或沙堡布局。人物含帽约占画面高度18%至33%，具体按本次景别，风景主导，角色自然融入环境光。细节克制，不画文字、日期、签名、logo、邮票；无贴纸感、多余肢体或其他人物。本次场景：';
 type Json = Record<string,unknown>;
-export interface ImageRoute {backend?:'ark'|'compatible';baseUrl?:string;}
-export function imageEndpoint(base:string){let u:URL;try{u=new URL(base);}catch{throw new PipelineError('本地生图接口地址无效');}if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.search||u.hash)throw new PipelineError('生图接口只支持不含凭据或查询参数的HTTP(S)地址');return u.href.replace(/\/$/,'')+(u.pathname.replace(/\/$/,'').endsWith('/images/generations')?'':'/images/generations');}
-export interface CloudOptions { imageBackend?:'ark'|'compatible';imageBaseUrl?:string;imageSize?:string; imageModel?:string; hostReady?:()=>boolean; hostTransport?:Transport; useHostModel?:boolean; root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
+export interface ImageRoute {backend?:ImageBackend;baseUrl?:string;}
+export function imageEndpoint(base:string){let u:URL;try{u=new URL(base);}catch{throw new PipelineError('生图API请求地址无效');}if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.search||u.hash)throw new PipelineError('生图接口只支持不含凭据或查询参数的HTTP(S)地址');return u.href.replace(/\/$/,'')+(u.pathname.replace(/\/$/,'').endsWith('/images/generations')?'':'/images/generations');}
+export interface CloudOptions { imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string; imageModel?:string; hostReady?:()=>boolean; hostTransport?:Transport; useHostModel?:boolean; root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
 export type Transport = (kind:'image'|'text', payload:Json, signal:AbortSignal,route?:ImageRoute)=>Promise<Json>;
-interface Spec { imageBackend?:'ark'|'compatible';imageBaseUrl?:string;imageSize?:string;policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; sceneSnapshot?:SceneSnapshot; placeScopeVersion?:'v1'|'v2'; noteReviewVersion?:'v1'|'v2'|'v3'; }
+interface Spec { imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string;policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; sceneSnapshot?:SceneSnapshot; placeScopeVersion?:'v1'|'v2'; noteReviewVersion?:'v1'|'v2'|'v3'; }
 interface Checkpoint { schema:1; imageAttempt:number; pendingImage:boolean; stage:string; textRequests:Record<string,number>; errors:string[]; }
 export class PipelineError extends Error { constructor(message:string) {super(message);this.name='PostcardPipelineError';} }
 export class HttpError extends Error { constructor(readonly status:number) {super('Cloud HTTP '+status);} }
@@ -66,22 +67,30 @@ export function textReviewPrompt(note:Json,policy:string=POLICY,version:'v1'|'v2
 
 export function placeScopePrompt(note:Json,version:'v1'|'v2'='v2'):string {return (version==='v1'?'只检查文字是否明确使用真实国家、省市、景区等专有地名。森林、海岸、山谷、沙丘、江边、古镇等通用词不是地名；感受和比喻不算。':'只检查文字是否明确包含真实国家、地域、省市、景区等专有地名。通用地貌或环境词（森林、海岸、山谷、沙丘、江边、古镇）不是地名。情绪和比喻本身不违规，但里面若含真实地域名称仍须列入names，不因句子是比喻就忽略专有地名。此项只是无真实地名的内容范围检查，不是文图矛盾检查。')+'返回JSON：has_real_place_name（布尔）、names（明确真实地名字符串数组）。文字：'+JSON.stringify(note);}
 
-/** Only official cloud endpoints; credentials never enter checkpoints or errors. */
+/** Protocol-specific image requests; credentials never enter checkpoints or errors. */
 export function cloudTransport(options:CloudOptions):Transport {
   return async(kind,payload,signal,route)=>{
     const backend=kind==='image'?(route?.backend??options.imageBackend??'ark'):'ark';
     const proxy=kind==='image'?options.imageProxyUrl:options.visionProxyUrl;
     if(proxy){const u=new URL(proxy);if(!['http:','https:'].includes(u.protocol)||u.username||u.password)throw new PipelineError('代理配置无效');}
-    const key=options.secret(kind==='image'?(backend==='compatible'?'POSTCARD_IMAGE_API_KEY':'POSTCARD_ARK_API_KEY'):'POSTCARD_VISION_API_KEY');
+    const key=options.secret(kind==='image'?imageKeyName(backend):'POSTCARD_VISION_API_KEY');
     if (!key&&backend!=='compatible') throw new PipelineError(kind==='image'?'未配置图片服务密钥':'未配置视觉服务密钥');
     // Empty means direct even when the host installs its own global proxy dispatcher.
     const agent=proxy?new ProxyAgent(proxy):new Agent({connect:{timeout:30000}});
     try {
-      const response=await fetch(kind==='image'?(backend==='compatible'?imageEndpoint(route?.baseUrl??options.imageBaseUrl??''):'https://ark.cn-beijing.volces.com/api/v3/images/generations'):'https://api.deepseek.com/chat/completions',{
-        method:'POST',headers:{...(key?{Authorization:'Bearer '+key}:{}),'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.any([signal,AbortSignal.timeout(backend==='compatible'?900000:240000)]),dispatcher:agent,
-      });
+      const request=kind==='image'?imageWireRequest(backend,route?.baseUrl??options.imageBaseUrl??'',payload,key):{url:'https://api.deepseek.com/chat/completions',headers:key?{Authorization:'Bearer '+key}:{},body:payload};
+      const timeout=AbortSignal.any([signal,AbortSignal.timeout(kind==='image'?900000:240000)]);
+      const response=await fetch(request.url,{method:'POST',headers:{...request.headers,'Content-Type':'application/json'},body:JSON.stringify(request.body),signal:timeout,dispatcher:agent,redirect:'error'});
       if(!response.ok){await response.body?.cancel();throw new HttpError(response.status);}
-      return await response.json() as Json;
+      const value=await response.json() as Json;
+      if(kind!=='image')return value;
+      return await normalizeImageResponse(backend,value,async url=>{
+        const image=await fetch(url,{signal:timeout,dispatcher:agent,redirect:'error'});
+        if(!image.ok){await image.body?.cancel();throw new PipelineError('千问图片下载失败，远端可能已计费，请确认后恢复');}
+        const chunks:Buffer[]=[];let length=0;
+        try{for await(const chunk of image.body!){length+=chunk.length;if(length>40*1024*1024)throw new PipelineError('返回图片超过40MB');chunks.push(Buffer.from(chunk));}}finally{await image.body?.cancel().catch(()=>{});}
+        return Buffer.concat(chunks);
+      });
     } finally {await agent?.close();}
   };
 }
@@ -97,7 +106,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
   };
   const generate:Generator=async(trip,signal,onPhase)=>{
     const folder=tripFolder(trip),spec=trip.generation as unknown as Spec;
-    if(spec?.imageBackend&&!['ark','compatible'].includes(spec.imageBackend))throw new PipelineError('生图通道版本不支持');
+    if(spec?.imageBackend&&!IMAGE_BACKENDS.includes(spec.imageBackend))throw new PipelineError('生图通道版本不支持');
     if(!spec||![POLICY,CONTENT_POLICY,LEGACY_POLICY].includes(spec.policy)||(typeof spec.imageModel!=='string'||!spec.imageModel.trim())||![VISION_MODEL,'host-model'].includes(spec.visionModel))throw new PipelineError('旅程生成版本不支持或缺少固定输入');
     if(spec.policy!==LEGACY_POLICY&&(!spec.scenePrompt||!spec.sceneVariant||!spec.noteVoice))throw new PipelineError('旅程缺少固定内容策略');
     if(spec.policy===POLICY&&(!spec.sceneSnapshot||spec.sceneSnapshot.scene!==trip.scene||!spec.sceneSnapshot.core||!spec.sceneSnapshot.conflicts))throw new PipelineError('旅行缺少固定场景快照');
@@ -151,7 +160,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
         } catch(error){
           if(signal.aborted)throw error;
           if(error instanceof PipelineError)throw error;
-          if(error instanceof HttpError&&(error.status<500&&error.status!==408))throw new PipelineError('文字服务返回HTTP '+error.status+'，请检查配置/限额后重试');
+          if(error instanceof HttpError&&(error.status<500&&error.status!==408))throw error;
           if((cp.textRequests[label]??0)>=2)throw new PipelineError('文字服务暂时不可用，已达到本阶段网络尝试上限');
           await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>{signal.removeEventListener('abort',abort);resolve();},1000);const abort=()=>{clearTimeout(timer);reject(new Error('aborted'));};signal.addEventListener('abort',abort,{once:true});});
         }
@@ -166,7 +175,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
         atomicJson(join(folder,'image-'+cp.imageAttempt+'-request.json'),{model:spec.imageModel,prompt:spec.prompt,referenceSha:[spec.characterSha,spec.styleSha],size:spec.imageSize??'2K',imageCount:2});
         const started=Date.now();
         try {
-          const result=await transport('image',{model:spec.imageModel,prompt:spec.prompt,image:refs.map(b=>'data:image/png;base64,'+b.toString('base64')),size:spec.imageSize??'2K',response_format:'b64_json',...(spec.imageBackend==='compatible'?{}:{output_format:'png',watermark:false})},signal,{backend:spec.imageBackend??'ark',baseUrl:spec.imageBaseUrl});
+          const result=await transport('image',{model:spec.imageModel,prompt:spec.prompt,image:refs.map(b=>'data:image/png;base64,'+b.toString('base64')),size:spec.imageSize??'2K',response_format:'b64_json',...((spec.imageBackend??'ark')==='ark'?{output_format:'png',watermark:false}:{})},signal,{backend:spec.imageBackend??'ark',baseUrl:spec.imageBaseUrl});
           const items=result.data as {b64_json?:string}[];
           atomicJson(join(folder,'image-'+cp.imageAttempt+'-response.json'),{model:result.model,usage:result.usage,elapsedMs:Date.now()-started,imageItems:items?.length});
           if(!Array.isArray(items)||items.length!==1||typeof items[0].b64_json!=='string')throw new PipelineError('图片服务未返回单张PNG数据，请检查远端结果');
@@ -174,7 +183,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
           atomicJson(imagePath()+'.json',{sha256:hash(bytes),...dims});binary(imagePath(),bytes);
           cp.pendingImage=false;atomicJson(cpFile(trip),cp);
         }catch(error){
-          if(error instanceof HttpError&&error.status>=400&&error.status<500&&error.status!==408){cp.pendingImage=false;cp.imageAttempt--;atomicJson(cpFile(trip),cp);throw new PipelineError('图片服务返回HTTP '+error.status+'，请检查限额或服务配置后手动重试');}
+          if(error instanceof HttpError&&error.status>=400&&error.status<500&&error.status!==408){cp.pendingImage=false;cp.imageAttempt--;atomicJson(cpFile(trip),cp);throw error;}
           // Connection loss, abort or malformed output may have incurred a charge.
           throw new PipelineError('图片请求未完整保存，远端结果或费用不确定；确认后才可显式重试');
         }
@@ -214,15 +223,15 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
   generate.prepare=trip=>{
     validateId(trip.id);
     if(options.useHostModel&&options.hostReady&&!options.hostReady())throw new PipelineError('宿主模型未连接或不支持PNG，尚未开始生图');
-    const backend=options.imageBackend??'ark';if(backend==='compatible')imageEndpoint(options.imageBaseUrl??'');
-    if((backend==='ark'&&!options.secret('POSTCARD_ARK_API_KEY'))||(!options.useHostModel&&!options.secret('POSTCARD_VISION_API_KEY')))throw new PipelineError('请配置生图服务，并启用宿主模型看图写信或恢复原旅程通道');
+    const backend=options.imageBackend??'ark';validateImageSettings(backend,options.imageBaseUrl??'',options.imageModel?.trim()||IMAGE_MODEL,options.imageSize?.trim()||'2K');
+    if((backend!=='compatible'&&!options.secret(imageKeyName(backend)))||(!options.useHostModel&&!options.secret('POSTCARD_VISION_API_KEY')))throw new PipelineError('请配置生图服务，并启用宿主模型看图写信或恢复原旅程通道');
     if(!options.characterReference||!options.styleReference)throw new PipelineError('请明确配置角色与画风参考图');
-    const refs=[options.characterReference,options.styleReference].map(file=>readFileSync(file));refs.forEach(b=>{if(b.length>30*1024*1024)throw new PipelineError('参考图不能超过30MB');decodePng(b);});
+    const refs=[options.characterReference,options.styleReference].map(file=>readFileSync(file));if(backend==='gemini'&&refs.reduce((n,b)=>n+b.length,0)>14*1024*1024)throw new PipelineError('Gemini双参考图合计不能超过14MB，请缩小图片以避免内联请求超限');refs.forEach(b=>{if(backend==='qwen'&&(b.length>10*1024*1024||decodePng(b).width>3072||decodePng(b).height>3072))throw new PipelineError('千问参考图最大10MB且每边不超过3072像素，请调整参考图');if(b.length>30*1024*1024)throw new PipelineError('参考图不能超过30MB');decodePng(b);});
     const folder=tripFolder(trip);mkdirSync(join(folder,'input'),{recursive:true});
     ['character.png','style.png'].forEach((name,i)=>writeFileSync(join(folder,'input',name),refs[i],{flag:'wx'}));
     const sceneSnapshot=trip.sceneSnapshot??freezeScene(trip.id,trip.scene,[],options.recentVariants?.(trip.scene)??[]);
     const variant={id:sceneSnapshot.id,prompt:sceneSnapshot.prompt};
-    const spec:Spec={imageBackend:backend,...(backend==='compatible'?{imageBaseUrl:options.imageBaseUrl,imageSize:options.imageSize?.trim()||'1024x1536'}:{}),sceneSnapshot,placeScopeVersion:'v2',noteReviewVersion:'v3',policy:POLICY,imageModel:options.imageModel?.trim()||IMAGE_MODEL,visionModel:options.useHostModel?'host-model':VISION_MODEL,prompt:COMMON+variant.prompt,characterSha:hash(refs[0]),styleSha:hash(refs[1]),scenePrompt:variant.prompt,sceneVariant:variant.id,noteVoice:selectNoteVoice(trip.id)};
+    const spec:Spec={imageBackend:backend,...(backend!=='ark'?{imageBaseUrl:options.imageBaseUrl,imageSize:options.imageSize?.trim()||(backend==='gemini'?'2K':backend==='qwen'?'1024*1536':'1024x1536')}:{}),sceneSnapshot,placeScopeVersion:'v2',noteReviewVersion:'v3',policy:POLICY,imageModel:options.imageModel?.trim()||IMAGE_MODEL,visionModel:options.useHostModel?'host-model':VISION_MODEL,prompt:COMMON+variant.prompt,characterSha:hash(refs[0]),styleSha:hash(refs[1]),scenePrompt:variant.prompt,sceneVariant:variant.id,noteVoice:selectNoteVoice(trip.id)};
     atomicJson(join(folder,'spec.json'),spec);return {...spec};
   };
   generate.confirmRetry=(trip,confirmed)=>{
