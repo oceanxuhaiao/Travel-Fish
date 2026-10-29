@@ -1,3 +1,8 @@
+## 0.7.12
+
+- 配置引导随所选服务显示对应控制台：百炼模型广场/API Key、Gemini AI Studio/API Key；保留方舟入口。
+- 外链只打开官方页面，不携带用户配置或密钥，不自动调用生图。
+
 ## 0.7.11
 
 - 默认仍为 Seedream 5.0 Flash；新增千问多模态图像编辑、Gemini原生 generateContent 接入与预填引导。
