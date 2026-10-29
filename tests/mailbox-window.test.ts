@@ -14,8 +14,13 @@ it.skipIf(process.platform!=='win32')('邮箱只启动自身窗口，子进程�
   expect((await fetch(env.POSTCARD_MAIL_ORIGIN+'/state',{headers})).status).toBe(200);
   expect((await fetch(env.POSTCARD_MAIL_ORIGIN+'/mark-read',{method:'POST',headers,body:JSON.stringify({tripId:'../../config'})})).status).toBe(400);expect(markRead).not.toHaveBeenCalled();
   expect((await fetch(env.POSTCARD_MAIL_ORIGIN+'/start',{method:'POST',headers,body:'{}'})).status).toBe(404);
-  const report=async(x:number,y:number)=>fetch(env.POSTCARD_MAIL_ORIGIN+'/window',{method:'POST',headers,body:JSON.stringify({bounds:{x,y,width:260,height:260},workArea:{x:0,y:0,width:1920,height:1040}})});
+  const report=async(x:number,y:number,width=260,height=260,areaWidth=1920,areaHeight=1040)=>fetch(env.POSTCARD_MAIL_ORIGIN+'/window',{method:'POST',headers,body:JSON.stringify({bounds:{x,y,width,height},workArea:{x:0,y:0,width:areaWidth,height:areaHeight}})});
   expect((await report(900,780)).ok).toBe(true);const before=window.placement()!.to;expect(pausePickup).not.toHaveBeenCalled();expect((await report(400,600)).ok).toBe(true);expect(window.placement()!.to).toBeLessThan(before);expect(pausePickup).toHaveBeenCalledTimes(1);await report(400,500);expect(pausePickup).toHaveBeenCalledTimes(2);
+  for(const width of [263,263.2,265,268,270])expect((await report(400,500,width)).status).toBe(200);
+  expect(pausePickup).toHaveBeenCalledTimes(2); // A DPI size change alone is not a drag.
+  const placement=window.placement();
+  for(const dimensions of [[0,260,1920,1040],[-1,260,1920,1040],[260,0,1920,1040],[260,260,0,1040],[260,260,1920,-1],[Infinity,260,1920,1040]])expect((await report(400,500,...dimensions as [number,number,number,number])).status).toBe(409);
+  expect(window.placement()).toEqual(placement);
   await window.open();expect(spawn).toHaveBeenCalledTimes(1);
  }finally{await window.close();}expect(child.kill).toHaveBeenCalled();
 });

@@ -22,6 +22,7 @@ export const POSTCARD: WorldDefinition<PostcardConfigSection> = {
     postcard_start:{zh:'开始一趟现实时间等待的旅行。',en:'Start one timed trip.'},
     postcard_status:{zh:'查看旅行与服务连接状态。',en:'Read trip and generator availability.'},
     postcard_list:{zh:'列出已保存的明信片。',en:'List saved postcards.'},
+    postcard_records:{zh:'按原文检索已入藏旅行，返回证据片段与来源。',en:'Search saved travel text with source evidence.'},
     postcard_read:{zh:'读取一份已完成的旅行短笺。',en:'Read a completed postcard.'},
     postcard_cancel:{zh:'取消未结束的旅行。',en:'Cancel an unfinished trip.'},
     postcard_retry:{zh:'按用户要求重试失败旅程。',en:'Retry a failed trip on user request.'},
