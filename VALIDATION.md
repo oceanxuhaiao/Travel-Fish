@@ -182,3 +182,10 @@ G5实际Coopanion0.2.11独立profile18789加载0.2.0；随机旅行waterside真�
 失败凭证绑定当前配置指纹，重启可读、配置变更不混用；pending记录在重启后显示INTERRUPTED，不误授通过。旧passed=false无错误详情的记录显示LEGACY并说明无法还原，不编造历史原因；再次验证仍需明确计费确认，不自动重试。未开启新旅行或调用付费验证。
 21项相关测试通过（readiness7+UI14），前后端类型/构建/官方check通过。原类型测试与新版phase预期同步，不把失败误显示required。测试覆盖HTTP、错误脱敏、失败持久化、配置失效、中断与界面步骤/原因/建议/编号。
 确认日常无进行中旅行/验证后备份到data/backups/postcard-079-20261029-113740并更新0.7.9；实际setup.verification phase=failed、code=LEGACY，界面正确展示旧版未保存原因。截图output/stage-ac-verification-errors/verified.png。当前候选未公开，市场仍0.7.4；真实付费失败分类尚未由本次新请求目击，使用替身测例验证，不为补证据擅自收费。主计划与日志同步。
+
+
+## 2026-10-29 保存后应用配置与重启诊断（0.7.10本地候选）
+用户要求配置保存后自动重启或提醒，并在诊断加入未应用配置。核对本机与checkout公开WorldContext.cfg为共享活对象，构造时捕获值需重建；WorldContext.restart()公开提供只同步/重建当前World。采用保存后醒目提醒+一键重启，不静默打断；无内部路由或其他World handler调用。
+SetupPanel新增settingsSaved、restartStatus、restart；保存模型/接口、角色/画风、宿主模式经统一saveConfig标记，保存Key也标记。World保存构造时生图设置签名，直接改详细配置也可识别；重启前check不就绪、verification=restart_required、verify直接拒绝，工具/按钮/主动邀请同受门槛。诊断区分“尚未应用”并显示应用/保存的模型名，不含密钥；重启使用ctx.restart，仅有未完成旅程或制作验证时拦截。重建后pending清除，不会把调用旧模型误当新配置验证。
+168项全量回归、前后端类型/构建、官方describe/check通过。新增UI测试验证保存后不自动重启/付费、提示与模型差异；World测试验证配置漂移拦截与进行中拒绝重启。
+日常无进行中任务后备份到data/backups/postcard-0710-20261029-122447并安装候选。为不改用户实际配置，通过settingsSaved模拟保存后状态，真实UI出现提示；实际点击重启按钮走公开ctx.restart，之后restartRequired=false、appliedModel=savedModel、cards4、mailboxrunning、tripcompleted，提示自动消失。无新生图请求或新旅行。截图output/stage-ae-world-restart/verified.png；用户当前gemini-2.0-flash配置未替换，不把重启成功等同模型兼容成功。0.7.10未公开发布，既有待验证/主路线不变。

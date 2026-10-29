@@ -42,3 +42,5 @@
 .pc-start-blocked{flex-basis:100%;max-width:360px;padding:12px 14px;border:1px solid #dacdaf;border-radius:9px;background:#faf4e5;color:#796040;font-size:13px;line-height:1.7}.pc-start-blocked a{display:inline-block;margin-top:8px;text-decoration:none}.pc-app button:disabled{cursor:not-allowed}.pc-setup #pc-setup-step-5{scroll-margin-top:24px}
 
 .pc-setup .pc-verification-status{white-space:pre-line;line-height:1.9;padding:14px 16px;border-radius:10px;background:#edf3e8}.pc-setup .pc-verification-status[data-state="failed"]{background:#fff0e8;border:1px solid #dfbda9;color:#804a35}
+
+.pc-setup .pc-restart-needed{position:sticky;top:8px;z-index:3;padding:16px 20px;border:1px solid #cfb47b;border-radius:12px;background:#fff3d9;box-shadow:0 3px 12px #6a502515;margin:18px 0}.pc-setup .pc-restart-needed[hidden]{display:none}.pc-setup .pc-restart-needed strong{font-size:17px;color:#76532d}.pc-setup .pc-restart-needed p{margin:8px 0}
