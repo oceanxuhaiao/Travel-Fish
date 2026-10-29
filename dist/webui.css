@@ -38,3 +38,5 @@
 .pc-setup .pc-api-guide h3{margin:0 0 12px}.pc-api-guide [hidden]{display:none}
 .pc-api-guide pre{font:13px/1.9 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;background:#fffef9;padding:16px;border-radius:8px;color:#375245}
 .pc-api-guide summary{font-weight:650;cursor:pointer;padding:12px 0}.pc-api-guide textarea{box-sizing:border-box;width:100%;padding:12px;border:1px solid #b4c6b7;border-radius:8px;font:13px/1.8 inherit;background:white;color:#344b45;resize:vertical}
+
+.pc-start-blocked{flex-basis:100%;max-width:360px;padding:12px 14px;border:1px solid #dacdaf;border-radius:9px;background:#faf4e5;color:#796040;font-size:13px;line-height:1.7}.pc-start-blocked a{display:inline-block;margin-top:8px;text-decoration:none}.pc-app button:disabled{cursor:not-allowed}.pc-setup #pc-setup-step-5{scroll-margin-top:24px}

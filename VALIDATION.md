@@ -170,3 +170,8 @@ G5实际Coopanion0.2.11独立profile18789加载0.2.0；随机旅行waterside真�
 用户要求按建议修改普通用户找不到模型ID/API地址的问题。字段改为“服务商提供的模型名称或接入点 ID”“生图 API 请求地址”，说明去API文档→图像生成→请求示例复制model值与POST完整URL，保留根地址/完整images/generations后缀不重复追加。方舟已验证Flash模型一键预填，不自动保存、不替换密钥；官方教程查证含doubao-seedream-5-0-flash-260915：https://docs.volcengine.com/docs/ark/seedream-4-0-5-0?lang=zh。未添加未经测试的其他云端预设。
 增加分服务帮助、带箭头注释的示例及可展开/复制的客服Agent询问文本，原生剪贴板不可用时选择文本手工Ctrl+C；文本不含用户Key或配置。明确“不会填写”与协议不支持之别，仍保留制作验证门槛；未更改生成协议/出发同意/计费策略。
 12项UI测试通过，前后端类型检查/构建与官方describe/check通过；新增测试覆盖保存值保留、查找提示、示例、推荐预填不保存或调用API。日常确认无在途旅行与无正在进行的制作验证后，备份到E:/zcdfy/Coopanion/data/backups/postcard-077-20261029-111533，更新0.7.7。实际cards=4、trip=completed、ready=false；未改用户已保存服务模型密钥或发起生图。真实浏览器已目击新字段、请求示例及可展开询问文本，截图output/stage-aa-api-guidance/verified.png。0.7.7未公开发布，公开版本仍0.7.4；此前拖动目击与真实付费验证等待项保留，不将本次UI验证替代它们。
+
+
+## 2026-10-29 禁用出发原因与验证直达入口（0.7.8本地候选）
+用户要求按钮旁显示“配置已更改，请先验证明信片制作”并提供验证入口。已在生成已启用但readyForTravel=false时显示原文提示；未启用生图时提示先完成配置。禁用按钮通过aria-describedby关联原因，指针not-allowed；忙碌临时禁用不误报需要验证。新增“前往验证”链接，走已存在setup路由，使用本标签页sessionStorage一次标记，在配置引导完成载入后滚动/聚焦第5步并清理标记；不自动调用verify、不付费或出发。
+13项UI测试、Web类型检查与构建通过；新增测试覆盖禁用原因、路由、标记清理、焦点和零付费调用。无在途旅行/验证后备份data/backups/postcard-078-20261029-112335并更新日常0.7.8。实际浏览器看到原因提示和入口，点击后focus=pc-setup-step-5、headingTop约310，证据output/stage-ab-verification-entry/verified.png；未改变用户配置或收藏，未发付费请求。0.7.8仍本地候选，公开版0.7.4；先前拖动目击与制作验证成功路径待用户确认，主路线不变。

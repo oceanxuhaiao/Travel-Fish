@@ -60,4 +60,6 @@ export async function mountSetup(ctx:WebUiPanelContext){
  status.className='pc-setup-status';
  const intro=root.querySelector(':scope > p:not([role])');intro?.classList.add('pc-setup-intro');
 
+ try{if(d.defaultView?.sessionStorage.getItem('postcard:focus-verification')==='1'){d.defaultView.sessionStorage.removeItem('postcard:focus-verification');const heading=root.querySelector<HTMLElement>('#pc-setup-step-5');heading?.setAttribute('tabindex','-1');heading?.scrollIntoView({block:'start'});heading?.focus({preventScroll:true});}}catch{}
+
 }

@@ -4,7 +4,7 @@ import {JSDOM} from 'jsdom';
 import {mountAlbum} from '../webui/client.ts';
 let fixtures=[];
 function fixture(cards=[]){
-  const dom=new JSDOM('<main id="root"></main>');const w=dom.window;w.HTMLElement.prototype.scrollIntoView=()=>{};
+  const dom=new JSDOM('<main id="root"></main>',{url:'https://local.test/'});const w=dom.window;w.HTMLElement.prototype.scrollIntoView=()=>{};
   const controller=new w.AbortController(),memo=new Map(),resources=[],timers=[];
   let state={trip:null,cards,minutes:30,generatorConnected:true};
   const ctx={root:w.document.getElementById('root'),signal:controller.signal,memo:{get:(k,d)=>memo.has(k)?memo.get(k):d,set:(k,v)=>memo.set(k,v)},own:d=>{resources.push(d);return d;},interval:f=>{timers.push(f);return {dispose(){}};},timeout:()=>({dispose(){}}),ui:{confirm:vi.fn(async()=>true)},invoke:vi.fn(async(method,args)=>{
@@ -101,4 +101,11 @@ it('配置引导说明复制来源，按服务切换帮助，推荐预填不自�
  expect(model.value).toBe('my-model');expect(endpoint.value).toContain('/images/generations');expect(f.ctx.root.textContent).toContain('复制 model 字段的值');expect(f.ctx.root.querySelector('pre').textContent).toContain('POST https://api.example.com');
  const prompt=f.ctx.root.querySelector('textarea');expect(prompt.readOnly).toBe(true);expect(prompt.value).toContain('请求和响应JSON示例');expect(prompt.value).not.toContain('my-model');
  const backend=f.ctx.root.querySelector('select');backend.value='ark';backend.dispatchEvent(new f.dom.window.Event('change'));const preset=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='填入推荐的方舟 Flash 配置');expect(preset.hidden).toBe(false);preset.click();await flush();expect(model.value).toBe('doubao-seedream-5-0-flash-260915');expect(endpoint.value).toBe('https://custom.example/v1/images/generations');expect(f.ctx.setConfig).not.toHaveBeenCalled();expect(f.ctx.invoke.mock.calls.every(c=>['snapshot','verification'].includes(c[0]))).toBe(true);
+});
+
+it('禁用出发显示原因，前往验证定位第5步，不自动启动付费验证',async()=>{
+ const f=fixture();f.setState({trip:null,cards:[],minutes:120,generatorConnected:true,readyForTravel:false});await mountAlbum(f.ctx);
+ const start=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='带一封来信回来');expect(start.disabled).toBe(true);expect(f.ctx.root.textContent).toContain('配置已更改，请先验证明信片制作');expect(start.getAttribute('aria-describedby')).toBe('pc-start-disabled-reason');
+ const link=f.ctx.root.querySelector('.pc-start-blocked a');expect(link.getAttribute('href')).toBe('#/provider/world%3Apostcard/setup');link.click();expect(f.dom.window.sessionStorage.getItem('postcard:focus-verification')).toBe('1');
+ f.ctx.root.replaceChildren();f.ctx.invoke.mockImplementation(async method=>method==='verification'?{phase:'required'}:{keys:{ark:false},presets:[]});const scroll=vi.spyOn(f.dom.window.HTMLElement.prototype,'scrollIntoView');await mountSetup(f.ctx);expect(scroll).toHaveBeenCalled();expect(f.dom.window.document.activeElement.id).toBe('pc-setup-step-5');expect(f.dom.window.sessionStorage.getItem('postcard:focus-verification')).toBeNull();expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='verify'||c[0]==='start')).toBe(false);
 });
