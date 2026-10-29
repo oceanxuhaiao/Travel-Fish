@@ -1,3 +1,5 @@
+> 本文仅描述“其他云端/本地兼容”通道。0.7.11新增的千问与Gemini原生通道使用各自协议，填写与限制见[IMAGE-SERVICES.md](IMAGE-SERVICES.md)。
+
 # 其他云端 / 本地生图兼容接口
 
 此版本接入HTTP JSON协议，适用于提供下述协议的其他云端服务或本地模型。不是任意软件的地址都能直接使用：原生ComfyUI `/prompt`、AUTOMATIC1111 `/sdapi/v1/img2img` 或Ollama `/api/generate` 不属于本协议，需先准备适配器。扩展不替用户安装、下载或启动模型。

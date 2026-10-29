@@ -1,3 +1,4 @@
+import {imageWireRequest,normalizeImageResponse} from '../src/image-protocol.ts';
 import { beforeEach,afterEach,it,expect,vi } from 'vitest';
 import { mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -5,6 +6,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { PNG } from 'pngjs';
 import { createCloudGenerator,textAccepted,formatNote,noteFormatted,HttpError, type Transport } from '../src/generation.ts';
+import {verificationFailure} from '../src/readiness.ts';
 import type { Trip,Generator } from '../src/travel.ts';
 
 let root:string,ref:string,image:Buffer,trip:Trip;
@@ -159,4 +161,14 @@ it('已有v2快照及完整提示词冻结，恢复不注入新组合',async()=>
 
 it('默认Flash且自定义模型在出发冻结，旧Pro记录也可恢复',async()=>{
  const t=vi.fn(transport()),g=createCloudGenerator({root,characterReference:ref,styleReference:ref,imageModel:'custom-ark-model',secret:()=> 'test'},t);prepare(g);expect(trip.generation!.imageModel).toBe('custom-ark-model');await g(trip,new AbortController().signal);expect(t.mock.calls.find(c=>c[0]==='image')![1].model).toBe('custom-ark-model');
+});
+
+it('生成器不会吞掉明确HTTP错误，验证诊断可显示具体403',async()=>{
+ const g=make(async()=>{throw new HttpError(403);});prepare(g);let error:unknown;try{await g(trip,new AbortController().signal);}catch(e){error=e;}expect(verificationFailure(error,'generating_image').code).toBe('HTTP_403');
+});
+
+it.each(['qwen','gemini'] as const)('%s双参考结果进入原有审核收藏链，恢复不重复请求且接口出发时固定',async backend=>{
+ const options={root,characterReference:ref,styleReference:ref,secret:()=> 'local-test-only',imageBackend:backend,imageModel:backend==='qwen'?'qwen-image-2.0':'gemini-3-pro-image',imageBaseUrl:backend==='qwen'?'https://dashscope.aliyuncs.com/api/v1':'https://generativelanguage.googleapis.com/v1beta',imageSize:backend==='qwen'?'1024*1536':'2K'};
+ const base=transport();let calls=0;const t:Transport=async(k,p,s,route)=>{if(k!=='image')return base(k,p,s);calls++;expect(route?.backend).toBe(backend);expect(p.image).toHaveLength(2);const wire=imageWireRequest(backend,route!.baseUrl!,p,'test-only');expect(wire.url).not.toContain('wrong');return normalizeImageResponse(backend,backend==='qwen'?{output:{choices:[{finish_reason:'stop',message:{content:[{image:'https://result.oss-cn-beijing.aliyuncs.com/a.png'}]}}]}}:{candidates:[{finishReason:'STOP',content:{parts:[{inlineData:{mimeType:'image/png',data:image.toString('base64')}}]}}]},async()=>image);};
+ const g=createCloudGenerator(options,t);prepare(g);options.imageBaseUrl='https://wrong.test/v1';const result=await g(trip,new AbortController().signal);expect(result.image).toEqual(image);expect(result.title).toBe(note.title);await g(trip,new AbortController().signal);expect(calls).toBe(1);
 });

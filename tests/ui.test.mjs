@@ -119,3 +119,11 @@ it('保存后显示重启提示，不自动重启或验证；诊断显示未应�
  [...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='保存生图模型与接口').click();await flush();await flush();expect(f.ctx.root.querySelector('.pc-restart-needed').hidden).toBe(false);expect(f.ctx.root.textContent).toContain('当前生成器：old-image；已保存模型：new-image');expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='restart'||c[0]==='verify')).toBe(false);
  f.timers.forEach(fn=>fn());await flush();expect(f.ctx.root.querySelector('.pc-verification-status').textContent).toContain('配置已保存但尚未应用');
 });
+
+it('千问与Gemini预填原生配置，不自动保存、不调用付费验证',async()=>{
+ const f=fixture();f.ctx.setConfig=vi.fn();f.ctx.invoke.mockResolvedValue({imageBackend:'ark',keys:{ark:false},presets:[]});await mountSetup(f.ctx);
+ const d=f.ctx.root,backend=d.querySelector('[aria-label="生图服务"]');expect([...backend.options].map(o=>o.value)).toEqual(['ark','qwen','gemini','compatible']);
+ const click=text=>[...d.querySelectorAll('button')].find(b=>b.textContent===text).click();
+ backend.value='qwen';backend.dispatchEvent(new f.dom.window.Event('change'));click('填入所选服务的推荐配置');await flush();expect(d.querySelector('[aria-label="服务商提供的模型名称或接入点 ID"]').value).toBe('qwen-image-2.0');expect(d.querySelector('[aria-label="兼容接口出图尺寸"]').value).toBe('1024*1536');
+ backend.value='gemini';backend.dispatchEvent(new f.dom.window.Event('change'));click('填入所选服务的推荐配置');await flush();expect(d.querySelector('[aria-label="生图 API 请求地址"]').value).toBe('https://generativelanguage.googleapis.com/v1beta');expect(d.querySelector('[aria-label="兼容接口出图尺寸"]').value).toBe('2K');expect(f.ctx.setConfig).not.toHaveBeenCalled();expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='verify')).toBe(false);
+});
