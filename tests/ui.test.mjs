@@ -109,3 +109,7 @@ it('禁用出发显示原因，前往验证定位第5步，不自动启动付费
  const link=f.ctx.root.querySelector('.pc-start-blocked a');expect(link.getAttribute('href')).toBe('#/provider/world%3Apostcard/setup');link.click();expect(f.dom.window.sessionStorage.getItem('postcard:focus-verification')).toBe('1');
  f.ctx.root.replaceChildren();f.ctx.invoke.mockImplementation(async method=>method==='verification'?{phase:'required'}:{keys:{ark:false},presets:[]});const scroll=vi.spyOn(f.dom.window.HTMLElement.prototype,'scrollIntoView');await mountSetup(f.ctx);expect(scroll).toHaveBeenCalled();expect(f.dom.window.document.activeElement.id).toBe('pc-setup-step-5');expect(f.dom.window.sessionStorage.getItem('postcard:focus-verification')).toBeNull();expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='verify'||c[0]==='start')).toBe(false);
 });
+
+it('制作验证失败呈现步骤、原因、建议与错误编号，不再只显示尚未通过',async()=>{
+ const f=fixture();f.ctx.invoke.mockImplementation(async method=>method==='verification'?{phase:'failed',failedAt:1700000000000,failure:{code:'HTTP_401',stage:'生图服务生成图片',reason:'服务身份验证失败',advice:'检查当前失败步骤对应服务的API Key是否正确'}}:{keys:{ark:false},presets:[]});await mountSetup(f.ctx);const status=f.ctx.root.querySelector('.pc-verification-status');expect(status.dataset.state).toBe('failed');expect(status.textContent).toContain('失败步骤：生图服务生成图片');expect(status.textContent).toContain('原因：服务身份验证失败');expect(status.textContent).toContain('处理建议：检查');expect(status.textContent).toContain('错误编号：HTTP_401');expect(status.textContent).toContain('重新验证可能再次计费');expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='verify')).toBe(false);
+});
