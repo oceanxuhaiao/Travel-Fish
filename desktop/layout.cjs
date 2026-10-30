@@ -25,4 +25,9 @@ function restorePosition(displays,primaryId,height,saved={}){
  const bounds=relative?{x:a.x+saved.relativeX*Math.max(0,a.width-260),y:a.y+saved.relativeY*Math.max(0,a.height-height)}:hasDisplay&&String(display.id)!==String(saved.displayId)?{}:saved;
  return {display,bounds:placeBounds(a,height,bounds)};
 }
-module.exports={groundBounds,placeBounds,chooseDisplay,restorePosition};
+function fallStep(y,velocity,floor,dt){
+ dt=Math.max(0,Math.min(.05,dt));
+ const speed=Math.min(1800,velocity+2200*dt),next=Math.min(floor,y+(velocity+speed)*.5*dt);
+ return {y:next,velocity:next>=floor?0:speed,landed:next>=floor};
+}
+module.exports={groundBounds,placeBounds,chooseDisplay,restorePosition,fallStep};

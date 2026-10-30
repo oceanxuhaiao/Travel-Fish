@@ -39,6 +39,17 @@ it('原生光标能拖到负坐标副屏、自由改变高度，菜单选屏并�
  menu=d.menu();menu[1].click();await flush();expect(d.win.getBounds().y).toBe(844);expect(JSON.parse(d.files.get('window-ready.json')!).pickupSupported).toBe(true);
  d.menu()[0].submenu[1].click();await flush();d.disconnect();await d.tick(150);expect(d.win.getBounds().x).toBeGreaterThanOrEqual(0);expect(JSON.parse(d.files.get('position.json')!).displayId).toBe('1');d.close();
 });
+it('松手后在副屏加速落地、保持横坐标，再次抓取会中断下落',async()=>{
+ const d=desktop('ok',false,true);await d.startup();await flush();
+ await d.call('drag-start');d.cursor({x:-700,y:400});await d.tick(16);await d.call('drag-end');await flush();
+ expect(JSON.parse(d.files.get('window-ready.json')!).pickupSupported).toBe(false);
+ const x=d.win.getBounds().x,y=d.win.getBounds().y;
+ for(let i=0;i<15;i++)await d.tick(16);expect(d.win.getBounds().y).toBeGreaterThan(y);expect(d.win.getBounds().x).toBe(x);
+ await d.call('drag-start');const grabbed=d.win.getBounds().y;for(let i=0;i<10;i++)await d.tick(16);expect(d.win.getBounds().y).toBe(grabbed);
+ await d.call('drag-end');for(let i=0;i<200;i++)await d.tick(16);
+ expect(d.win.getBounds()).toMatchObject({x,y:640});expect(JSON.parse(d.files.get('position.json')!)).toMatchObject({displayId:'2',relativeY:1});
+ d.menu()[0].submenu[0].click();await flush();expect(JSON.parse(d.files.get('window-ready.json')!).pickupSupported).toBe(true);d.close();
+});
 it.each(['409','timeout','pending'] as const)('首次几何上报%s仍完成交互初始化、内容区命中和原生拖动',async mode=>{
  const d=desktop(mode);await d.startup();await flush();
  expect(d.files.has('display-state.json')).toBe(true);expect(d.screen.listenerCount('display-metrics-changed')).toBe(1);expect(d.powerMonitor.listenerCount('resume')).toBe(1);

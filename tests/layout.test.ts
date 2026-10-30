@@ -2,6 +2,12 @@ import {it,expect} from 'vitest';
 import {createRequire} from 'node:module';
 const {groundBounds}=createRequire(import.meta.url)('../desktop/layout.cjs');
 const {placeBounds,chooseDisplay,restorePosition}=createRequire(import.meta.url)('../desktop/layout.cjs');
+const {fallStep}=createRequire(import.meta.url)('../desktop/layout.cjs');
+it('重力下落逐渐加速、限速且精确落地，卡顿不会穿过地面',()=>{
+ let y=-900,v=0;const first=fallStep(y,v,640,1/60),second=fallStep(first.y,first.velocity,640,1/60);expect(second.y-first.y).toBeGreaterThan(first.y-y);
+ for(let i=0;i<300;i++){const next=fallStep(y,v,640,1/60);expect(next.y).toBeGreaterThanOrEqual(y);expect(next.y).toBeLessThanOrEqual(640);expect(next.velocity).toBeLessThanOrEqual(1800);y=next.y;v=next.velocity;}
+ expect(y).toBe(640);expect(v).toBe(0);expect(fallStep(639,1500,640,10)).toEqual({y:640,velocity:0,landed:true});
+});
 const displays=[{id:1,scaleFactor:1,workArea:{x:0,y:0,width:1920,height:1040}},{id:2,scaleFactor:1.25,workArea:{x:-1536,y:80,width:1536,height:824}},{id:3,scaleFactor:1.5,workArea:{x:0,y:-960,width:1707,height:920}}];
 it('多屏选择支持左侧负坐标、上方屏幕及屏间空隙，DIP不二次缩放',()=>{
  expect(chooseDisplay(displays,{x:-600,y:300}).id).toBe(2);expect(chooseDisplay(displays,{x:400,y:-600}).id).toBe(3);
