@@ -43,3 +43,11 @@ it('错误JSON同样可纠正；重启不会清空两次提交额度且耗尽后
  expect(next.submit(id,id,'{}')).toMatchObject({accepted:false,remainingSubmissions:0});const failed=expect(p2).rejects.toThrow('两次结构提交');await vi.advanceTimersByTimeAsync(100);await failed;
  const last=new HostModelBridge(root),h3=attach(last);await expect(last.transport('text',payload,new AbortController().signal,{outputContract:decisionContract})).rejects.toThrow('耗尽');expect(h3.events).toHaveLength(0);
 });
+
+it('模型抄长任务编号得到精确反馈，不误报确定超时，不消耗原任务提交额度',async()=>{
+ vi.useFakeTimers();const b=new HostModelBridge(root,1000),h=attach(b),p=b.transport('text',payload,new AbortController().signal,{outputContract:decisionContract});await vi.advanceTimersByTimeAsync(1);const id=task(h);
+ expect(()=>b.submit(id+id.slice(0,12),id,'{}')).toThrow('INVALID_TASK_ID');
+ expect(()=>b.submit('f'.repeat(64),id,'{}')).toThrow('可能是编号抄错');
+ const saved=JSON.parse(readFileSync(join(root,id+'.json'),'utf8'));expect(saved.submissions).toBeUndefined();
+ expect(b.submit(id,id,'{"accepted":true,"issues":[]}')).toMatchObject({accepted:true,remainingSubmissions:1});await vi.advanceTimersByTimeAsync(100);await p;
+});

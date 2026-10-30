@@ -46,7 +46,8 @@ export class HostModelBridge {
   }finally{this.active.delete(id);this.contracts.delete(id);}
  };
  submit(id:string,digest:string,resultJson:string){
-  if(!this.active.has(id)||this.active.get(id)!.aborted||this.closed)throw new Error('任务已超时、取消或中断，请先在旅行面板继续准备');
+  if(!/^[a-f0-9]{64}$/.test(id))throw new Error('INVALID_TASK_ID：taskId必须是64位小写十六进制原文，当前长度='+id.length+'。请逐字复制本任务postcard_host_read或原事件返回的taskId，不要拼接或改写；这不表示原任务已超时，不要另开旅行或生图。');
+  if(!this.active.has(id)||this.active.get(id)!.aborted||this.closed)throw new Error('TASK_NOT_ACTIVE：提交的taskId当前未激活，可能是编号抄错、超时、取消或中断；不能仅据此断言原任务已超时。先核对原事件/read中的完整编号；确实中断才请用户在旅行面板继续准备，不自行重试旅行或生图。');
   const t=this.load(id);if(t.digest!==digest)throw new Error('任务摘要不匹配');
   const contract=this.contracts.get(id);
   if(contract&&!t.result){
