@@ -117,3 +117,18 @@ it('规划Schema只要求三候选，所有内部引用均可解析且没有要�
  for(const ref of refs)expect(schema.$defs).toHaveProperty(ref[1]);
  expect(()=>planningSchema({})).toThrow('Schema');
 });
+
+it('后续节点及总结语义被拒绝，修正版输入收到具体原因；旧卡与图不改',async()=>{
+ const base=fakeStoryTransport();const calls:any[]=[];
+ const tr:Transport=async(k,p,signal)=>{calls.push(p);const label=(p.__postcardTask as any).label as string;
+  if(label.includes('adapt-review-1'))return response({accepted:false,issues:['前卡只看过演示，不能宣称掌握制作技能']});
+  if(label==='summary-review-1')return response({accepted:false,issues:['总结新增了原文没有的赠物']});
+  return base(k,p,signal);
+ };
+ let engine:StoryEngine;const s=open(async(t,signal)=>{await engine.context(t,signal);return artifact;});engine=new StoryEngine(s,tr);
+ for(let i=0;i<3;i++){s.startSeries();await finish(s);}
+ expect(calls.some(p=>(p.__postcardTask.label as string).endsWith('adapt-2')&&promptOf(p).includes('前卡只看过演示'))).toBe(true);
+ const originals=s.store.cards().map(c=>[c.note,c.sha256]);await engine.summaryPulse();expect(s.journeyStatus()?.summary?.status).toBe('failed');
+ engine.retrySummary(s.journeyStatus()!.id);await engine.summaryPulse();expect(s.journeyStatus()?.summary?.status).toBe('ready');
+ expect(calls.some(p=>p.__postcardTask.label==='summary-2'&&promptOf(p).includes('总结新增了原文没有的赠物'))).toBe(true);expect(s.store.cards().map(c=>[c.note,c.sha256])).toEqual(originals);
+});
