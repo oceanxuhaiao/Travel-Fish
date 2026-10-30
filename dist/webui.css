@@ -44,3 +44,5 @@
 .pc-setup .pc-verification-status{white-space:pre-line;line-height:1.9;padding:14px 16px;border-radius:10px;background:#edf3e8}.pc-setup .pc-verification-status[data-state="failed"]{background:#fff0e8;border:1px solid #dfbda9;color:#804a35}
 
 .pc-setup .pc-restart-needed{position:sticky;top:8px;z-index:3;padding:16px 20px;border:1px solid #cfb47b;border-radius:12px;background:#fff3d9;box-shadow:0 3px 12px #6a502515;margin:18px 0}.pc-setup .pc-restart-needed[hidden]{display:none}.pc-setup .pc-restart-needed strong{font-size:17px;color:#76532d}.pc-setup .pc-restart-needed p{margin:8px 0}
+
+.pc-series-mark{display:block;font-size:12px;color:var(--muted,#756e62);margin-top:6px}.pc-summary{padding:18px;border-top:1px solid #ded8cb}.pc-summary .pc-note{white-space:pre-wrap}

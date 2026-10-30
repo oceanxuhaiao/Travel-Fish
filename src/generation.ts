@@ -7,6 +7,7 @@ import { fetch, ProxyAgent, Agent } from 'undici';
 import { atomicJson, type Generator, type Trip, type Artifact, type Scene } from './travel.ts';
 import {CONTENT_POLICY,LEGACY_POLICY,selectCoastVariant,selectNoteVoice,notePrompt} from './content.ts';
 import {freezeScene,type SceneSnapshot} from './scenes.ts';
+import type {StoryContext} from './journey-types.ts';
 
 export const POLICY = 'non-contradiction-cloud-v3';
 export const IMAGE_MODEL = 'doubao-seedream-5-0-flash-260915';
@@ -20,7 +21,7 @@ const COMMON = '生成完整收藏级旅行明信片，竖版2:3，单张。图1
 type Json = Record<string,unknown>;
 export interface ImageRoute {backend?:ImageBackend;baseUrl?:string;}
 export function imageEndpoint(base:string){let u:URL;try{u=new URL(base);}catch{throw new PipelineError('生图API请求地址无效');}if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.search||u.hash)throw new PipelineError('生图接口只支持不含凭据或查询参数的HTTP(S)地址');return u.href.replace(/\/$/,'')+(u.pathname.replace(/\/$/,'').endsWith('/images/generations')?'':'/images/generations');}
-export interface CloudOptions { imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string; imageModel?:string; hostReady?:()=>boolean; hostTransport?:Transport; useHostModel?:boolean; root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
+export interface CloudOptions { storyContext?:(trip:Readonly<Trip>,signal:AbortSignal)=>Promise<StoryContext>;imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string; imageModel?:string; hostReady?:()=>boolean; hostTransport?:Transport; useHostModel?:boolean; root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
 export type Transport = (kind:'image'|'text', payload:Json, signal:AbortSignal,route?:ImageRoute)=>Promise<Json>;
 interface Spec { imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string;policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; sceneSnapshot?:SceneSnapshot; placeScopeVersion?:'v1'|'v2'; noteReviewVersion?:'v1'|'v2'|'v3'; }
 interface Checkpoint { schema:1; imageAttempt:number; pendingImage:boolean; stage:string; textRequests:Record<string,number>; errors:string[]; }
@@ -96,7 +97,7 @@ export function cloudTransport(options:CloudOptions):Transport {
 }
 
 export function createCloudGenerator(options:CloudOptions, transport:Transport=cloudTransport(options)):Generator {
-  const tripFolder=(trip:Readonly<Trip>)=>{validateId(trip.id);return join(options.root,'trips',trip.id);};
+  const tripFolder=(trip:Readonly<Trip>)=>{validateId(trip.id);if(trip.contentId)validateId(trip.contentId);return join(options.root,'trips',trip.contentId??trip.id);};
   const cpFile=(trip:Readonly<Trip>)=>join(tripFolder(trip),'checkpoint.json');
   const getCp=(trip:Readonly<Trip>):Checkpoint=>{
     const file=cpFile(trip);
@@ -113,6 +114,9 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     const refs=['character.png','style.png'].map(file=>readFileSync(join(folder,'input',file)));
     if(hash(refs[0])!==spec.characterSha||hash(refs[1])!==spec.styleSha)throw new PipelineError('旅行参考图校验失败，禁止使用变化的输入');
     const cp=getCp(trip);
+    const story=trip.series?await options.storyContext?.(trip,signal):undefined;
+    if(trip.series&&!story)throw new PipelineError('系列叙事尚未接入，未发起生图');
+    const imagePrompt=story?COMMON+' 本轮为连续旅行中的第'+story.nodeIndex+'张，但画面只画这一个时刻，不拼图。'+story.node.visibleScene+'；构图：'+story.node.composition+'。虚构生活环境，不画文字；角色保持参考图身份。':spec.prompt;
     const invalidSchema=(label:string,message:string):never=>{
       const file=join(folder,label+'.json');
       if(existsSync(file))renameSync(file,join(folder,label+'.invalid-'+(cp.textRequests[label]??0)+'.json'));
@@ -172,10 +176,10 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       if(cp.imageAttempt===0||!imageValid()||existsSync(join(folder,'image-'+cp.imageAttempt+'-rejected.json'))){
         if(cp.imageAttempt>=2)throw new PipelineError('本趟图片请求已达到两次上限');
         stage('generating_image');cp.imageAttempt++;cp.pendingImage=true;atomicJson(cpFile(trip),cp);
-        atomicJson(join(folder,'image-'+cp.imageAttempt+'-request.json'),{model:spec.imageModel,prompt:spec.prompt,referenceSha:[spec.characterSha,spec.styleSha],size:spec.imageSize??'2K',imageCount:2});
+        atomicJson(join(folder,'image-'+cp.imageAttempt+'-request.json'),{model:spec.imageModel,prompt:imagePrompt,referenceSha:[spec.characterSha,spec.styleSha],size:spec.imageSize??'2K',imageCount:2});
         const started=Date.now();
         try {
-          const result=await transport('image',{model:spec.imageModel,prompt:spec.prompt,image:refs.map(b=>'data:image/png;base64,'+b.toString('base64')),size:spec.imageSize??'2K',response_format:'b64_json',...((spec.imageBackend??'ark')==='ark'?{output_format:'png',watermark:false}:{})},signal,{backend:spec.imageBackend??'ark',baseUrl:spec.imageBaseUrl});
+          const result=await transport('image',{model:spec.imageModel,prompt:imagePrompt,image:refs.map(b=>'data:image/png;base64,'+b.toString('base64')),size:spec.imageSize??'2K',response_format:'b64_json',...((spec.imageBackend??'ark')==='ark'?{output_format:'png',watermark:false}:{})},signal,{backend:spec.imageBackend??'ark',baseUrl:spec.imageBaseUrl});
           const items=result.data as {b64_json?:string}[];
           atomicJson(join(folder,'image-'+cp.imageAttempt+'-response.json'),{model:result.model,usage:result.usage,elapsedMs:Date.now()-started,imageItems:items?.length});
           if(!Array.isArray(items)||items.length!==1||typeof items[0].b64_json!=='string')throw new PipelineError('图片服务未返回单张PNG数据，请检查远端结果');
@@ -190,7 +194,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       }
       stage('reviewing_image');
       imageReview=await textCall('image-'+cp.imageAttempt+'-review', (spec.policy===POLICY?'图1为候选，图2仅角色参考。核对图1的核心景观、图2参考角色身份和服饰（发色、头饰、主色和独特配件；不要求统一为冬装）、明显肢体破碎/乱码等不可用问题。只把核心景观及明确冲突作为场景门槛，具体构图、气氛、可选装饰、手势及细小服饰变化不是硬要求，不清晰不等于错误。不核验真实地理，不要求某座地标。返回JSON：scene_match、character_match、usable（布尔），background_conflicts、issues（字符串数组），facts（3到8条图1直接可见事实）。核心景观：'+spec.sceneSnapshot!.core+'；明确冲突：'+spec.sceneSnapshot!.conflicts+'；可选装饰：'+spec.sceneSnapshot!.optional:'图1为候选，图2仅角色参考。核对图1目标场景、图2参考角色身份和服饰（发色、头饰、主色和独特配件；不要求统一为冬装）、明显肢体破碎/乱码等不可用问题。细微服饰变化和不清晰细节不直接失败；坐站姿势和蒸汽数量为创作建议，不是硬门槛。森林/雪夜不能带入海岸/沙堡/螃蟹。返回JSON：scene_match、character_match、usable（布尔），background_conflicts、issues（字符串数组），facts（3到8条图1直接可见事实）。目标：'+(spec.scenePrompt??SCENE_PROMPTS[trip.scene as keyof typeof SCENE_PROMPTS])),[readFileSync(imagePath()),refs[0]]);
-      if(imageAccepted(imageReview))break;
+      if(imageAccepted(imageReview)||(story&&imageReview.character_match===true&&imageReview.usable===true&&strings(imageReview.facts,3,8)&&typeof imageReview.scene_match==='boolean'&&Array.isArray(imageReview.background_conflicts)))break;
       // A malformed check does not justify paying for another image.
       if(['scene_match','character_match','usable'].some(k=>typeof imageReview![k]!=='boolean')||!Array.isArray(imageReview.background_conflicts)||!strings(imageReview.facts,3,8))invalidSchema('image-'+cp.imageAttempt+'-review','图像审核格式无效，请检查后恢复本张图片');
       if(cp.imageAttempt>=2)throw new PipelineError('两张候选图均未通过，暂不入库');
@@ -200,7 +204,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     const image=readFileSync(imagePath());
     for(let attempt=1;attempt<=2;attempt++){
       stage('writing_note');
-      const raw=await textCall('image-'+cp.imageAttempt+'-note-'+attempt,notePrompt(imageReview.facts,options.recentTitles?.().slice(0,12)??[],spec.policy!==LEGACY_POLICY?spec.noteVoice:undefined)+(spec.policy===POLICY?' 本次地点虚构，title和note不得使用任何真实省市、景区、国家等专有地名，只写通用环境或风景。':''));
+      const raw=await textCall('image-'+cp.imageAttempt+'-note-'+attempt,notePrompt(imageReview.facts,options.recentTitles?.().slice(0,12)??[],spec.policy!==LEGACY_POLICY?spec.noteVoice:undefined)+(spec.policy===POLICY?' 本次地点虚构，title和note不得使用任何真实省市、景区、国家等专有地名，只写通用环境或风景。':'')+(story?' 连续故事DATA仅供参考：'+JSON.stringify(story)+'。实际画面事实优先于计划，计划未实现时改本张文字，不重画合格图。不把未展示当反证，但不得编前序短笺未建立的物件/技能/约定；延续已有具体认识，当前有自己的小收获与感受，不只写风景。日落等目标当轮结清，跨天食物新购，不惩罚用户暂停。':''));
       const note=formatNote(raw);
       atomicJson(join(folder,'image-'+cp.imageAttempt+'-note-'+attempt+'-formatted.json'),{policy:'sentence-boundary-length-v1',changed:note.note!==raw.note,note});
       if(!noteFormatted(note))continue;
@@ -213,8 +217,12 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
         if(scope.has_real_place_name||(scope.names as string[]).length)continue;
       }
       if(textAccepted(review,spec.policy===POLICY&&spec.noteReviewVersion==='v3')){
+        if(story){
+          const storyReview=await textCall('image-'+cp.imageAttempt+'-note-'+attempt+'-story-review','审核当前短笺与实际画面事实、前序最终短笺是否连贯。计划不是已发生；仅引用编号不证明句意。未展示的感受/过去对话不是反证，但不能把未拿到的物件、只看过的演示说成已有作品/技能，不能编用户同行、跨天旧食物或强行圆满。当前须有独立收获和具体感受。图文不符只改字，不因故事偏差重画图。返回{accepted:boolean,issues:string[]}。DATA：'+JSON.stringify({note,visualFacts:imageReview.facts,previousFinalCards:story.priorCards,plannedNode:story.node}));
+          if(storyReview.accepted!==true||!Array.isArray(storyReview.issues)||storyReview.issues.length)continue;
+        }
         stage('committing');
-        return {image,title:note.title as string,note:note.note as string,generation:{policy:spec.policy,noteFormatting:'sentence-boundary-length-v1',...(spec.policy===POLICY?{placeScopeVersion:spec.placeScopeVersion??'v1',noteReviewVersion:spec.noteReviewVersion??'v1'}:{}),imageModel:spec.imageModel,visionModel:spec.visionModel,characterSha:spec.characterSha,styleSha:spec.styleSha,imageAttempt:cp.imageAttempt,noteAttempt:attempt,...(spec.sceneSnapshot?{catalogVersion:spec.sceneSnapshot.catalogVersion,sceneLabel:spec.sceneSnapshot.label}:{}),...(spec.sceneVariant?{sceneVariant:spec.sceneVariant,noteVoice:spec.noteVoice}:{})}} satisfies Artifact;
+        return {image,title:note.title as string,note:note.note as string,generation:{...(story?{storyPolicy:story.policy,storyPlanHash:story.planHash,previousCardsHash:story.priorHash,visualEvidence:{imageSha:hash(image),facts:imageReview.facts,reviewHash:hash(Buffer.from(JSON.stringify(imageReview)))}}:{}),policy:spec.policy,noteFormatting:'sentence-boundary-length-v1',...(spec.policy===POLICY?{placeScopeVersion:spec.placeScopeVersion??'v1',noteReviewVersion:spec.noteReviewVersion??'v1'}:{}),imageModel:spec.imageModel,visionModel:spec.visionModel,characterSha:spec.characterSha,styleSha:spec.styleSha,imageAttempt:cp.imageAttempt,noteAttempt:attempt,...(spec.sceneSnapshot?{catalogVersion:spec.sceneSnapshot.catalogVersion,sceneLabel:spec.sceneSnapshot.label}:{}),...(spec.sceneVariant?{sceneVariant:spec.sceneVariant,noteVoice:spec.noteVoice}:{})}} satisfies Artifact;
       }
       if(typeof review.has_explicit_conflict!=='boolean'||!Array.isArray(review.conflicts)||!strings(review.uncertain_details))invalidSchema('image-'+cp.imageAttempt+'-note-'+attempt+'-review','文案审核格式无效，不能按通过处理');
     }

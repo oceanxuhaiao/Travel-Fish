@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Travel Fish S1 design bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "artifactKind", "profile", "motifs", "candidates", "selectedCandidateId", "selectionReason", "history", "reviews"],
+  "properties": {
+    "schemaVersion": {"const": "s1-v1"},
+    "artifactKind": {"const": "design_fixture_not_delivered"},
+    "profile": {"$ref": "#/$defs/profile"},
+    "motifs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/motif"}},
+    "candidates": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/candidate"}},
+    "selectedCandidateId": {"type": "string", "minLength": 1},
+    "selectionReason": {"type": "string", "minLength": 1},
+    "history": {"type": "array", "items": {"$ref": "#/$defs/history"}},
+    "reviews": {"type": "array", "items": {"$ref": "#/$defs/review"}}
+  },
+  "$defs": {
+    "text": {"type": "string", "minLength": 1},
+    "tags": {"type": "array", "items": {"$ref": "#/$defs/text"}, "uniqueItems": true},
+    "profile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["realism", "realismConfirmed", "setbacks", "setbacksConfirmed", "minutesPerRun", "separateConsent", "preGenerateNext", "readingRequired", "collectionLayout", "mismatchPolicy"],
+      "properties": {
+        "realism": {"const": "real_life_cute_character"}, "realismConfirmed": {"const": true},
+        "setbacks": {"enum": ["gentle_no_user_penalty", "mostly_smooth", "allow_lingering_regret"]}, "setbacksConfirmed": {"type": "boolean"},
+        "minutesPerRun": {"const": 120}, "separateConsent": {"const": true}, "preGenerateNext": {"const": false}, "readingRequired": {"const": false},
+        "collectionLayout": {"const": "flat_with_shared_mark"}, "mismatchPolicy": {"const": "revise_text_first"}
+      }
+    },
+    "origin": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "author", "title", "url", "recordedAt", "summary"],
+      "properties": {
+        "kind": {"enum": ["original_design", "travelogue_extract"]}, "author": {"$ref": "#/$defs/text"}, "title": {"$ref": "#/$defs/text"},
+        "url": {"type": ["string", "null"]}, "recordedAt": {"type": "string", "format": "date"}, "summary": {"$ref": "#/$defs/text"}
+      },
+      "allOf": [{"if": {"properties": {"kind": {"const": "travelogue_extract"}}}, "then": {"properties": {"url": {"type": "string", "format": "uri", "pattern": "^https?://"}}}, "else": {"properties": {"url": {"type": "null"}}}}]
+    },
+    "motif": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "version", "origin", "detail", "mechanisms", "conditions", "incompatibleConditions", "carryovers", "adaptation"],
+      "properties": {
+        "id": {"$ref": "#/$defs/text"}, "version": {"$ref": "#/$defs/text"}, "origin": {"$ref": "#/$defs/origin"}, "detail": {"$ref": "#/$defs/text"},
+        "mechanisms": {"$ref": "#/$defs/tags"}, "conditions": {"$ref": "#/$defs/tags"}, "incompatibleConditions": {"$ref": "#/$defs/tags"}, "carryovers": {"$ref": "#/$defs/tags"}, "adaptation": {"$ref": "#/$defs/text"}
+      }
+    },
+    "motive": {
+      "type": "object", "additionalProperties": false, "required": ["desire", "reason", "characterExpression", "source"],
+      "properties": {"desire": {"$ref": "#/$defs/text"}, "reason": {"$ref": "#/$defs/text"}, "characterExpression": {"$ref": "#/$defs/text"}, "source": {"enum": ["original_design", "host_character_statement"]}}
+    },
+    "dependency": {
+      "type": "object", "additionalProperties": false, "required": ["nodeIndex", "carryoverId", "why"],
+      "properties": {"nodeIndex": {"type": "integer", "minimum": 1, "maximum": 2}, "carryoverId": {"$ref": "#/$defs/text"}, "why": {"$ref": "#/$defs/text"}}
+    },
+    "carryover": {
+      "type": "object", "additionalProperties": false, "required": ["id", "kind", "plannedStatement"],
+      "properties": {"id": {"$ref": "#/$defs/text"}, "kind": {"enum": ["event", "object", "observation", "interest", "skill", "feeling"]}, "plannedStatement": {"$ref": "#/$defs/text"}}
+    },
+    "node": {
+      "type": "object", "additionalProperties": false,
+      "required": ["index", "role", "location", "event", "action", "payoff", "visibleScene", "composition", "dependencies", "carryovers", "nextInterest"],
+      "properties": {
+        "index": {"type": "integer", "minimum": 1, "maximum": 3}, "role": {"$ref": "#/$defs/text"}, "location": {"$ref": "#/$defs/text"}, "event": {"$ref": "#/$defs/text"}, "action": {"$ref": "#/$defs/text"}, "payoff": {"$ref": "#/$defs/text"}, "visibleScene": {"$ref": "#/$defs/text"}, "composition": {"$ref": "#/$defs/text"},
+        "dependencies": {"type": "array", "items": {"$ref": "#/$defs/dependency"}}, "carryovers": {"type": "array", "items": {"$ref": "#/$defs/carryover"}}, "nextInterest": {"type": ["string", "null"]}
+      }
+    },
+    "signature": {
+      "type": "object", "additionalProperties": false,
+      "required": ["motive", "development", "changeMechanisms", "links", "objects", "ending", "activities", "compositions"],
+      "properties": {"motive": {"$ref": "#/$defs/text"}, "development": {"$ref": "#/$defs/text"}, "changeMechanisms": {"$ref": "#/$defs/tags"}, "links": {"$ref": "#/$defs/tags"}, "objects": {"$ref": "#/$defs/tags"}, "ending": {"$ref": "#/$defs/text"}, "activities": {"$ref": "#/$defs/tags"}, "compositions": {"$ref": "#/$defs/tags"}}
+    },
+    "candidate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "version", "environment", "theme", "motive", "motifIds", "nodes", "summaryDirection", "signature"],
+      "properties": {
+        "id": {"$ref": "#/$defs/text"}, "version": {"$ref": "#/$defs/text"}, "environment": {"$ref": "#/$defs/text"}, "theme": {"$ref": "#/$defs/text"}, "motive": {"$ref": "#/$defs/motive"}, "motifIds": {"$ref": "#/$defs/tags"},
+        "nodes": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/node"}}, "summaryDirection": {"$ref": "#/$defs/text"}, "signature": {"$ref": "#/$defs/signature"}
+      }
+    },
+    "history": {
+      "type": "object", "additionalProperties": false, "required": ["id", "stage", "planVersion", "motifIds", "signature", "basis"],
+      "properties": {"id": {"$ref": "#/$defs/text"}, "stage": {"enum": ["selected_plan", "delivered_series"]}, "planVersion": {"$ref": "#/$defs/text"}, "motifIds": {"$ref": "#/$defs/tags"}, "signature": {"$ref": "#/$defs/signature"}, "basis": {"$ref": "#/$defs/text"}}
+    },
+    "rating": {
+      "type": "object", "additionalProperties": false, "required": ["dimension", "score", "reason"],
+      "properties": {"dimension": {"enum": ["detail", "agency", "connection", "standalone_payoff", "visual", "novelty", "naturalness"]}, "score": {"type": ["integer", "null"], "minimum": 0, "maximum": 3}, "reason": {"$ref": "#/$defs/text"}}
+    },
+    "review": {
+      "type": "object", "additionalProperties": false, "required": ["id", "candidateId", "candidateVersion", "reviewerKind", "historyIds", "ruleIssues", "ratings", "similarHistoryIds", "decision", "changes"],
+      "properties": {"id": {"$ref": "#/$defs/text"}, "candidateId": {"$ref": "#/$defs/text"}, "candidateVersion": {"$ref": "#/$defs/text"}, "reviewerKind": {"enum": ["assistant_design", "human_review", "model_report", "user_feedback"]}, "historyIds": {"$ref": "#/$defs/tags"}, "ruleIssues": {"$ref": "#/$defs/tags"}, "ratings": {"type": "array", "minItems": 7, "maxItems": 7, "items": {"$ref": "#/$defs/rating"}}, "similarHistoryIds": {"$ref": "#/$defs/tags"}, "decision": {"enum": ["accept", "revise", "reject", "pending"]}, "changes": {"$ref": "#/$defs/tags"}}
+    },
+    "deliveredFact": {
+      "type": "object", "additionalProperties": false, "required": ["id", "journeyId", "nodeIndex", "kind", "statement", "sourceCardId", "sourceField", "sourceHash"],
+      "properties": {"id": {"$ref": "#/$defs/text"}, "journeyId": {"$ref": "#/$defs/text"}, "nodeIndex": {"type": "integer", "minimum": 1, "maximum": 3}, "kind": {"enum": ["text_event", "visual_confirmation", "object_state", "text_feeling"]}, "statement": {"$ref": "#/$defs/text"}, "sourceCardId": {"$ref": "#/$defs/text"}, "sourceField": {"enum": ["note", "image_review"]}, "sourceHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+    }
+  }
+}

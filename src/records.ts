@@ -38,7 +38,7 @@ export class PostcardRecords {
   read(tripId: string) {
     const card = this.store.card(tripId);
     if (!card) throw new Error('没有这份已完成收藏');
-    return {tripId:card.tripId, scene:card.scene, ...(card.sceneLabel ? {sceneLabel:card.sceneLabel} : {}),
+    return {tripId:card.tripId, scene:card.scene, ...(card.series?{series:card.series}:{}),...(card.sceneLabel ? {sceneLabel:card.sceneLabel} : {}),
       title:card.title, note:card.note, completedAt:card.completedAt, sha256:card.sha256,
       source:this.source(card), evidenceBoundary:RECORD_EVIDENCE_BOUNDARY};
   }
