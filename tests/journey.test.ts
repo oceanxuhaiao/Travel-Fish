@@ -3,7 +3,7 @@ import {mkdtempSync,rmSync,readFileSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {TravelService,TravelStore,atomicJson,type Generator} from '../src/travel.ts';
-import {StoryEngine,validatePlan,validateSummary} from '../src/story.ts';
+import {StoryEngine,validatePlan,validateSummary,planningSchema} from '../src/story.ts';
 import type {Transport} from '../src/generation.ts';
 import type {StoryPlan} from '../src/journey-types.ts';
 import {PostcardPanel} from '../src/panel.ts';
@@ -89,4 +89,31 @@ it('摘要引用错节点、缺感受引文和凭空填字均不能靠ID通过�
 it('候选陌生素材、前向引用和临时发明结构标签失败，不直接生图',()=>{
  const p=structuredClone(plans[0]);expect(()=>validatePlan(p,[])).toThrow('引用');p.signature.development='换个新名字逃过去重';expect(()=>validatePlan(p,p.motifIds)).toThrow('词表');
  const q=structuredClone(plans[0]);q.nodes[1].dependencies[0].nodeIndex=3;expect(()=>validatePlan(q,q.motifIds)).toThrow('前序');
+});
+
+it('真实宿主暴露的当前编号依赖被拒绝，下一组收到具体修复反馈且仍限制两组',async()=>{
+ const base=fakeStoryTransport(),prompts:string[]=[];
+ const tr=vi.fn<Transport>(async(k,p,signal)=>{
+  const label=(p.__postcardTask as any).label;prompts.push(promptOf(p));
+  const out=await base(k,p,signal);
+  if(label==='plan-1'){
+   const body=JSON.parse((out.choices as any)[0].message.content);
+   body.candidates[0].nodes[1].dependencies[0].nodeIndex=2;
+   return response(body);
+  }
+  return out;
+ });
+ let engine:StoryEngine;const s=open(async(t,signal)=>{await engine.context(t,signal);return artifact;});engine=new StoryEngine(s,tr);s.startSeries();await s.tick();
+ expect(s.status()?.phase).toBe('ready_for_return');
+ const second=prompts.find(p=>p.includes('上一组校验未通过'))!;
+ expect(second).toContain('来源节点编号');expect(second).toContain('小于2');
+ expect(tr.mock.calls.filter(c=>(c[1].__postcardTask as any).label.startsWith('plan-')&&!(c[1].__postcardTask as any).label.includes('review'))).toHaveLength(2);
+});
+
+it('规划Schema只要求三候选，所有内部引用均可解析且没有要求模型自行评审',()=>{
+ const bundle=JSON.parse(readFileSync(new URL('../src/story-schema.json',import.meta.url),'utf8'));
+ const schema=planningSchema(bundle);expect(schema.required).toEqual(['candidates']);expect(schema.properties).not.toHaveProperty('reviews');
+ const refs=JSON.stringify(schema).matchAll(/"\$ref":"#\/\$defs\/([^"]+)"/g);
+ for(const ref of refs)expect(schema.$defs).toHaveProperty(ref[1]);
+ expect(()=>planningSchema({})).toThrow('Schema');
 });
