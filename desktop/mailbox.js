@@ -23,7 +23,7 @@ if(letterId){
  const opened=el('img');opened.className='mail-art opened';opened.src='art/mailbox-open.png';opened.alt='';opened.draggable=false;
  const floating=el('img');floating.className='floating-card';floating.alt='本次旅行明信片';
  const hit=el('span');hit.className='hit-art';hit.dataset.hit='';mail.append(hit);
- mail.title='左右拖动邮箱可移动，轻点请它取信';
+ mail.title='拖动邮箱可移动到其他屏幕；右键选择屏幕或放到底部';
  mail.addEventListener('pointerenter',()=>{hovering=true;updateVisibility();});mail.addEventListener('pointerleave',()=>{hovering=false;updateVisibility();});
  mail.addEventListener('pointerdown',event=>{if(event.button!==0)return;dragPointer={id:event.pointerId,x:event.screenX??event.clientX,y:event.screenY??event.clientY};suppressClick=false;reveal();try{mail.setPointerCapture?.(event.pointerId);}catch{}void api.call('drag-start').catch(()=>{dragPointer=null;});});
  mail.addEventListener('pointermove',event=>{if(!dragPointer||event.pointerId!==dragPointer.id)return;if(Math.hypot((event.screenX??event.clientX)-dragPointer.x,(event.screenY??event.clientY)-dragPointer.y)>=5)suppressClick=true;if(suppressClick)void api.call('drag-move');});
@@ -55,6 +55,8 @@ if(letterId){
  function paint(){if(!state)return;root.style.setProperty('--mail-h',(state.height||120)+'px');root.style.height=Math.max(260,(state.height||120)+140)+'px';title.textContent='旅行邮箱'+(state.unreadCount?' · '+state.unreadCount+'封未读':'');const t=state.trip,remaining=t?Math.max(0,t.dueAt-Date.now()):0;const pct=t?Math.max(0,Math.min(100,Math.floor((Date.now()-t.startedAt)/(t.dueAt-t.startedAt)*100))):0;progress.hidden=!t;progress.value=pct;progress.setAttribute('aria-label','旅行等待进度');
   label.textContent=state.phase==='failed'?'来信暂未准备好':t?(remaining?'正在远方旅行':'旅行时间已到，来信待准备'):state.unreadCount?'有 '+state.unreadCount+' 封新来信':'等一封远方来信';
   hint.textContent=t&&remaining?'剩余约 '+Math.ceil(remaining/60000)+' 分钟 · '+pct+'%':t?'可在收藏册检查或继续准备':state.unreadCount?'点击邮箱，请它来取信':'点击邮箱，请它取出最近一封';root.classList.toggle('has-mail',state.unreadCount>0);
+  mail.setAttribute('aria-label',state.pickupSupported===false?'直接阅读旅行来信':'请桌宠来取旅行来信');
+  if(state.pickupSupported===false)hint.textContent='此位置点击直接读信 · 右键选择屏幕或放到底部';
   updateVisibility();controls.hidden=!debugUi;
   const req=state.pickup?.active;pickup.hidden=!state.cards.length;pickup.disabled=!!req;
   if(req)label.textContent=req.phase==='presenting'?'正在取出这封来信':req.phase==='approaching'?'等它来到邮箱旁':'等它空闲时来取信';

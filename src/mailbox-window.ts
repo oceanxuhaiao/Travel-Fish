@@ -16,8 +16,8 @@ export function mailboxRuntime(root:string|undefined,explicit=''):string|null {
 /** Only owns the mailbox process; never creates, disables or replaces a pet. */
 export class MailboxWindow {
   private server?:Server;private child?:ChildProcess;private opening?:Promise<MailboxWindowState>;
-  private geometry?:{to:number;screenWidth:number};private seen=0;
-  placement(){return this.state.phase==='running'&&Date.now()-this.seen<6000&&this.geometry?{...this.geometry}:null;}
+  private geometry?:{to:number;screenWidth:number;pickupSupported:boolean;displayId?:string};private seen=0;
+  placement():{to:number;screenWidth:number}|null{return this.state.phase==='running'&&Date.now()-this.seen<6000&&this.geometry?.pickupSupported?{to:this.geometry.to,screenWidth:this.geometry.screenWidth}:null;}
   private lastBounds?:{x:number;y:number};
   private state:MailboxWindowState={phase:'closed',detail:'桌面邮箱未打开'};
   constructor(private opts:{profile:string;runtime:()=>string|null;snapshot:()=>MailboxSnapshot;read:(id:string)=>unknown;markRead:(id:string)=>unknown;pickupRequest?:(id:string)=>unknown;presentationDone?:(requestId:string,id:string)=>unknown;pausePickup?:(id?:string)=>unknown}){}
@@ -32,23 +32,28 @@ export class MailboxWindow {
       res.setHeader('Content-Type','application/json; charset=utf-8');res.setHeader('Cache-Control','no-store');
       if(req.headers.authorization!=='Bearer '+token){res.writeHead(401).end('{}');return;}
       try{
-        if(req.method==='GET'&&req.url==='/state'){this.seen=Date.now();res.end(JSON.stringify(this.opts.snapshot()));return;}
+        if(req.method==='GET'&&req.url==='/state'){this.seen=Date.now();res.end(JSON.stringify({...this.opts.snapshot(),pickupSupported:this.geometry?.pickupSupported??false}));return;}
         if(req.method!=='POST'||!['/read','/mark-read','/window','/pickup-request','/presentation-done','/skip-pickup'].includes(req.url??'')){res.writeHead(404).end('{}');return;}
         let body='';for await(const bytes of req){body+=bytes;if(body.length>2048){res.writeHead(413).end('{}');return;}}
         const payload=JSON.parse(body);
         if(req.url==='/window'){
-          const {bounds,workArea}=payload;
+          const {bounds,workArea,displayId,primaryDisplayId,pickupSupported}=payload;
           // Windows may round the requested DIP size or include invisible frame margins.
           if(!bounds||!workArea||!['x','y','width','height'].every(k=>Number.isFinite(bounds[k])&&Number.isFinite(workArea[k]))||![bounds,workArea].every(r=>r.width>0&&r.height>0))throw Error('无效窗口位置');
-          if(this.lastBounds&&(this.lastBounds.x!==bounds.x||this.lastBounds.y!==bounds.y))this.opts.pausePickup?.();
+          if(displayId!==undefined&&(typeof displayId!=='string'||typeof primaryDisplayId!=='string'||typeof pickupSupported!=='boolean'))throw Error('无效屏幕位置');
+          const supported=displayId===undefined?true:displayId===primaryDisplayId&&pickupSupported===true;
+          if(this.lastBounds&&(this.lastBounds.x!==bounds.x||this.lastBounds.y!==bounds.y||this.geometry?.displayId!==displayId||this.geometry?.pickupSupported!==supported))this.opts.pausePickup?.();
           this.lastBounds={x:bounds.x,y:bounds.y};
           // The art remains anchored at CSS x=130; it does not center in the native frame.
-          this.geometry={to:Math.max(.1,Math.min(.9,(bounds.x+130-workArea.x-75)/workArea.width)),screenWidth:workArea.width};
+          this.geometry={to:Math.max(.1,Math.min(.9,(bounds.x+130-workArea.x-75)/workArea.width)),screenWidth:workArea.width,pickupSupported:supported,displayId};
           this.seen=Date.now();res.end('{}');return;
         }
         const {tripId}=payload;if(typeof tripId!=='string'||!/^[a-f0-9-]{36}$/.test(tripId)){res.writeHead(400).end('{}');return;}
         let value:unknown;
-        if(req.url==='/pickup-request')value=this.opts.pickupRequest?.(tripId);
+        if(req.url==='/pickup-request'){
+          if(this.geometry&&!this.geometry.pickupSupported){this.opts.pausePickup?.();value={kind:'open_local',tripId};}
+          else value=this.opts.pickupRequest?.(tripId);
+        }
         else if(req.url==='/presentation-done')value=this.opts.presentationDone?.(String(payload.requestId),tripId);
         else if(req.url==='/skip-pickup'){this.opts.pausePickup?.(tripId);value={accepted:true};}
         else value=req.url==='/read'?this.opts.read(tripId):this.opts.markRead(tripId);
