@@ -1,7 +1,7 @@
 import {PNG} from 'pngjs';
 import {existsSync,mkdirSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';import {createHash} from 'node:crypto';
-import {atomicJson,type TravelStore} from './travel.ts';import type {Transport} from './generation.ts';
+import {atomicJson,type TravelStore,type TravelService} from './travel.ts';import type {Transport} from './generation.ts';
 import {objectContract,decisionContract,type OutputContract} from './model-feedback.ts';
 import {validatePaperObservations} from './visible-state.ts';import {validatePlan} from './story.ts';
 import {validateExpressivePlan,validateGroundedPlan} from './story-quality.ts';
@@ -10,6 +10,14 @@ export class DevelopmentValidation {
  private flight?:Promise<void>;private controller?:AbortController;
  constructor(private root:string,private store:TravelStore,private transport:Transport){}
  private path(id:string,suffix:string){if(!/^[a-z0-9-]{1,70}$/.test(id))throw Error('验证编号无效');return join(this.root,id+suffix+'.json');}
+ startClock(service:TravelService,sourceId:string){
+  if(service.roundMinutes!==120)throw Error('正式计时复验必须为120分钟');
+  const card=this.store.card(sourceId);if(!card)throw Error('只能复用已入藏卡');const image=readFileSync(join(this.store.collection,sourceId,'postcard.png'));
+  if(createHash('sha256').update(image).digest('hex')!==card.sha256)throw Error('源图哈希异常');
+  if(existsSync(join(this.root,'formal-clock.json')))throw Error('正式计时复验已有记录，不重置计时');
+  const trip=service.start('surprise',120);this.store.stageArtifact(trip,{image,title:'开发验证·正式两小时交付',note:'正式两小时计时复验，复用既有图片与成品，不是新增旅行经历或新图。',generation:{development:true,sourceTripId:sourceId,sourceImageHash:card.sha256}});
+  mkdirSync(this.root,{recursive:true});const result={tripId:trip.id,sourceTripId:sourceId,startedAt:trip.startedAt,dueAt:trip.dueAt,configuredWaitMs:trip.dueAt-trip.startedAt,newImageCalls:0};atomicJson(join(this.root,'formal-clock.json'),result);return result;
+ }
  status(id:string){const file=this.path(id,'-result');return existsSync(file)?JSON.parse(readFileSync(file,'utf8')):{status:'not_started'};}
  start(id:string){if(this.flight)throw Error('已有独立宿主验证正在执行');const old=this.status(id);if(old.status==='completed')return old;
   const file=this.path(id,'-request');const request=JSON.parse(readFileSync(file,'utf8'));
