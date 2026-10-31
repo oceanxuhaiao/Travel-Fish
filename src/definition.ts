@@ -12,7 +12,7 @@ export const POSTCARD: WorldDefinition<PostcardConfigSection> = {
   create:ctx=>{
     let world:PostcardWorld;
     const bridge=new HostModelBridge(join(ctx.dataDir,'postcard/host-tasks'));
-    const generator=ctx.cfg.cloudEnabled?createCloudGenerator({imageBackend:ctx.cfg.imageBackend,imageBaseUrl:ctx.cfg.imageBaseUrl,imageSize:ctx.cfg.imageSize,imageModel:ctx.cfg.imageModel,hostReady:()=>bridge.ready(),hostTransport:bridge.transport,useHostModel:ctx.cfg.useHostModel,root:join(ctx.dataDir,'postcard'),characterReference:characterReference(ctx.cfg),styleReference:styleReference(ctx.cfg),secret:name=>ctx.secret(name),imageProxyUrl:ctx.cfg.imageProxyUrl,visionProxyUrl:ctx.cfg.visionProxyUrl,recentTitles:()=>world.service.store.cards().slice(0,12).map(c=>c.title),recentVariants:scene=>world.service.store.cards().filter(c=>c.scene===scene&&typeof c.generation?.sceneVariant==='string').map(c=>c.generation!.sceneVariant as string)}):undefined;
+    const generator=ctx.cfg.cloudEnabled?createCloudGenerator({storyContext:(trip,signal)=>world.story!.context(trip,signal),imageBackend:ctx.cfg.imageBackend,imageBaseUrl:ctx.cfg.imageBaseUrl,imageSize:ctx.cfg.imageSize,imageModel:ctx.cfg.imageModel,hostReady:()=>bridge.ready(),hostTransport:bridge.transport,useHostModel:ctx.cfg.useHostModel,root:join(ctx.dataDir,'postcard'),characterReference:characterReference(ctx.cfg),styleReference:styleReference(ctx.cfg),secret:name=>ctx.secret(name),imageProxyUrl:ctx.cfg.imageProxyUrl,visionProxyUrl:ctx.cfg.visionProxyUrl,recentTitles:()=>world.service.store.cards().slice(0,12).map(c=>c.title),recentVariants:scene=>world.service.store.cards().filter(c=>c.scene===scene&&typeof c.generation?.sceneVariant==='string').map(c=>c.generation!.sceneVariant as string)}):undefined;
     world=new PostcardWorld({cfg:ctx.cfg,dataDir:ctx.dataDir,generator,bridge,restart:()=>ctx.restart(),mailboxRuntime:()=>mailboxRuntime(runtimesRoot(),ctx.cfg.mailboxElectronFile),setup:{secret:name=>ctx.secret(name),storeSecret:(name,value)=>ctx.storeSecret(name,value)}});return world;
   },
   describe:{tools:describeTools([...POSTCARD_TOOL_DECLS,...HostModelBridge.prototype.tools.call({} as HostModelBridge)],{
@@ -26,6 +26,9 @@ export const POSTCARD: WorldDefinition<PostcardConfigSection> = {
     postcard_read:{zh:'读取一份已完成的旅行短笺。',en:'Read a completed postcard.'},
     postcard_cancel:{zh:'取消未结束的旅行。',en:'Cancel an unfinished trip.'},
     postcard_retry:{zh:'按用户要求重试失败旅程。',en:'Retry a failed trip on user request.'},
+    postcard_journey:{zh:'查看系列进度与已保存总结。',en:'Read journey progress and saved summary.'},
+    postcard_end_journey:{zh:'结束等待继续的系列，保留旧卡。',en:'End a paused journey without changing cards.'},
+    postcard_summary_retry:{zh:'按用户要求仅恢复失败总结。',en:'Retry a failed text summary on request.'},
   }),events:[
     {type:'postcard.pickup_due',description:{zh:'已入藏的明信片等待空闲取信演出。',en:'A saved postcard awaits an idle pickup performance.'}},
     {type:'postcard.host_task',description:{zh:'旅行宿主模型待办及候选附件。',en:'Host model postcard task and attachments.'}},

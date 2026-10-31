@@ -68,3 +68,13 @@ it('已读且演出完成的来信，用户点击仍可重新取信，不恢复�
  const t=await complete(),first=queue.offer(true,t.id)!;queue.step(first.requestId,'approach');queue.step(first.requestId,'arrived');queue.finish(first.requestId,t.id);mail.markRead(t.id);
  expect(queue.offer()).toBeNull();const replay=queue.offer(true,t.id)!;expect(replay.replay).toBe(true);expect(queue.snapshot().active?.requestId).toBe(replay.requestId);queue.step(replay.requestId,'approach');queue.step(replay.requestId,'arrived');queue.finish(replay.requestId,t.id);expect(mail.snapshot().unreadCount).toBe(0);expect(service.store.cards()).toHaveLength(1);
 });
+
+it('later click and deferred oldest cannot bypass delivery order',async()=>{
+ const first=await complete(),second=await complete();
+ expect(queue.snapshot().pending).toEqual([first.id,second.id]);
+ const request=queue.request(second.id).request!;expect(request.tripId).toBe(first.id);
+ queue.step(request.requestId,'defer');expect(queue.request(second.id).kind).toBe('cooldown');
+ now+=60001;const retry=queue.request(second.id).request!;expect(retry.tripId).toBe(first.id);
+ queue.step(retry.requestId,'approach');queue.step(retry.requestId,'arrived');queue.finish(retry.requestId,first.id);
+ expect(queue.request(second.id).request!.tripId).toBe(second.id);
+});

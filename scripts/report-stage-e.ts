@@ -1,0 +1,41 @@
+/** Read-only aggregation and diagnostic contact sheets; no API calls. */
+import {readFileSync,writeFileSync,readdirSync,existsSync} from 'node:fs';
+import {join,resolve} from 'node:path';
+import {createHash} from 'node:crypto';
+import {PNG} from 'pngjs';
+import {atomicJson} from '../src/travel.ts';
+const out=resolve(process.argv[2]??'');if(!existsSync(join(out,'pricing-estimate.md')))throw Error('Invalid regression directory');
+const json=(p:string)=>JSON.parse(readFileSync(p,'utf8').replace(/^\uFEFF/,''));
+const scenes=['coast','forest','snow'];
+const planned=existsSync(join(out,'run-plan.json'))?json(join(out,'run-plan.json')).plannedTotal:30;
+const escape=(s:unknown)=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
+const rows:any[]=[],images:any[]=[],textCalls:any[]=[];
+for(const scene of scenes){
+ const run=join(out,'runs',scene),file=join(run,'results.json');if(!existsSync(file))continue;
+ const results=json(file);rows.push(...results);
+ for(const row of results){const folder=join(run,'data/postcard/trips',row.tripId);
+  for(const f of readdirSync(folder)){
+   if(/^image-\d+-response\.json$/.test(f))images.push({scene,tripId:row.tripId,file:f,...json(join(folder,f))});
+   if(/-response-\d+\.json$/.test(f))textCalls.push({scene,tripId:row.tripId,file:f,...json(join(folder,f))});
+  }
+  if(row.card){const bytes=readFileSync(join(run,'data/postcard/collection',row.tripId,'postcard.png'));if(createHash('sha256').update(bytes).digest('hex')!==row.card.sha256)throw Error('Collection hash mismatch');}
+ }
+ // Diagnostic thumbnail sheet only. Original PNGs are never changed.
+ const sheet=new PNG({width:960,height:4*504});sheet.data.fill(245);
+ const digits=['111101101101111','010110010010111','111001111100111','111001111001111','101101111001001','111100111001111','111100111101111','111001001001001','111101111101111','111101111001111'];
+ for(const row of results){if(!row.card)continue;const image=PNG.sync.read(readFileSync(join(run,'data/postcard/collection',row.tripId,'postcard.png'))),i=row.index-1,x0=(i%3)*320,y0=Math.floor(i/3)*504;
+  for(let y=0;y<480;y++)for(let x=0;x<320;x++){const sx=Math.min(image.width-1,Math.floor(x*image.width/320)),sy=Math.min(image.height-1,Math.floor(y*image.height/480));image.data.copy(sheet.data,((y0+y)*sheet.width+x0+x)*4,(sy*image.width+sx)*4,(sy*image.width+sx)*4+4);}
+  [...String(row.index)].forEach((digit,k)=>{[...digits[Number(digit)]].forEach((bit,n)=>{if(bit!=='1')return;for(let dy=0;dy<3;dy++)for(let dx=0;dx<3;dx++){const p=((y0+482+Math.floor(n/3)*3+dy)*sheet.width+x0+10+k*15+(n%3)*3+dx)*4;sheet.data[p]=40;sheet.data[p+1]=60;sheet.data[p+2]=60;sheet.data[p+3]=255;}});});
+ }
+ writeFileSync(join(out,scene+'-contact-sheet.png'),PNG.sync.write(sheet));
+}
+const controls=existsSync(join(out,'controls/results.json'))?json(join(out,'controls/results.json')):null;
+const completed=rows.filter(r=>r.status==='completed'),times=completed.map(r=>r.elapsedSec).sort((a,b)=>a-b);
+const requestCount=rows.reduce((sum,row)=>sum+readdirSync(join(out,'runs',row.scene,'data/postcard/trips',row.tripId)).filter(f=>/^image-\d+-request\.json$/.test(f)).length,0);
+const usage={prompt:0,cacheHit:0,cacheMiss:0,completion:0};
+const countUsage=(call:any)=>{const u=call.usage??call.response?.usage??{};usage.prompt+=u.prompt_tokens??0;usage.cacheHit+=u.prompt_cache_hit_tokens??u.prompt_tokens_details?.cached_tokens??0;usage.cacheMiss+=u.prompt_cache_miss_tokens??Math.max(0,(u.prompt_tokens??0)-(u.prompt_tokens_details?.cached_tokens??0));usage.completion+=u.completion_tokens??0;};
+textCalls.forEach(countUsage);controls?.results.forEach(countUsage);
+const metrics={asOf:new Date().toISOString(),planned,attempted:rows.length,completed:completed.length,failed:rows.length-completed.length,firstImageCompleted:completed.filter(r=>r.card.generation.imageAttempt===1).length,imageRequests:requestCount,imageCandidatesReturned:images.length,imageExtraCandidates:rows.reduce((sum,row)=>sum+Math.max(0,images.filter(image=>image.tripId===row.tripId).length-1),0),noteExtraVersions:completed.reduce((sum,r)=>sum+Number(r.card.generation.noteAttempt-1),0),latency:{meanSec:times.reduce((a,b)=>a+b,0)/times.length,p95Sec:times[Math.ceil(times.length*.95)-1],minSec:times[0],maxSec:times.at(-1),population:'completed trips only; HTTP failures excluded from generation latency',method:'nearest-rank p95, excludes virtual trip waiting; 3 isolated Worlds concurrently'},byScene:scenes.map(scene=>({scene,attempted:rows.filter(r=>r.scene===scene).length,completed:completed.filter(r=>r.scene===scene).length})),uniquePngHashes:new Set(completed.map(r=>r.card.sha256)).size,uniqueTitles:new Set(completed.map(r=>r.card.title)).size,textCalls:textCalls.length,controlCalls:controls?.total??0,controls:controls?{errors:controls.errors,missedContradictions:controls.missedContradictions,falseRejects:controls.falseRejects,contradictionCases:controls.results.filter((r:any)=>r.expectedConflict).length,nonConflictCases:controls.results.filter((r:any)=>!r.expectedConflict).length}:null,usage,publicPriceEstimateCny:{image:images.length*.62,textLow:(usage.cacheMiss+usage.cacheHit*.02+usage.completion*4)/1e6,textHigh:(usage.cacheMiss*2+usage.cacheHit*.04+usage.completion*8)/1e6,billingVerified:false,unknownRemoteRequests:rows.filter(r=>r.error?.includes('不确定')).length},humanEditedNotes:0,manualApprovals:0,targetHostInstalled:false};
+atomicJson(join(out,'metrics.json'),metrics);
+const html=`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>E · 远方来信回归册</title><style>*{box-sizing:border-box}body{margin:0;background:#f5f2e9;color:#304a47;font:16px/1.8 system-ui,sans-serif}header,main{max-width:1200px;margin:auto;padding:32px 20px}h1{font-family:serif;font-weight:500;font-size:36px}small{color:#6c7872}.stats{background:#e5eae1;padding:16px;border-radius:12px}nav a{margin-right:20px;color:inherit}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}article{background:#fffdf6;padding:12px;border-radius:8px;box-shadow:0 3px 12px #233b2810}img{display:block;width:100%;height:auto;aspect-ratio:2/3;object-fit:contain}h3{font-family:serif}p{overflow-wrap:anywhere}.note{white-space:pre-wrap;padding:0 8px}summary{cursor:pointer}a{color:#386c63}@media(max-width:700px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}article{padding:6px}.note{font-size:14px}header,main{padding:20px 10px}}@media(max-width:400px){.grid{grid-template-columns:1fr}}</style><header><small>开发回归记录 · E阶段 · 尚未安装目标Coopanion</small><h1>远方来信 · 真实回归册</h1><p>每一张都来自独立云端流水线。只缩短旅行等待；图片、短笺、检查与入库真实执行。点图片查看原图，展开阅读来信。这里是验证册，不是正式宿主面板。</p><p class="stats">当前 ${completed.length}/${rows.length} 趟完成 · 计划${planned}趟 · 首张完成 ${metrics.firstImageCompleted}/${rows.length} · 成功趟平均 ${metrics.latency.meanSec.toFixed(1)}秒 · P95 ${metrics.latency.p95Sec?.toFixed(1)}秒<br>文案对照：漏放 ${controls?.missedContradictions??'待定'}/${metrics.controls?.contradictionCases??'待定'}；误拒 ${controls?.falseRejects??'待定'}/${metrics.controls?.nonConflictCases??'待定'}。<br><a href="README.md">完整验收报告</a> · <a href="metrics.json">原始统计</a> · <a href="pricing-estimate.md">批次前费用估算</a></p><nav>${scenes.map(s=>`<a href="#${s}">${{coast:'海岸',forest:'森林',snow:'雪夜'}[s]}</a>`).join('')}</nav></header><main>${scenes.map(scene=>`<section id="${scene}"><h2>${{coast:'海岸',forest:'森林',snow:'雪夜'}[scene]}</h2><div class="grid">${rows.filter(r=>r.scene===scene).map(r=>{const src=`runs/${scene}/data/postcard/collection/${r.tripId}/postcard.png`;return `<article><small>${scene} ${String(r.index).padStart(2,'0')} · ${r.elapsedSec.toFixed(1)}秒 · ${escape(r.status)}</small>${r.card?`<a href="${src}" target="_blank"><img src="${src}" loading="lazy" alt="${escape(r.card.title)}"></a><div class="note"><h3>${escape(r.card.title)}</h3><details><summary>读这封来信</summary><p>${escape(r.card.note)}</p><small>图片候选${r.card.generation.imageAttempt} · 文案版本${r.card.generation.noteAttempt}</small></details></div>`:`<p>${escape(r.error)}</p>`}</article>`;}).join('')}</div></section>`).join('')}</main></html>`;
+writeFileSync(join(out,'index.html'),html);console.log(JSON.stringify(metrics,null,2));

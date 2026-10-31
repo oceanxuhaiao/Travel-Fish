@@ -128,6 +128,15 @@ it('v2未完成旅程继续旧审核，不因升级增加地名检查或重画',
 it('真实地名仅重写短笺，同一图片不重画',async()=>{
  const base=transport();let scopes=0;const t=vi.fn<Transport>(async(k,p,s)=>k==='text'&&promptOf(p).startsWith('只检查文字')?response(++scopes===1?{has_real_place_name:true,names:['杭州']}:{has_real_place_name:false,names:[]}):base(k,p,s));
  const g=make(t);prepare(g);const a=await g(trip,new AbortController().signal);expect(a.generation?.noteAttempt).toBe(2);expect(t.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);
+ const prompts=t.mock.calls.filter(c=>c[0]==='text').map(c=>promptOf(c[1]));expect(prompts.some(p=>p.startsWith('写桌宠旅行')&&p.includes('REAL_PLACE_NAME')&&p.includes('杭州')&&p.includes('previousOutput'))).toBe(true);
+});
+
+it('独立API格式失败后的手动恢复带上结构反馈，仍只用原图和剩余文字额度',async()=>{
+ const base=transport();let broken=true;const t=vi.fn<Transport>(async(k,p,s)=>{if(k==='text'&&broken){broken=false;return response({});}return base(k,p,s);});
+ const g=make(t);prepare(g);await expect(g(trip,new AbortController().signal)).rejects.toThrow('审核格式无效');
+ await g(trip,new AbortController().signal);
+ const audits=t.mock.calls.filter(c=>c[0]==='text'&&promptOf(c[1]).startsWith('图1为候选'));
+ expect(audits).toHaveLength(2);expect(promptOf(audits[1][1])).toContain('OUTPUT_CONTRACT');expect(promptOf(audits[1][1])).toContain('facts须3至8条');expect(t.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);
 });
 
 it('已出发v3缺少子版本时仍使用首轮语义，缓存恢复不按新规则重算',async()=>{

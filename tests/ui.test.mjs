@@ -16,6 +16,23 @@ function fixture(cards=[]){
 }
 const card=(id,scene)=>({tripId:id,scene,title:'一封安静的来信',note:'像把一阵风轻轻留在信里。',completedAt:1700000000000});
 const flush=()=>new Promise(r=>setImmediate(r));
+it('开发5分钟的初始和续行文案都取服务时长，不残留固定2小时',async()=>{
+ const f=fixture();f.setState({trip:null,cards:[],minutes:5,generatorConnected:true});await mountAlbum(f.ctx);await flush();expect(f.ctx.root.textContent).toContain('开发测试等待5分钟');expect(f.ctx.root.textContent).not.toContain('2 小时');
+ f.setState({trip:null,cards:[],minutes:5,generatorConnected:true,journey:{id:'dev',mark:'测试',phase:'waiting_continue',completed:1,nextNode:2}});f.timers.forEach(fn=>fn());await flush();expect(f.ctx.root.textContent).toContain('再出发5分钟');expect(f.ctx.root.textContent).not.toContain('仍等2小时');
+});
+it('系列仍时间平铺，共同标识可见；等待继续必须点新一轮按钮',async()=>{
+ const a={...card('a','forest'),series:{id:'journey-a',mark:'旅迹·abcd',nodeIndex:1,total:3}},f=fixture([a]);
+ f.setState({trip:null,cards:[a],minutes:120,generatorConnected:true,journey:{id:'journey-a',mark:'旅迹·abcd',phase:'waiting_continue',completed:1,nextNode:2}});
+ await mountAlbum(f.ctx);await flush();expect(f.ctx.root.querySelectorAll('.pc-grid')).toHaveLength(1);expect(f.ctx.root.querySelector('.pc-series-mark').textContent).toContain('旅迹·abcd · 1/3');
+ expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='start')).toBe(false);const next=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='再出发2小时 · 第2/3张');expect(next).toBeDefined();next.click();await flush();expect(f.ctx.invoke).toHaveBeenCalledWith('start',[]);
+});
+it('第三张总结入口只读本系列，不出发、不取信、不重生图',async()=>{
+ vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:test');vi.spyOn(URL,'revokeObjectURL').mockImplementation(()=>{});
+ const c={...card('last','forest'),series:{id:'journey-last',mark:'旅迹·last',nodeIndex:3,total:3}},f=fixture([c]);const original=f.ctx.invoke.getMockImplementation();
+ f.ctx.invoke.mockImplementation(async(method,args)=>method==='journey'?{summary:{status:'ready',text:'三个节点已见过的小事。'}}:original(method,args));
+ await mountAlbum(f.ctx);await flush();f.ctx.root.querySelector('.pc-postcard').click();await flush();[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='这趟的总结笔记').click();await flush();
+ expect(f.ctx.invoke).toHaveBeenCalledWith('journey',['journey-last']);expect(f.ctx.root.querySelector('.pc-summary').textContent).toContain('三个节点已见过的小事');expect(f.ctx.invoke.mock.calls.some(c=>['start','retry','markRead'].includes(c[0]))).toBe(false);
+});
 it('收到图片数据不提前清未读，实际显示图片或翻面读信才确认',async()=>{
  vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:test');vi.spyOn(URL,'revokeObjectURL').mockImplementation(()=>{});
  const unread={...card('a','forest'),unread:true};const f=fixture([unread]);

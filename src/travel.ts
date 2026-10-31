@@ -1,15 +1,21 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, openSync, closeSync, fsyncSync, unlinkSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import type {Journey,SeriesRef} from './journey-types.ts';
 
 import {SCENES,chooseScene,freezeScene,type Scene,type Destination,type SceneSnapshot,type VisualVariation} from './scenes.ts';
 export {SCENES,type Scene} from './scenes.ts';
 export type Status = 'traveling' | 'awaiting_service' | 'generating' | 'failed' | 'cancelled' | 'completed';
-export interface Trip { id: string; scene: Scene; prepareDuringTravel?:boolean; sceneSnapshot?: SceneSnapshot; startedAt: number; dueAt: number; status: Status; error?: string; completedAt?: number; phase?: string; generation?: Record<string,unknown>; }
-export interface Card { tripId: string; scene: Scene; sceneLabel?: string; title: string; note: string; sha256: string; completedAt: number; generation?: Record<string,unknown>; }
-interface Snapshot { schema: 1; trips: Trip[]; notified: string[]; }
+export interface Trip { id: string; scene: Scene; series?:SeriesRef;contentId?:string;prepareDuringTravel?:boolean; sceneSnapshot?: SceneSnapshot; startedAt: number; dueAt: number; status: Status; error?: string; completedAt?: number; phase?: string; generation?: Record<string,unknown>; }
+export interface Card { tripId: string; scene: Scene; series?:SeriesRef;sceneLabel?: string; title: string; note: string; sha256: string; completedAt: number; generation?: Record<string,unknown>; }
+interface Snapshot { schema: 1; trips: Trip[]; notified: string[]; journeys?:Journey[]; }
 /** Adapter must return an approved complete artifact, never a temporary URL. */
 export interface Artifact { image: Uint8Array; title: string; note: string; generation?: Record<string,unknown>; }
+/** A legacy catalogue label on a series card is a plan, not the delivered scene. */
+export function collectionSceneLabel(card:Card):string|undefined {
+ const actual=card.generation?.storyLocation;
+ return typeof actual==='string'&&actual.trim()?actual:card.series?undefined:card.sceneLabel;
+}
 export interface Generator {
   (trip: Readonly<Trip>, signal: AbortSignal, phase?: (value: string)=>void): Promise<Artifact>;
   prepare?(trip: Readonly<Trip>): Record<string,unknown>;
@@ -70,6 +76,7 @@ export class TravelStore {
         else if (trip.status === 'completed') throw new Error('收藏文件缺失或损坏，禁止自动重新收费生成');
       }
       if (this.state.trips.filter(t => active.has(t.status)).length > 1) throw new Error('存档包含多趟未结束旅行');
+      this.validateJourneys();
       this.persist();
     } catch (error) { this.close(); throw error; }
   }
@@ -88,6 +95,17 @@ export class TravelStore {
   }
   close(): void { if (this.lock) { unlinkSync(join(this.root, 'writer.lock')); this.lock = false; } }
   snapshot(): Snapshot { return structuredClone(this.state); }
+  private validateJourneys():void {
+    const journeys=this.state.journeys??[];
+    if(!Array.isArray(journeys)||new Set(journeys.map(j=>j.id)).size!==journeys.length||journeys.some(j=>!validId(j.id)||typeof j.mark!=='string'||!SCENES.includes(j.scene as Scene)||!Number.isFinite(j.createdAt)||(j.endedAt!==undefined&&!Number.isFinite(j.endedAt))))throw Error('系列存档损坏');
+    for(const t of this.state.trips){
+      if(t.contentId&&(!validId(t.contentId)||!this.state.trips.some(p=>p.id===t.contentId&&p.series?.id===t.series?.id&&p.series?.nodeIndex===t.series?.nodeIndex)))throw Error('系列内容归属损坏');
+      if(t.series){const s=t.series,j=journeys.find(j=>j.id===s.id);if(!j||s.total!==3||!Number.isInteger(s.nodeIndex)||s.nodeIndex<1||s.nodeIndex>3||s.mark!==j.mark)throw Error('系列节点归属损坏');}
+    }
+    for(const j of journeys)if(j.summary&&(!['running','failed','ready'].includes(j.summary.status)||!Number.isInteger(j.summary.attempts)||j.summary.attempts<1||j.summary.attempts>2||!/^[a-f0-9]{64}$/.test(j.summary.sourceHash)))throw Error('系列总结检查点损坏');
+    for(const j of journeys){const indices=this.cards().filter(c=>c.series?.id===j.id).map(c=>c.series!.nodeIndex).sort();if(indices.some((v,i)=>v!==i+1)||indices.length>3)throw Error('系列已交付节点不连续');}
+  }
+  updateJourney(id:string,change:(journey:Journey)=>void):void {const state=this.snapshot(),j=state.journeys?.find(j=>j.id===id);if(!j)throw Error('没有这个系列');change(j);this.save(state);}
   save(next: Snapshot): void {
     if (!this.lock) throw new Error('旅行存档未打开');
     atomicJson(join(this.root, 'state.json'), next); this.state = structuredClone(next);
@@ -104,6 +122,7 @@ export class TravelStore {
     const cached=this.cardCache.get(id);
     if(!verify&&cached?.fingerprint===fingerprint)return structuredClone(cached.record);
     const record = JSON.parse(readFileSync(file, 'utf8')) as Card;
+    if(record.series){const owner=this.state.trips.find(t=>t.id===id);if(!owner?.series||JSON.stringify(record.series)!==JSON.stringify(owner.series))throw Error('收藏系列归属校验失败');}
     const bytes = readFileSync(join(folder, 'postcard.png'));
     if (record.tripId !== id || !SCENES.includes(record.scene) || typeof record.title !== 'string' || typeof record.note !== 'string' || !Number.isFinite(record.completedAt) || record.sha256 !== createHash('sha256').update(bytes).digest('hex')) throw new Error('收藏文件校验失败');
     this.cardCache.set(id,{fingerprint,record:structuredClone(record)});
@@ -115,7 +134,7 @@ export class TravelStore {
     const existing = this.card(trip.id); if (existing) return existing;
     const bytes = Buffer.from(artifact.image);
     if (!bytes.subarray(0,8).equals(png) || !artifact.title || !artifact.note) throw new Error('生成产物不完整');
-    const record: Card = { tripId: trip.id, scene: trip.scene, ...(trip.sceneSnapshot?{sceneLabel:trip.sceneSnapshot.label}:{}), title: artifact.title, note: artifact.note, sha256: createHash('sha256').update(bytes).digest('hex'), completedAt: now, ...(artifact.generation ? { generation:artifact.generation } : {}) };
+    const record: Card = { tripId: trip.id, scene: trip.scene, ...(trip.series?{series:trip.series}:{}),...(typeof artifact.generation?.storyLocation==='string'?{sceneLabel:artifact.generation.storyLocation}:trip.sceneSnapshot?{sceneLabel:trip.sceneSnapshot.label}:{}), title: artifact.title, note: artifact.note, sha256: createHash('sha256').update(bytes).digest('hex'), completedAt: now, ...(artifact.generation ? { generation:artifact.generation } : {}) };
     const pending = join(this.collection, trip.id+'.'+randomUUID()+'.pending');
     mkdirSync(pending);
     writeFileSync(join(pending,'postcard.png'), bytes, { flag: 'wx' });
@@ -130,22 +149,54 @@ export class TravelService {
   private flight?: Promise<void>;
   private controller?: AbortController;
   private stopped = true;
-  constructor(readonly store: TravelStore, private generator: Generator | undefined, private now: () => number = Date.now,private earlyPreparation=false) {}
+  constructor(readonly store: TravelStore, private generator: Generator | undefined, private now: () => number = Date.now,private earlyPreparation=false,readonly roundMinutes=120) {if(roundMinutes!==120&&roundMinutes!==5)throw Error('仅支持正式2小时或开发5分钟');}
   open(): void { this.store.open(); this.stopped = false; }
   async close(): Promise<void> { this.stopped = true; this.controller?.abort(); try {await this.flight;} finally {this.store.close();} }
   status(): Trip | null { const trips = this.store.snapshot().trips; return trips.find(t => active.has(t.status)) ?? trips.at(-1) ?? null; }
-  start(destination: Destination, minutes: number): Trip {
+  journeyCards(id:string):Card[] {return this.store.cards().filter(c=>c.series?.id===id).sort((a,b)=>a.series!.nodeIndex-b.series!.nodeIndex);}
+  journeyStatus(id?:string){
+    const state=this.store.snapshot(),list=state.journeys??[],j=id?list.find(j=>j.id===id):[...list].reverse().find(j=>!j.endedAt&&this.journeyCards(j.id).length<3)??list.at(-1);
+    if(!j)return null;
+    const cards=this.journeyCards(j.id),running=state.trips.find(t=>t.series?.id===j.id&&active.has(t.status));
+    let summary=j.summary?structuredClone(j.summary):null;
+    if(summary?.status==='ready'){
+      const sources=cards.map(c=>({tripId:c.tripId,nodeIndex:c.series!.nodeIndex,title:c.title,note:c.note,noteHash:createHash('sha256').update(c.note).digest('hex'),imageHash:c.sha256}));
+      if(summary.sourceHash!==createHash('sha256').update(JSON.stringify(sources)).digest('hex')||typeof summary.text!=='string'||summary.textHash!==createHash('sha256').update(summary.text).digest('hex'))summary={...summary,status:'failed',text:undefined,error:'总结或来源校验失败，请恢复记录；不会自动重新收费'};
+    }
+    return {id:j.id,mark:j.mark,completed:cards.length,total:3,phase:j.endedAt?'ended':running?'traveling':cards.length===3?'completed':'waiting_continue',nextNode:cards.length<3?cards.length+1:null,summary};
+  }
+  startSeries():Trip {return this.start('surprise',this.roundMinutes,true);}
+  endJourney(id:string){
+    const j=this.store.snapshot().journeys?.find(j=>j.id===id);if(!j)throw Error('没有这个系列');
+    if(this.store.snapshot().trips.some(t=>t.series?.id===id&&active.has(t.status)))throw Error('请先完成或取消当前这一轮，再结束系列');
+    if(this.journeyCards(id).length===3)throw Error('系列已经完成');
+    this.store.updateJourney(id,j=>{j.endedAt??=this.now();});return this.journeyStatus(id);
+  }
+  start(destination: Destination, minutes: number, seriesMode=false): Trip {
     if (this.stopped) throw new Error('旅行服务未启动');
     if (!(destination==='surprise'||SCENES.includes(destination)) || !Number.isFinite(minutes) || minutes <= 0 || minutes > 10080) throw new Error('目的地或旅行时长无效');
     const state = this.store.snapshot();
     if (state.trips.some(t => active.has(t.status))) throw new Error('已有未结束旅行，请先完成或取消');
     const id=randomUUID();
+    let journey:Journey|undefined,previous:Trip|undefined,series:SeriesRef|undefined;
+    if(seriesMode){
+      state.journeys??=[];
+      journey=[...state.journeys].reverse().find(j=>!j.endedAt&&this.journeyCards(j.id).length<3);
+      if(!journey){const jid=randomUUID();journey={id:jid,mark:'旅迹·'+jid.slice(0,8),scene:chooseScene(jid,state.trips.map(t=>t.scene)),createdAt:this.now()};state.journeys.push(journey);}
+      const nodeIndex=this.journeyCards(journey.id).length+1;
+      series={id:journey.id,mark:journey.mark,nodeIndex,total:3};
+      previous=[...state.trips].reverse().find(t=>t.series?.id===journey!.id&&t.series.nodeIndex===nodeIndex&&t.status==='cancelled');
+      if(previous)this.generator?.confirmRetry?.(previous,false);
+      minutes=this.roundMinutes;
+    }
     const recent=state.trips.slice().reverse();
     const recentScenes=recent.map(t=>t.scene);
-    const scene=destination==='surprise'?chooseScene(id,recentScenes):destination;
+    const scene=journey?journey.scene as Scene:destination==='surprise'?chooseScene(id,recentScenes):destination;
     const recentVariants=recent.filter(t=>t.scene===scene).map(t=>t.sceneSnapshot?.id??t.generation?.sceneVariant).filter((v):v is string=>typeof v==='string');
     const trip: Trip = { id, scene,...(this.earlyPreparation?{prepareDuringTravel:true}:{}), sceneSnapshot:freezeScene(id,scene,recentScenes,recentVariants,recent.filter(t=>t.status==='completed').map(t=>t.sceneSnapshot?.visualVariation).filter((v):v is VisualVariation=>!!v).slice(0,6)), startedAt: this.now(), dueAt: this.now()+minutes*60000, status: 'traveling' };
-    if (this.generator?.prepare) trip.generation = this.generator.prepare(trip);
+    if(series){trip.series=series;if(previous){trip.contentId=previous.contentId??previous.id;trip.sceneSnapshot=previous.sceneSnapshot;trip.generation=previous.generation;}}
+    if (this.generator?.prepare&&!previous) trip.generation = this.generator.prepare(trip);
+    if(previous){const cached=this.store.stagedArtifact(previous.id);if(cached)this.store.stageArtifact(trip,cached);}
     state.trips.push(trip); this.store.save(state); return structuredClone(trip);
   }
   cancel(id: string): Trip {

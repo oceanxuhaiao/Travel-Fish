@@ -1,0 +1,57 @@
+Directory: E:\项目\桌面宠物\扩展\长时间异步任务\.cortina-reference\state\packages\cortico-world-postcard
+Package:   cortico-world-postcard@0.1.0
+Contracts: world v6 / provider v6 / bot v7
+
+  ✓ manifest: kind=world, api=6
+  ✓ Entry: E:\项目\桌面宠物\扩展\长时间异步任务\.cortina-reference\state\packages\cortico-world-postcard\src\index.ts
+  ✓ Default export has the world shape; id = postcard
+    The World id must be unique in the deployment; an id that matches a built-in or another extension does not load.
+  ✓ Browser bundle: dist/webui.js
+    WebUI page id: world:postcard
+    Published URL: /assets/extensions/cortico-world-postcard/0.1.0/webui.js
+  ✓ Browser style: dist/webui.css
+
+Construction check (temporary deployment, default config, no secrets, start() not called):
+  ✓ defaults() returns a config section.
+  ✓ create() returns a World instance, id = postcard.
+  ✓ tools(): postcard_start, postcard_status, postcard_list, postcard_read, postcard_cancel, postcard_retry
+  ✓ envPromptVars(): placeholder values: 1.
+  ✓ webUi(): panels: 1, config groups: 1, prompt docs: 1.
+
+Self-description check (describe in the code against the file cortico.describe points to):
+  ✓ tools(): every tool is declared in describe.tools.
+  ✓ tools(): descriptions and parameters match describe.tools under the default config.
+  ✓ describe.json matches the self-description in the code.
+
+Tags (vocabulary: https://github.com/Pal-AI-Lab/cortico-extensions/blob/main/TAGS.md):
+  ✓ Declared: experimental
+  Notice and warning tags: declare each one whose "when" fits. A declared warning tag stays on the package in later versions until the maintainers remove it.
+    experimental [notice]: The author marks it as still in testing: features not settled, verified only in a few setups, or compatibility unconfirmed. (declared)
+    internal-state (Internal state) [notice]: The World keeps and injects the bot's own internal state: mood, affinity, memories, experiences. We recommend building this into a bot extension's Persona instead.
+    requires-extension (Requires other extensions) [notice]: This extension needs other extensions to work; see its README. Note: we strongly advise against dependencies between World extensions. Integrate one outside environment into a single World; where truly necessary, pass signals indirectly, for example by subscribing to the event stream. Bot extensions do not get this tag.
+    high-cost (High token use) [notice]: Makes the bot call the model often or with large context, such as high-frequency events, continuous screenshots or video frames, or long injected text.
+    unsafe [warning]: The model can use it to run arbitrary code or commands, read and write arbitrary files, or freely control the mouse and keyboard.
+    sensitive-data (Reads private data) [warning]: Continuously reads personal data such as the screen, microphone, foreground window or spending records, and sends it to the model endpoint with model calls.
+    injection-risk (Injection risk) [warning]: Any text written by a third party (chat messages, nicknames or group names, comments, join-request messages, web pages, search results, scraped articles) goes into an event with origin 'internal', or otherwise reaches the conversation without the external-event framing. Fixed templates, the extension's own numbers and states, and notes the bot wrote with its own tools do not count.
+    unofficial-api (Unofficial API) [notice]: Calls a service with the user's own account in a way the service does not offer to third parties, so the account may be restricted or banned: unofficial IM clients such as NapCat, the internal endpoints and quotas of coding-agent apps, driving a web app as a model or service API, or automated writes (posting, liking, messaging) through a web login. Only reusing a login session to read what the user could see in a browser does not count; neither do undocumented endpoints that need no user account.
+
+Before publishing:
+  Tags: experimental
+  ✓ CHANGELOG.md has a "## 0.1.0" section.
+  No "os" field: the market lists the package for every platform. If it runs only on some, set it, e.g. "os": ["win32"] or "os": ["!darwin"].
+  ✓ cortico.describe: describe.json
+  Requests to the maintainers are issues in https://github.com/Pal-AI-Lab/cortico-extensions:
+    tags (change tags the maintainers set, withdraw a declared warning tag), certify, supersede,
+    appeal (blocked), report, new-tag, other.
+    Title: [<type>] <package name>  (new-tag: [new-tag] <tag id>)
+    Body: one "key: value" per line; leave out keys that do not apply.
+      package: cortico-world-postcard
+      add: <tag>, <tag>
+      remove: <tag>
+      by: <new package name>  (supersede; deprecate the old package on npm first)
+      reason: <one or two sentences>
+      evidence: <links>
+    Example, with the body saved in request.txt: gh issue create --repo Pal-AI-Lab/cortico-extensions --title "[tags] cortico-world-postcard" --body-file request.txt
+  Market index and request rules: https://github.com/Pal-AI-Lab/cortico-extensions
+
+Extension check passed.

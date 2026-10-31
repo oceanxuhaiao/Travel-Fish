@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Card, TravelStore } from './travel.ts';
+import {collectionSceneLabel,type Card,type TravelStore} from './travel.ts';
 
 export interface RecordsQuery {
   query?: string;
@@ -38,7 +38,7 @@ export class PostcardRecords {
   read(tripId: string) {
     const card = this.store.card(tripId);
     if (!card) throw new Error('没有这份已完成收藏');
-    return {tripId:card.tripId, scene:card.scene, ...(card.sceneLabel ? {sceneLabel:card.sceneLabel} : {}),
+    return {tripId:card.tripId, scene:card.scene, ...(card.series?{series:card.series}:{}),...(collectionSceneLabel(card)?{sceneLabel:collectionSceneLabel(card)}:{}),
       title:card.title, note:card.note, completedAt:card.completedAt, sha256:card.sha256,
       source:this.source(card), evidenceBoundary:RECORD_EVIDENCE_BOUNDARY};
   }

@@ -1,0 +1,562 @@
+[
+  {
+    "id": "bowl",
+    "version": "1",
+    "environment": "虚构的临水生活小镇，含普通市场与小馆；借国内游记机制，不还原真实路线",
+    "theme": "最后一碗怎么配",
+    "motive": {
+      "desire": "想找到自己喜欢的一碗热早餐",
+      "reason": "本趟原创轻兴趣；不作为宿主长期人格或用户偏好。",
+      "characterExpression": "先尝汤，再夹一口配料",
+      "source": "original_design"
+    },
+    "motifIds": [
+      "s2-cn-quanzhou-01",
+      "s2-cn-quanzhou-03"
+    ],
+    "nodes": [
+      {
+        "index": 1,
+        "role": "节点1：先尝汤，再夹一口配料",
+        "location": "早餐铺",
+        "event": "配料摆了好几小盘，她先点简单的一碗",
+        "action": "先尝汤，再夹一口配料",
+        "payoff": "发现自己喜欢清淡一点",
+        "visibleScene": "一碗热早餐和未加完的小碟",
+        "composition": "桌边近景",
+        "dependencies": [],
+        "carryovers": [
+          {
+            "id": "bowl-c1",
+            "kind": "observation",
+            "plannedStatement": "记得自己偏爱清淡汤味"
+          }
+        ],
+        "nextInterest": null,
+        "emotionalBeat": {
+          "before": "有点拿不准",
+          "trigger": "配料摆了好几小盘，她先点简单的一碗",
+          "response": "先尝汤，再夹一口配料",
+          "after": "发现一点新线索，想继续试试"
+        },
+        "visualBeat": {
+          "orientation": "side",
+          "action": "侧身走近观察",
+          "expression": "好奇地抬眼"
+        }
+      },
+      {
+        "index": 2,
+        "role": "节点2：根据上次口味少选两样，留意不同口感",
+        "location": "街边另一家小铺",
+        "event": "看见相似早餐，这次没有把所有配料都加上",
+        "action": "根据上次口味少选两样，留意不同口感",
+        "payoff": "能说清这家较合心意的部分",
+        "visibleScene": "配料柜前做选择的鱼",
+        "composition": "柜台侧面中景",
+        "dependencies": [
+          {
+            "nodeIndex": 1,
+            "carryoverId": "bowl-c1",
+            "why": "先前偏好使本次点单有理由"
+          }
+        ],
+        "carryovers": [
+          {
+            "id": "bowl-c2",
+            "kind": "observation",
+            "plannedStatement": "知道下次想保留哪种口感"
+          }
+        ],
+        "nextInterest": null,
+        "emotionalBeat": {
+          "before": "还惦记上次的疑问",
+          "trigger": "看见相似早餐，这次没有把所有配料都加上",
+          "response": "根据上次口味少选两样，留意不同口感",
+          "after": "比刚才更有把握"
+        },
+        "visualBeat": {
+          "orientation": "three-quarter-back",
+          "action": "俯身伸手比较",
+          "expression": "专注地皱眉"
+        }
+      },
+      {
+        "index": 3,
+        "role": "节点3：点出自己喜欢的组合，慢慢吃完",
+        "location": "返程前的小店",
+        "event": "临走仍想吃同类早餐",
+        "action": "点出自己喜欢的组合，慢慢吃完",
+        "payoff": "从不会选到能选，不必评出最好的一家",
+        "visibleScene": "行李靠墙，一碗刚端来的早餐",
+        "composition": "窗边全景",
+        "dependencies": [
+          {
+            "nodeIndex": 2,
+            "carryoverId": "bowl-c2",
+            "why": "此前两次比较支持最后的自主选择"
+          }
+        ],
+        "carryovers": [
+          {
+            "id": "bowl-c3",
+            "kind": "observation",
+            "plannedStatement": "记住自己的搭配"
+          }
+        ],
+        "nextInterest": null,
+        "emotionalBeat": {
+          "before": "想弄明白自己的选择",
+          "trigger": "临走仍想吃同类早餐",
+          "response": "点出自己喜欢的组合，慢慢吃完",
+          "after": "有一个属于自己的小偏好"
+        },
+        "visualBeat": {
+          "orientation": "front",
+          "action": "坐下端详自己的选择",
+          "expression": "轻松的小小得意"
+        }
+      }
+    ],
+    "summaryDirection": "未来若三张按实际情况交付，只从最终事实回看：最后一碗怎么配；此处不写成已发生总结。",
+    "signature": {
+      "motive": "taste",
+      "development": "preference_compare",
+      "changeMechanisms": [
+        "preference_compare"
+      ],
+      "links": [
+        "preference",
+        "memory"
+      ],
+      "objects": [
+        "最后一碗怎么配"
+      ],
+      "ending": "choose_preference",
+      "activities": [
+        "choose_food",
+        "eat",
+        "compare"
+      ],
+      "compositions": [
+        "桌边近景",
+        "柜台侧面中景",
+        "窗边全景"
+      ]
+    },
+    "grounding": [
+      {
+        "nodeIndex": 1,
+        "motifId": "s2-cn-quanzhou-01",
+        "sourceSituation": "每轮新购新食",
+        "sourceAction": "作者在四天中吃了四顿面线糊，注意到各家的味道和配菜不同。",
+        "sourceResult": "已尝过的配料",
+        "retained": "作者在四天中吃了四顿面线糊，注意到各家的味道和配菜不同。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "配料摆了好几小盘，她先点简单的一碗"
+        ],
+        "knowledgeClaims": []
+      },
+      {
+        "nodeIndex": 2,
+        "motifId": "s2-cn-quanzhou-01",
+        "sourceSituation": "每轮新购新食",
+        "sourceAction": "作者在四天中吃了四顿面线糊，注意到各家的味道和配菜不同。",
+        "sourceResult": "已尝过的配料",
+        "retained": "作者在四天中吃了四顿面线糊，注意到各家的味道和配菜不同。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "看见相似早餐，这次没有把所有配料都加上"
+        ],
+        "knowledgeClaims": []
+      },
+      {
+        "nodeIndex": 3,
+        "motifId": "s2-cn-quanzhou-01",
+        "sourceSituation": "每轮新购新食",
+        "sourceAction": "作者在四天中吃了四顿面线糊，注意到各家的味道和配菜不同。",
+        "sourceResult": "已尝过的配料",
+        "retained": "作者在四天中吃了四顿面线糊，注意到各家的味道和配菜不同。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "临走仍想吃同类早餐"
+        ],
+        "knowledgeClaims": []
+      }
+    ]
+  },
+  {
+    "id": "dip",
+    "version": "1",
+    "environment": "虚构的临水生活小镇，含普通市场与小馆；借国内游记机制，不还原真实路线",
+    "theme": "一小块先蘸一下",
+    "motive": {
+      "desire": "好奇同一块油条能有几种口感",
+      "reason": "本趟原创轻兴趣；不作为宿主长期人格或用户偏好。",
+      "characterExpression": "尝过后再把另一块多浸一会儿",
+      "source": "original_design"
+    },
+    "motifIds": [
+      "s2-cn-quanzhou-02"
+    ],
+    "nodes": [
+      {
+        "index": 1,
+        "role": "节点1：尝过后再把另一块多浸一会儿",
+        "location": "小吃桌边",
+        "event": "一小块油条浸一下汤便拿起",
+        "action": "尝过后再把另一块多浸一会儿",
+        "payoff": "发现外酥与软泡的差别",
+        "visibleScene": "碗边一干一湿两小块油条",
+        "composition": "食物与手部近景",
+        "dependencies": [],
+        "carryovers": [
+          {
+            "id": "dip-c1",
+            "kind": "observation",
+            "plannedStatement": "知道浸泡长短影响口感"
+          }
+        ],
+        "nextInterest": null,
+        "emotionalBeat": {
+          "before": "有点拿不准",
+          "trigger": "一小块油条浸一下汤便拿起",
+          "response": "尝过后再把另一块多浸一会儿",
+          "after": "发现一点新线索，想继续试试"
+        },
+        "visualBeat": {
+          "orientation": "side",
+          "action": "侧身走近观察",
+          "expression": "好奇地抬眼"
+        }
+      },
+      {
+        "index": 2,
+        "role": "节点2：每次只放一小块，自己控制软硬",
+        "location": "另一日早餐摊",
+        "event": "新买的一份早餐仍配油条",
+        "action": "每次只放一小块，自己控制软硬",
+        "payoff": "吃到了想要的口感，碗里没有全泡软",
+        "visibleScene": "一手持小块，碗中还留空处",
+        "composition": "俯看餐桌",
+        "dependencies": [
+          {
+            "nodeIndex": 1,
+            "carryoverId": "dip-c1",
+            "why": "使用第一次发现的长短差别"
+          }
+        ],
+        "carryovers": [
+          {
+            "id": "dip-c2",
+            "kind": "observation",
+            "plannedStatement": "找到适合自己的小动作"
+          }
+        ],
+        "nextInterest": null,
+        "emotionalBeat": {
+          "before": "还惦记上次的疑问",
+          "trigger": "新买的一份早餐仍配油条",
+          "response": "每次只放一小块，自己控制软硬",
+          "after": "比刚才更有把握"
+        },
+        "visualBeat": {
+          "orientation": "three-quarter-back",
+          "action": "俯身伸手比较",
+          "expression": "专注地皱眉"
+        }
+      },
+      {
+        "index": 3,
+        "role": "节点3：在新的一餐里边看街景边分小块吃",
+        "location": "临街小凳",
+        "event": "这次不再忙着把整根都浸进去",
+        "action": "在新的一餐里边看街景边分小块吃",
+        "payoff": "动作熟悉了，能把注意力分给街道",
+        "visibleScene": "侧身看行人的鱼与小碗",
+        "composition": "人物与街巷中景",
+        "dependencies": [
+          {
+            "nodeIndex": 2,
+            "carryoverId": "dip-c2",
+            "why": "此前练习使动作不再费力"
+          }
+        ],
+        "carryovers": [
+          {
+            "id": "dip-c3",
+            "kind": "observation",
+            "plannedStatement": "喜欢的吃法已经熟悉"
+          }
+        ],
+        "nextInterest": null,
+        "emotionalBeat": {
+          "before": "想弄明白自己的选择",
+          "trigger": "这次不再忙着把整根都浸进去",
+          "response": "在新的一餐里边看街景边分小块吃",
+          "after": "有一个属于自己的小偏好"
+        },
+        "visualBeat": {
+          "orientation": "front",
+          "action": "坐下端详自己的选择",
+          "expression": "轻松的小小得意"
+        }
+      }
+    ],
+    "summaryDirection": "未来若三张按实际情况交付，只从最终事实回看：一小块先蘸一下；此处不写成已发生总结。",
+    "signature": {
+      "motive": "learn_action",
+      "development": "skill_practice",
+      "changeMechanisms": [
+        "skill_practice"
+      ],
+      "links": [
+        "skill",
+        "preference"
+      ],
+      "objects": [
+        "一小块先蘸一下"
+      ],
+      "ending": "apply_skill",
+      "activities": [
+        "eat",
+        "compare",
+        "practice"
+      ],
+      "compositions": [
+        "食物与手部近景",
+        "俯看餐桌",
+        "人物与街巷中景"
+      ]
+    },
+    "grounding": [
+      {
+        "nodeIndex": 1,
+        "motifId": "s2-cn-quanzhou-02",
+        "sourceSituation": "食物与进食动作适配角色",
+        "sourceAction": "文中描写剪小的油条浸入面线糊，吸汤后仍留些酥脆。",
+        "sourceResult": "自己喜欢的浸泡程度",
+        "retained": "文中描写剪小的油条浸入面线糊，吸汤后仍留些酥脆。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "一小块油条浸一下汤便拿起"
+        ],
+        "knowledgeClaims": []
+      },
+      {
+        "nodeIndex": 2,
+        "motifId": "s2-cn-quanzhou-02",
+        "sourceSituation": "食物与进食动作适配角色",
+        "sourceAction": "文中描写剪小的油条浸入面线糊，吸汤后仍留些酥脆。",
+        "sourceResult": "自己喜欢的浸泡程度",
+        "retained": "文中描写剪小的油条浸入面线糊，吸汤后仍留些酥脆。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "新买的一份早餐仍配油条"
+        ],
+        "knowledgeClaims": []
+      },
+      {
+        "nodeIndex": 3,
+        "motifId": "s2-cn-quanzhou-02",
+        "sourceSituation": "食物与进食动作适配角色",
+        "sourceAction": "文中描写剪小的油条浸入面线糊，吸汤后仍留些酥脆。",
+        "sourceResult": "自己喜欢的浸泡程度",
+        "retained": "文中描写剪小的油条浸入面线糊，吸汤后仍留些酥脆。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "这次不再忙着把整根都浸进去"
+        ],
+        "knowledgeClaims": []
+      }
+    ]
+  },
+  {
+    "id": "counter",
+    "version": "1",
+    "environment": "虚构的临水生活小镇，含普通市场与小馆；借国内游记机制，不还原真实路线",
+    "theme": "那句照旧还不用说",
+    "motive": {
+      "desire": "想看看普通早餐铺的早晨",
+      "reason": "本趟原创轻兴趣；不作为宿主长期人格或用户偏好。",
+      "characterExpression": "自己问清后点一份",
+      "source": "original_design"
+    },
+    "motifIds": [
+      "s2-cn-dali-03",
+      "s2-cn-quanzhou-01"
+    ],
+    "nodes": [
+      {
+        "index": 1,
+        "role": "节点1：自己问清后点一份",
+        "location": "街口早餐摊",
+        "event": "第一次买早点时说明少加一味调料",
+        "action": "自己问清后点一份",
+        "payoff": "得到合口味的一餐，也认清摊位位置",
+        "visibleScene": "摊前一碗与刚落座的鱼",
+        "composition": "摊位全景",
+        "dependencies": [],
+        "carryovers": [
+          {
+            "id": "counter-c1",
+            "kind": "observation",
+            "plannedStatement": "记得摊位与一次点单"
+          }
+        ],
+        "nextInterest": null,
+        "emotionalBeat": {
+          "before": "有点拿不准",
+          "trigger": "第一次买早点时说明少加一味调料",
+          "response": "自己问清后点一份",
+          "after": "发现一点新线索，想继续试试"
+        },
+        "visualBeat": {
+          "orientation": "side",
+          "action": "侧身走近观察",
+          "expression": "好奇地抬眼"
+        }
+      },
+      {
+        "index": 2,
+        "role": "节点2：先打招呼，再说今天想换一种",
+        "location": "同一街口",
+        "event": "再次经过，摊主只是认出她来过",
+        "action": "先打招呼，再说今天想换一种",
+        "payoff": "不是所有重访都要照旧，仍能自己选",
+        "visibleScene": "招牌下彼此点头的两人",
+        "composition": "侧面中景",
+        "dependencies": [
+          {
+            "nodeIndex": 1,
+            "carryoverId": "counter-c1",
+            "why": "因记得摊位才自愿再来"
+          }
+        ],
+        "carryovers": [
+          {
+            "id": "counter-c2",
+            "kind": "observation",
+            "plannedStatement": "第二次见面仍只算熟面孔"
+          }
+        ],
+        "nextInterest": null,
+        "emotionalBeat": {
+          "before": "还惦记上次的疑问",
+          "trigger": "再次经过，摊主只是认出她来过",
+          "response": "先打招呼，再说今天想换一种",
+          "after": "比刚才更有把握"
+        },
+        "visualBeat": {
+          "orientation": "three-quarter-back",
+          "action": "俯身伸手比较",
+          "expression": "专注地皱眉"
+        }
+      },
+      {
+        "index": 3,
+        "role": "节点3：挥挥手就继续走，没有再买",
+        "location": "出城经过的街口",
+        "event": "她已经吃过饭，仍路过摊位",
+        "action": "挥挥手就继续走，没有再买",
+        "payoff": "关系可以是一声招呼，不需要礼物",
+        "visibleScene": "行李在身旁，隔着街面挥手",
+        "composition": "街巷远景",
+        "dependencies": [
+          {
+            "nodeIndex": 2,
+            "carryoverId": "counter-c2",
+            "why": "两次普通往来让招呼不突兀"
+          }
+        ],
+        "carryovers": [
+          {
+            "id": "counter-c3",
+            "kind": "observation",
+            "plannedStatement": "留下一个熟悉的街角"
+          }
+        ],
+        "nextInterest": null,
+        "emotionalBeat": {
+          "before": "想弄明白自己的选择",
+          "trigger": "她已经吃过饭，仍路过摊位",
+          "response": "挥挥手就继续走，没有再买",
+          "after": "有一个属于自己的小偏好"
+        },
+        "visualBeat": {
+          "orientation": "front",
+          "action": "坐下端详自己的选择",
+          "expression": "轻松的小小得意"
+        }
+      }
+    ],
+    "summaryDirection": "未来若三张按实际情况交付，只从最终事实回看：那句照旧还不用说；此处不写成已发生总结。",
+    "signature": {
+      "motive": "meet_routine",
+      "development": "relationship_revisit",
+      "changeMechanisms": [
+        "relationship_revisit"
+      ],
+      "links": [
+        "relationship",
+        "preference"
+      ],
+      "objects": [
+        "那句照旧还不用说"
+      ],
+      "ending": "familiar_greeting",
+      "activities": [
+        "choose_food",
+        "greet",
+        "observe"
+      ],
+      "compositions": [
+        "摊位全景",
+        "侧面中景",
+        "街巷远景"
+      ]
+    },
+    "grounding": [
+      {
+        "nodeIndex": 1,
+        "motifId": "s2-cn-dali-03",
+        "sourceSituation": "市场正常营业",
+        "sourceAction": "离开时作者看见背菜篮的大婶向干货摊摊主笑着打招呼。",
+        "sourceResult": "对市场日常的印象",
+        "retained": "离开时作者看见背菜篮的大婶向干货摊摊主笑着打招呼。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "第一次买早点时说明少加一味调料"
+        ],
+        "knowledgeClaims": []
+      },
+      {
+        "nodeIndex": 2,
+        "motifId": "s2-cn-dali-03",
+        "sourceSituation": "市场正常营业",
+        "sourceAction": "离开时作者看见背菜篮的大婶向干货摊摊主笑着打招呼。",
+        "sourceResult": "对市场日常的印象",
+        "retained": "离开时作者看见背菜篮的大婶向干货摊摊主笑着打招呼。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "再次经过，摊主只是认出她来过"
+        ],
+        "knowledgeClaims": []
+      },
+      {
+        "nodeIndex": 3,
+        "motifId": "s2-cn-dali-03",
+        "sourceSituation": "市场正常营业",
+        "sourceAction": "离开时作者看见背菜篮的大婶向干货摊摊主笑着打招呼。",
+        "sourceResult": "对市场日常的印象",
+        "retained": "离开时作者看见背菜篮的大婶向干货摊摊主笑着打招呼。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "她已经吃过饭，仍路过摊位"
+        ],
+        "knowledgeClaims": []
+      }
+    ]
+  }
+]

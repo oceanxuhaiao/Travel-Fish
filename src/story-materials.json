@@ -1,0 +1,1983 @@
+{
+  "motifs": [
+    {
+      "id": "s2-alps-01",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Craig Mod",
+        "title": "Pizza Toast Tales: Alps",
+        "url": "https://craigmod.com/ridgeline/052/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "店里没有披萨吐司，作者改点盐味拉面。",
+      "mechanisms": [
+        "预期落空",
+        "主动换选项"
+      ],
+      "conditions": [
+        "有替代餐食的小店",
+        "角色有明确口味兴趣"
+      ],
+      "incompatibleConditions": [
+        "缺粮求生",
+        "必须补偿惊喜"
+      ],
+      "carryovers": [
+        "口味偏好",
+        "下次点单问题"
+      ],
+      "adaptation": "大肥鱼换点普通套餐，承认没吃到想吃的；后续可辨认菜单，不必突然发现更好的招牌。"
+    },
+    {
+      "id": "s2-alps-02",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Craig Mod",
+        "title": "Pizza Toast Tales: Alps",
+        "url": "https://craigmod.com/ridgeline/052/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "邻座推荐了咖啡店，作者后来查到它们已不在。",
+      "mechanisms": [
+        "信息落差",
+        "有限调整"
+      ],
+      "conditions": [
+        "能核对地址的小镇",
+        "允许未完成小愿望"
+      ],
+      "incompatibleConditions": [
+        "靠迷路制造危险",
+        "每次闭店都获得礼物"
+      ],
+      "carryovers": [
+        "旧店名",
+        "核对信息的习惯"
+      ],
+      "adaptation": "鱼发现旧地址已换招牌，记住街角后换走附近一段路；不自动编出店主传奇。"
+    },
+    {
+      "id": "s2-alps-03",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Craig Mod",
+        "title": "Pizza Toast Tales: Alps",
+        "url": "https://craigmod.com/ridgeline/052/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "被问姓名时，一位邻座以番茄种植者的身份开玩笑回应。",
+      "mechanisms": [
+        "人物小习惯",
+        "有限偶遇"
+      ],
+      "conditions": [
+        "简短交谈",
+        "人物有自己的生活"
+      ],
+      "incompatibleConditions": [
+        "陌生人必定赠物",
+        "照搬原话与肖像"
+      ],
+      "carryovers": [
+        "一种职业印象",
+        "对食材来处的好奇"
+      ],
+      "adaptation": "摊主以正在做的工作介绍自己，鱼从而留意食物的来处；新人物和对白重新创作，不替原人物立传。"
+    },
+    {
+      "id": "s2-silver-01",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Craig Mod",
+        "title": "The Silver Mine with the Dog",
+        "url": "https://craigmod.com/ridgeline/062/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者看到自动售货机外面包着木箱。",
+      "mechanisms": [
+        "细节辨认",
+        "熟悉物件的新外观"
+      ],
+      "conditions": [
+        "有传统街面和日常设施",
+        "可近距离观察"
+      ],
+      "incompatibleConditions": [
+        "无人荒野",
+        "木制魔法机器"
+      ],
+      "carryovers": [
+        "辨认线索",
+        "对材料的兴趣"
+      ],
+      "adaptation": "鱼先被木格外观吸引，走近辨认出普通饮料机；后续以相同观察方式认出另一处实用设施。"
+    },
+    {
+      "id": "s2-silver-02",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Craig Mod",
+        "title": "The Silver Mine with the Dog",
+        "url": "https://craigmod.com/ridgeline/062/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "馆内银币展陈让作者注意到不规则银块与圆币的差别。",
+      "mechanisms": [
+        "对照观察",
+        "问题逐渐具体"
+      ],
+      "conditions": [
+        "有可信展品或制作过程",
+        "角色对形状感兴趣"
+      ],
+      "incompatibleConditions": [
+        "凭空编造历史知识",
+        "将误会强行和解"
+      ],
+      "carryovers": [
+        "形状比较",
+        "一个尚未理解的问题"
+      ],
+      "adaptation": "虚构小馆并排展示不同阶段的器物，鱼从外形猜用途再读说明；知识内容需另核实或保持非专名描述。"
+    },
+    {
+      "id": "s2-silver-03",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Craig Mod",
+        "title": "The Silver Mine with the Dog",
+        "url": "https://craigmod.com/ridgeline/062/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "清晨山路很冷，太阳照进山谷后雾散，至午前衣着变轻。",
+      "mechanisms": [
+        "环境渐变",
+        "身体感受参与观察"
+      ],
+      "conditions": [
+        "山谷与日照条件连贯",
+        "合理衣物"
+      ],
+      "incompatibleConditions": [
+        "每节点都重演同一早晨",
+        "季节温度矛盾"
+      ],
+      "carryovers": [
+        "日照方位",
+        "衣物调整",
+        "对阴阳面的认识"
+      ],
+      "adaptation": "鱼从背阴段走到向阳段，停下收好围巾；下一次出发延续对路线朝向的认识，不复刻同一天的即时天气。"
+    },
+    {
+      "id": "s2-silver-04",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Craig Mod",
+        "title": "The Silver Mine with the Dog",
+        "url": "https://craigmod.com/ridgeline/062/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "同行者因一只友善的大狗停留，向导在前方回望。",
+      "mechanisms": [
+        "注意力转移",
+        "节奏暂缓"
+      ],
+      "conditions": [
+        "允许短暂停留",
+        "普通友善动物"
+      ],
+      "incompatibleConditions": [
+        "动物替角色导航",
+        "动物自动赠礼"
+      ],
+      "carryovers": [
+        "新的关注点",
+        "自愿放慢的步调"
+      ],
+      "adaptation": "鱼在主人同意后蹲下看狗玩一会儿，再继续原路；收获是一段停留，不必通向秘密地点。"
+    },
+    {
+      "id": "s2-bread-01",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Craig Mod",
+        "title": "My Kingdom for Bread",
+        "url": "https://craigmod.com/ridgeline/045/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "住宿电话提供米饭或面包早餐；作者偏好偶尔换成面包。",
+      "mechanisms": [
+        "日常选择",
+        "偏好形成"
+      ],
+      "conditions": [
+        "住宿有两种早餐",
+        "此前饮食已有依据"
+      ],
+      "incompatibleConditions": [
+        "凭空声称吃腻已交付餐食",
+        "地方饮食优劣论"
+      ],
+      "carryovers": [
+        "早餐偏好",
+        "选择理由"
+      ],
+      "adaptation": "鱼这次想换一种早餐，比较自己喜欢的口感；后续仍可选回原来的，不把变化写成成长任务。"
+    },
+    {
+      "id": "s2-bread-02",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Craig Mod",
+        "title": "My Kingdom for Bread",
+        "url": "https://craigmod.com/ridgeline/045/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者认为首次走路常顾着地图，重走能看见先前忽略的细节。",
+      "mechanisms": [
+        "熟悉后注意力变化",
+        "重访"
+      ],
+      "conditions": [
+        "同一路段有重访理由",
+        "保留首次实际观察"
+      ],
+      "incompatibleConditions": [
+        "未去过却声称熟悉",
+        "照抄同一画面"
+      ],
+      "carryovers": [
+        "空间记忆",
+        "观察方式"
+      ],
+      "adaptation": "首轮认路，后轮因另一件小事路过，注意门檐或铺面细节；不预设一定比初见更好。"
+    },
+    {
+      "id": "s2-textures-01",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Craig Mod",
+        "title": "Textures Along a Quarantine Path",
+        "url": "https://craigmod.com/ridgeline/064/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者走不同小路，逐渐熟悉家后面的山，并找到新路径。",
+      "mechanisms": [
+        "空间认识积累",
+        "低目标探索"
+      ],
+      "conditions": [
+        "范围有限的可通行路网",
+        "角色愿意慢走"
+      ],
+      "incompatibleConditions": [
+        "秘密宝藏必然出现",
+        "封闭地段探险"
+      ],
+      "carryovers": [
+        "相邻路段关系",
+        "路线记忆"
+      ],
+      "adaptation": "鱼每轮只弄清一段路怎样连到另一段；第三轮能凭已建立的线索选路，仍留未走的小岔口。"
+    },
+    {
+      "id": "s2-textures-02",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Craig Mod",
+        "title": "Textures Along a Quarantine Path",
+        "url": "https://craigmod.com/ridgeline/064/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者记录散步中吸引目光的纹理、光线，并写到看见富士山的惊叹。",
+      "mechanisms": [
+        "观察尺度切换",
+        "纯感官收获"
+      ],
+      "conditions": [
+        "有可见细节",
+        "允许无意外故事"
+      ],
+      "incompatibleConditions": [
+        "必须新增人物或转折",
+        "把未读照片当证据"
+      ],
+      "carryovers": [
+        "一种观察主题",
+        "当时感受"
+      ],
+      "adaptation": "鱼从脚边纹理看到远处山线，以自己选定的形状或光影串联；近处具体材料另行原创，不从照片猜。"
+    },
+    {
+      "id": "s2-rail-01",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Alastair Humphreys",
+        "title": "I Read; I Travel; I Become",
+        "url": "https://alastairhumphreys.com/blog/read-travel/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "同行者买来的裹糊圆食物，咬开才知道是炸辣椒。",
+      "mechanisms": [
+        "外观误判",
+        "口味认识"
+      ],
+      "conditions": [
+        "有少量试吃或确认配料",
+        "轻微不合口味"
+      ],
+      "incompatibleConditions": [
+        "饥饿缺钱惩罚",
+        "极辣导致疾病"
+      ],
+      "carryovers": [
+        "点单知识",
+        "口味偏好"
+      ],
+      "adaptation": "鱼把咸味点心误认成甜味，只买一小份；之后先问配料。点心外观和味道重创，不照搬险境。"
+    },
+    {
+      "id": "s2-rail-02",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Alastair Humphreys",
+        "title": "I Read; I Travel; I Become",
+        "url": "https://alastairhumphreys.com/blog/read-travel/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "印度返程途中，作者喝甜茶、吃沿站出售的小食并看沿途景色。",
+      "mechanisms": [
+        "重复中的变化",
+        "交通本身成为体验"
+      ],
+      "conditions": [
+        "正常乘车",
+        "不同站点有可区分细节"
+      ],
+      "incompatibleConditions": [
+        "车门外悬脚",
+        "每站必购食物"
+      ],
+      "carryovers": [
+        "窗外变化",
+        "对同类味道的比较"
+      ],
+      "adaptation": "鱼坐在安全座位看窗外，把一次停站和后一段景色相连；下轮可从到站后的生活继续，无需延长车程。"
+    },
+    {
+      "id": "s2-rail-03",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Alastair Humphreys",
+        "title": "I Read; I Travel; I Become",
+        "url": "https://alastairhumphreys.com/blog/read-travel/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者回忆路上交谈从去向等常见问题转到各自关心的话题。",
+      "mechanisms": [
+        "关系渐进",
+        "对话有限展开"
+      ],
+      "conditions": [
+        "双方自愿简短交谈",
+        "角色有具体兴趣"
+      ],
+      "incompatibleConditions": [
+        "每位路人都讲人生大道理",
+        "陌生人搭车作为默认流程"
+      ],
+      "carryovers": [
+        "一个共同话题",
+        "下一次观察的兴趣"
+      ],
+      "adaptation": "鱼在公共交通休息处和同桌聊到彼此喜欢的声音，再带着这个问题看下一处；人物、话题和场景原创。"
+    },
+    {
+      "id": "s2-sunset-01",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Alastair Humphreys",
+        "title": "A Mediterranean Microadventure",
+        "url": "https://alastairhumphreys.com/blog/mediterranean-microadventure/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者与朋友在克罗地亚上坡，试图赶上日落。",
+      "mechanisms": [
+        "短时目标",
+        "节奏选择"
+      ],
+      "conditions": [
+        "同一节点内处理时刻",
+        "有合理体力边界"
+      ],
+      "incompatibleConditions": [
+        "用户晚点出发导致惩罚",
+        "保证赶上或声称原文没赶上"
+      ],
+      "carryovers": [
+        "角色对赶路的态度",
+        "一次未必圆满的期待"
+      ],
+      "adaptation": "鱼选择按自己的步调走；可以只看到晚霞而没看到落日，也可以赶上。结果为原创，遗憾不必有替代大奖。"
+    },
+    {
+      "id": "s2-saigon-01",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Jodi Ettenberg",
+        "title": "The Legal Nomads Self-Guided Tour to Saigon Street Food",
+        "url": "https://www.legalnomads.com/saigon-street-food/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者回忆一位老太太纠正她折米纸的手法。",
+      "mechanisms": [
+        "动作学习",
+        "再次应用"
+      ],
+      "conditions": [
+        "食物适合角色操作",
+        "教学发生在当前轮"
+      ],
+      "incompatibleConditions": [
+        "跨天保留同份鲜食",
+        "一次教学立即大师"
+      ],
+      "carryovers": [
+        "手部小技巧",
+        "配料认识"
+      ],
+      "adaptation": "鱼先折散一点，学到收边动作；后轮重新购买同类点心再试，技能延续，食物不跨天存放。"
+    },
+    {
+      "id": "s2-saigon-02",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Jodi Ettenberg",
+        "title": "The Legal Nomads Self-Guided Tour to Saigon Street Food",
+        "url": "https://www.legalnomads.com/saigon-street-food/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "一位摊主知道作者爱杨桃，回访时会为她多留些。",
+      "mechanisms": [
+        "重访关系",
+        "偏好被记住"
+      ],
+      "conditions": [
+        "先建立偏好与见面",
+        "同摊重访合理"
+      ],
+      "incompatibleConditions": [
+        "初见即最懂角色",
+        "免费礼物任务"
+      ],
+      "carryovers": [
+        "味觉偏好",
+        "熟悉但有限的关系"
+      ],
+      "adaptation": "首次点单表现偏好，后轮摊主问要不要照旧；鱼可以换口味。普通服务构成回应，不安排无条件赠礼。"
+    },
+    {
+      "id": "s2-saigon-03",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Jodi Ettenberg",
+        "title": "The Legal Nomads Self-Guided Tour to Saigon Street Food",
+        "url": "https://www.legalnomads.com/saigon-street-food/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "粉店的一位老人反复提醒作者往碗里加腌蒜。",
+      "mechanisms": [
+        "小习惯辨认",
+        "自主试量"
+      ],
+      "conditions": [
+        "调料可选择",
+        "先确认适口"
+      ],
+      "incompatibleConditions": [
+        "强迫接受热情",
+        "假称所有人同样吃法"
+      ],
+      "carryovers": [
+        "自己的调味比例",
+        "对用餐习惯的兴趣"
+      ],
+      "adaptation": "鱼先尝原味，再试一点桌上调料，记下自己喜欢的比例；下一餐可主动选择，不必评价谁更正宗。"
+    },
+    {
+      "id": "s2-trek-01",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Emily Lush",
+        "title": "An Honest Guide to the Mestia-Ushguli Trek: Everything I Learned Hiking in Svaneti",
+        "url": "https://wander-lush.org/mestia-ushguli-trek-tips/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者描述走近Adishi时，山下逐渐出现成片塔楼。",
+      "mechanisms": [
+        "空间揭示",
+        "期待在接近中落实"
+      ],
+      "conditions": [
+        "地形遮挡与路线合理",
+        "普通强度步行"
+      ],
+      "incompatibleConditions": [
+        "必须危险登高",
+        "一次图画多个时刻"
+      ],
+      "carryovers": [
+        "地标关系",
+        "从远看转向近看"
+      ],
+      "adaptation": "鱼绕过缓坡先看见屋顶，后轮在街巷认出同一轮廓；每张各一个主要时刻，不复制真实塔楼与地名绑定。"
+    },
+    {
+      "id": "s2-trek-02",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Emily Lush",
+        "title": "An Honest Guide to the Mestia-Ushguli Trek: Everything I Learned Hiking in Svaneti",
+        "url": "https://wander-lush.org/mestia-ushguli-trek-tips/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "沿路车辆打破作者的荒野想象，路边小店也提供饮品。",
+      "mechanisms": [
+        "预期修正",
+        "生活面被看见"
+      ],
+      "conditions": [
+        "可居住山村道路",
+        "角色有初始印象"
+      ],
+      "incompatibleConditions": [
+        "贬低当地交通",
+        "必需先失望再治愈"
+      ],
+      "carryovers": [
+        "新的地方认识",
+        "对补给点的注意"
+      ],
+      "adaptation": "鱼发现风景路同样是居民日常通行路，给送货者让路，再按需要歇脚；不强求从失望转为赞美。"
+    },
+    {
+      "id": "s2-trek-03",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Emily Lush",
+        "title": "An Honest Guide to the Mestia-Ushguli Trek: Everything I Learned Hiking in Svaneti",
+        "url": "https://wander-lush.org/mestia-ushguli-trek-tips/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者轻装徒步仍带了家里的枕套，并庆幸这个选择。",
+      "mechanisms": [
+        "个人偏好",
+        "熟悉感延续"
+      ],
+      "conditions": [
+        "合理小物与住宿",
+        "角色自主选择"
+      ],
+      "incompatibleConditions": [
+        "无来源传家宝",
+        "逼用户准备物资"
+      ],
+      "carryovers": [
+        "个人物件",
+        "休息方式"
+      ],
+      "adaptation": "鱼自行带一块熟悉的小布巾，在旅店铺好；后续收包时保留它。没有用户投喂或装备任务。"
+    },
+    {
+      "id": "s2-station-01",
+      "version": "s2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Emily Lush",
+        "title": "The Kukushka Train from Borjomi to Bakuriani: A Complete Guide to Georgia’s Scenic Railway",
+        "url": "https://wander-lush.org/kukushka-train-borjomi-bakuriani/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者错过停运前的乘车机会，后续到当地时会去车站看看旧车。",
+      "mechanisms": [
+        "遗憾保留",
+        "重访兴趣"
+      ],
+      "conditions": [
+        "车站允许到访",
+        "不承诺某时复运"
+      ],
+      "incompatibleConditions": [
+        "声称作者坐过",
+        "以真实未来时刻表推进剧情"
+      ],
+      "carryovers": [
+        "未完成兴趣",
+        "对旧车的记忆"
+      ],
+      "adaptation": "虚构线路暂未开放，鱼看看站厅后继续其他安排；后轮路过可以再看，不保证恢复运营，不以失望惩罚用户。"
+    },
+    {
+      "id": "s2-cn-dali-01",
+      "version": "s2-v2",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Tina",
+        "title": "走進城市日常 到雲南大理 去逛菜市場",
+        "url": "https://onelittleday.com.tw/5808-2/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者在市场看见花瓣等食材，并提到喜欢吃过的玫瑰花炒煎蛋。",
+      "mechanisms": [
+        "食材与餐桌关联",
+        "认识来处"
+      ],
+      "conditions": [
+        "食材已可靠确认可食",
+        "有正常餐馆供餐"
+      ],
+      "incompatibleConditions": [
+        "凭外形采食野花野菌",
+        "声称作者先买再烹饪"
+      ],
+      "carryovers": [
+        "对一种食材的认识",
+        "新的用餐兴趣"
+      ],
+      "adaptation": "鱼先向摊主认识一种当地食材，后轮在正规餐馆点到相关菜；先后顺序与实际菜单为原创，不把花都写成可食。"
+    },
+    {
+      "id": "s2-cn-dali-02",
+      "version": "s2-v2",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Tina",
+        "title": "走進城市日常 到雲南大理 去逛菜市場",
+        "url": "https://onelittleday.com.tw/5808-2/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "面对陌生干货，作者与友人围着摊主询问。",
+      "mechanisms": [
+        "问题从具体物件生出",
+        "认识逐步增加"
+      ],
+      "conditions": [
+        "摊主愿意简短交流",
+        "可合法观察的食材摊"
+      ],
+      "incompatibleConditions": [
+        "自动授予药效知识",
+        "一问就懂整套地方饮食"
+      ],
+      "carryovers": [
+        "一个确认过的名字",
+        "对气味形状的好奇"
+      ],
+      "adaptation": "鱼选一件看不懂的干货先问名字和普通用途，后轮只延续已经确认的认识；没有回答的问题可留下。"
+    },
+    {
+      "id": "s2-cn-dali-03",
+      "version": "s2-v2",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Tina",
+        "title": "走進城市日常 到雲南大理 去逛菜市場",
+        "url": "https://onelittleday.com.tw/5808-2/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "离开时作者看见背菜篮的大婶向干货摊摊主笑着打招呼。",
+      "mechanisms": [
+        "旁观日常关系",
+        "地方不围着主角转"
+      ],
+      "conditions": [
+        "市场正常营业",
+        "允许角色只是观察者"
+      ],
+      "incompatibleConditions": [
+        "旁观即被赠物",
+        "替陌生人编造多年身世"
+      ],
+      "carryovers": [
+        "对市场日常的印象",
+        "一种行走步调"
+      ],
+      "adaptation": "鱼让开买菜人的通道，看见摊主与熟客自然招呼；以后路过能认出摊位，不立刻成为所有人的老朋友。"
+    },
+    {
+      "id": "s2-cn-quanzhou-01",
+      "version": "s2-v2",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "曹老师是老曹",
+        "title": "泉州丨新年独行，初遇迟来的泉州",
+        "url": "https://go.ly.com/travels/1133721.html",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者在四天中吃了四顿面线糊，注意到各家的味道和配菜不同。",
+      "mechanisms": [
+        "同类比较",
+        "偏好逐渐清晰"
+      ],
+      "conditions": [
+        "每轮新购新食",
+        "同类餐食有真实差别"
+      ],
+      "incompatibleConditions": [
+        "连续三张都只是端碗",
+        "要求评出最正宗"
+      ],
+      "carryovers": [
+        "已尝过的配料",
+        "自己的口味选择"
+      ],
+      "adaptation": "鱼第一次只知道好吃，后轮能说清偏爱何种口感；三张可分别把重点给点单、街巷和离开前的选择，而非全是吃饭。"
+    },
+    {
+      "id": "s2-cn-quanzhou-02",
+      "version": "s2-v2",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "曹老师是老曹",
+        "title": "泉州丨新年独行，初遇迟来的泉州",
+        "url": "https://go.ly.com/travels/1133721.html",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "文中描写剪小的油条浸入面线糊，吸汤后仍留些酥脆。",
+      "mechanisms": [
+        "细小动作试量",
+        "感官比较"
+      ],
+      "conditions": [
+        "食物与进食动作适配角色",
+        "先确认温度"
+      ],
+      "incompatibleConditions": [
+        "用烫伤制造记忆",
+        "跨天留同一碗"
+      ],
+      "carryovers": [
+        "自己喜欢的浸泡程度",
+        "进食小技巧"
+      ],
+      "adaptation": "鱼把两小块分别短泡和多泡一点，发现自己的偏好；后轮买新的一份再应用，不要求摊主教出标准答案。"
+    },
+    {
+      "id": "s2-cn-quanzhou-03",
+      "version": "s2-v2",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "曹老师是老曹",
+        "title": "泉州丨新年独行，初遇迟来的泉州",
+        "url": "https://go.ly.com/travels/1133721.html",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "临走前作者仍选面线糊作午餐，以同类食物回应初到的第一餐。",
+      "mechanisms": [
+        "首尾回应",
+        "主动重复"
+      ],
+      "conditions": [
+        "前序确实吃过并形成印象",
+        "离开安排宽裕"
+      ],
+      "incompatibleConditions": [
+        "末班车倒计时跨授权",
+        "结尾必须升华"
+      ],
+      "carryovers": [
+        "第一餐的记忆",
+        "最后一次配料选择"
+      ],
+      "adaptation": "鱼在返程前再点同类食物，用已经形成的口味做一次选择；总结说出前后变化，也可以只是仍喜欢同一种。"
+    },
+    {
+      "id": "s2-cn-shanghai-01",
+      "version": "s2-v2",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "明明（明明如月成长笔记）",
+        "title": "见证苏州河的华丽蜕变：苏州河工业文明展示馆参观记",
+        "url": "https://lmmsoft.github.io/shanghai_suzhou_creek_industrial_civilization_museum/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者常沿苏州河活动，因想进一步了解它，选了附近的展示馆。",
+      "mechanisms": [
+        "熟悉引出问题",
+        "兴趣驱动路线"
+      ],
+      "conditions": [
+        "角色已有真实河岸经历",
+        "可参观的小馆"
+      ],
+      "incompatibleConditions": [
+        "凭空植入多年故乡记忆",
+        "参观等于掌握全部历史"
+      ],
+      "carryovers": [
+        "已看到的河岸",
+        "一个想弄明白的问题"
+      ],
+      "adaptation": "先让鱼在河边看见一处具体设施，后轮因这个问题进馆，再回河边辨认；原作长期生活改为三轮内新形成的熟悉。"
+    },
+    {
+      "id": "s2-cn-shanghai-02",
+      "version": "s2-v2",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "明明（明明如月成长笔记）",
+        "title": "见证苏州河的华丽蜕变：苏州河工业文明展示馆参观记",
+        "url": "https://lmmsoft.github.io/shanghai_suzhou_creek_industrial_civilization_museum/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者参观当天馆内一部短片没有播放，只显示静止画面。",
+      "mechanisms": [
+        "小期待未实现",
+        "调整关注点"
+      ],
+      "conditions": [
+        "展厅还有可读可看内容",
+        "允许留下遗憾"
+      ],
+      "incompatibleConditions": [
+        "归咎用户来晚",
+        "机器故障必有神奇补偿"
+      ],
+      "carryovers": [
+        "没看完的兴趣",
+        "已看到的静态细节"
+      ],
+      "adaptation": "鱼等一小会儿后看旁边的图板，承认没看到短片；下一轮可继续原兴趣，不保证设备修好或安排隐藏展品。"
+    },
+    {
+      "id": "s2-cn-shanghai-03",
+      "version": "s2-v2",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "明明（明明如月成长笔记）",
+        "title": "见证苏州河的华丽蜕变：苏州河工业文明展示馆参观记",
+        "url": "https://lmmsoft.github.io/shanghai_suzhou_creek_industrial_civilization_museum/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者在馆内楼上室外桌边停留，并另提出以后乘船的计划。",
+      "mechanisms": [
+        "视角变化",
+        "兴趣自然延续"
+      ],
+      "conditions": [
+        "建筑允许停留观景",
+        "先前已看过河岸"
+      ],
+      "incompatibleConditions": [
+        "未乘船却写成已乘",
+        "咖啡厅必然意外治愈"
+      ],
+      "carryovers": [
+        "河岸与高处视角差别",
+        "未来可选兴趣"
+      ],
+      "adaptation": "鱼走累后从楼上看同一段河，记起先前路过的地方；想坐船只作为兴趣，下一轮仍需独立同意，未出发不写成经历。"
+    },
+    {
+      "id": "s2-cn-yangzhou-01",
+      "version": "s2-v2",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "明明（明明如月成长笔记）",
+        "title": "扬州一日游：博物馆、历史、恐龙、雕版印刷、富春茶社",
+        "url": "https://lmmsoft.github.io/yangzhou_trip/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者记述工作室有现场雕刻演示，并提供印刷体验。",
+      "mechanisms": [
+        "观看制作过程",
+        "从成品追问动作"
+      ],
+      "conditions": [
+        "演示对公众开放",
+        "工具由专业人员使用"
+      ],
+      "incompatibleConditions": [
+        "声称作者已经亲手印过",
+        "鱼自行拿刻刀操作"
+      ],
+      "carryovers": [
+        "对图案正反的兴趣",
+        "一种观察到的动作"
+      ],
+      "adaptation": "鱼先看工作人员演示，若另有安全体验才在指导下印一张；观看和动手分开记录，不把体验机会当已完成技能。"
+    },
+    {
+      "id": "s2-cn-yangzhou-02",
+      "version": "s2-v2",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "明明（明明如月成长笔记）",
+        "title": "扬州一日游：博物馆、历史、恐龙、雕版印刷、富春茶社",
+        "url": "https://lmmsoft.github.io/yangzhou_trip/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "上午略看部分展厅后，作者午餐午休，再参观通史展厅。",
+      "mechanisms": [
+        "节奏选择",
+        "保留注意力"
+      ],
+      "conditions": [
+        "角色能合理休息",
+        "后段不依赖当日必须开放"
+      ],
+      "incompatibleConditions": [
+        "看不完等于失败",
+        "用户暂停导致角色疲惫"
+      ],
+      "carryovers": [
+        "一个主动留待细看的主题",
+        "自选节奏"
+      ],
+      "adaptation": "鱼先选一个喜欢的展柜看清楚，把另一个主题留给下一次；跨轮是另一天也成立，不要求馆内苦等或饥饿。"
+    },
+    {
+      "id": "s2-cn-yangzhou-03",
+      "version": "s2-v2",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "明明（明明如月成长笔记）",
+        "title": "扬州一日游：博物馆、历史、恐龙、雕版印刷、富春茶社",
+        "url": "https://lmmsoft.github.io/yangzhou_trip/",
+        "recordedAt": "2026-10-30",
+        "summary": "作者亲历片段的简要意译；正文定位见provenance.json，不代表独立事实核验。"
+      },
+      "detail": "作者觉得几个套餐雷同，曾向前台反复确认差别。",
+      "mechanisms": [
+        "选项不明",
+        "澄清后选择"
+      ],
+      "conditions": [
+        "少量有限餐食选项",
+        "可向服务者确认"
+      ],
+      "incompatibleConditions": [
+        "把菜单问题变成用户填表",
+        "角色一次点下全部"
+      ],
+      "carryovers": [
+        "点单认识",
+        "选择自己的份量"
+      ],
+      "adaptation": "鱼不懂两种点心组合差在哪，问清后只选适合自己的一份；下轮可用上理解，不写成服务者考验或必须答题。"
+    }
+  ],
+  "version": "s2-v2",
+  "sources": [
+    {
+      "id": "alps",
+      "author": "Craig Mod",
+      "title": "Pizza Toast Tales: Alps",
+      "url": "https://craigmod.com/ridgeline/052/",
+      "accessedAt": "2026-10-30",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "walking_newsletter",
+      "readingScope": "Kissa Alps小节正文，尤其菜单、邻座和推荐店段落。",
+      "limitations": "作者对邻座态度有主观揣测，不作为当地人普遍性格。",
+      "evidenceKind": "author_first_person_report_not_independently_verified"
+    },
+    {
+      "id": "silver",
+      "author": "Craig Mod",
+      "title": "The Silver Mine with the Dog",
+      "url": "https://craigmod.com/ridgeline/062/",
+      "accessedAt": "2026-10-30",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "walking_newsletter",
+      "readingScope": "矿镇街道、馆内参观、山路日照与遇狗片段。",
+      "limitations": "不采纳疾病、冶炼危险和对城镇的贬低描述。",
+      "evidenceKind": "author_first_person_report_not_independently_verified"
+    },
+    {
+      "id": "bread",
+      "author": "Craig Mod",
+      "title": "My Kingdom for Bread",
+      "url": "https://craigmod.com/ridgeline/045/",
+      "accessedAt": "2026-10-30",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "planning_and_recollection",
+      "readingScope": "住宿电话、重走路线与早餐选择段落。",
+      "limitations": "含计划与回顾；重走的观察是作者经验判断，不伪装成一次完成的行程。",
+      "evidenceKind": "author_first_person_report_not_independently_verified"
+    },
+    {
+      "id": "textures",
+      "author": "Craig Mod",
+      "title": "Textures Along a Quarantine Path",
+      "url": "https://craigmod.com/ridgeline/064/",
+      "accessedAt": "2026-10-30",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "local_walk_newsletter",
+      "readingScope": "正文关于纹理光线、探索不同小路及富士山的文字。",
+      "limitations": "只取可读文字，不声称检查照片中的具体物件；疫情背景不移植到产品。",
+      "evidenceKind": "author_first_person_report_not_independently_verified"
+    },
+    {
+      "id": "rail",
+      "author": "Alastair Humphreys",
+      "title": "I Read; I Travel; I Become",
+      "url": "https://alastairhumphreys.com/blog/read-travel/",
+      "accessedAt": "2026-10-30",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "travel_recollections",
+      "readingScope": "巴基斯坦买食物、印度返程列车、搭车交谈回忆。",
+      "limitations": "原文部分经历强度过高；不搬用贫困、滞留、疾病或危险乘车方式。",
+      "evidenceKind": "author_first_person_report_not_independently_verified"
+    },
+    {
+      "id": "sunset",
+      "author": "Alastair Humphreys",
+      "title": "A Mediterranean Microadventure",
+      "url": "https://alastairhumphreys.com/blog/mediterranean-microadventure/",
+      "accessedAt": "2026-10-30",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "short_personal_video_note",
+      "readingScope": "视频前后文字中的克罗地亚上坡赶日落片段。",
+      "limitations": "未观看视频；文字只证实赶去看日落，没有交代是否赶上。只收一条。",
+      "evidenceKind": "author_first_person_report_not_independently_verified"
+    },
+    {
+      "id": "saigon",
+      "author": "Jodi Ettenberg",
+      "title": "The Legal Nomads Self-Guided Tour to Saigon Street Food",
+      "url": "https://www.legalnomads.com/saigon-street-food/",
+      "accessedAt": "2026-10-30",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "guide_with_first_person_memories",
+      "readingScope": "开头第一人称回忆：米纸折法、杨桃、腌蒜。",
+      "limitations": "不是整篇叙事游记；只取亲历段，不取商家清单或第三方引语。",
+      "evidenceKind": "author_first_person_report_not_independently_verified"
+    },
+    {
+      "id": "trek",
+      "author": "Emily Lush",
+      "title": "An Honest Guide to the Mestia-Ushguli Trek: Everything I Learned Hiking in Svaneti",
+      "url": "https://wander-lush.org/mestia-ushguli-trek-tips/",
+      "accessedAt": "2026-10-30",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "guide_with_first_person_experience",
+      "readingScope": "Day 2、文明设施反差、个人背包与枕套段落。",
+      "limitations": "只取亲历感受与物件，不移植河流穿越、极端风与高强度徒步。",
+      "evidenceKind": "author_first_person_report_not_independently_verified"
+    },
+    {
+      "id": "station",
+      "author": "Emily Lush",
+      "title": "The Kukushka Train from Borjomi to Bakuriani: A Complete Guide to Georgia’s Scenic Railway",
+      "url": "https://wander-lush.org/kukushka-train-borjomi-bakuriani/",
+      "accessedAt": "2026-10-30",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "guide_with_first_person_regret",
+      "readingScope": "导言中2020年错过乘车、其后回访车站的第一人称段落。",
+      "limitations": "作者明确没乘上车；不把后面的乘客转述、修复计划或预计复运当成她的乘车经历。",
+      "evidenceKind": "author_first_person_report_not_independently_verified"
+    },
+    {
+      "id": "cn-dali",
+      "author": "Tina",
+      "title": "走進城市日常 到雲南大理 去逛菜市場",
+      "url": "https://onelittleday.com.tw/5808-2/",
+      "accessedAt": "2026-10-30",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "signed_first_person_magazine_essay",
+      "readingScope": "小日子署名原刊页面，北门市场的鲜花食材、干货摊问答及结尾招呼段（本次读取L39—53）。",
+      "limitations": "只取署名亲历段。原文关于毒菌处理的说法不采纳，也不作为食用知识；不取宰鱼场面或未经核验的药食建议。",
+      "evidenceKind": "author_first_person_report_not_independently_verified",
+      "destination": "中国·云南·大理",
+      "language": "zh",
+      "batch": "s2-domestic-v1"
+    },
+    {
+      "id": "cn-quanzhou",
+      "author": "曹老师是老曹",
+      "title": "泉州丨新年独行，初遇迟来的泉州",
+      "url": "https://go.ly.com/travels/1133721.html",
+      "accessedAt": "2026-10-30",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "author_attributed_platform_travelogue",
+      "readingScope": "平台显示作者与2022-05-23发布日期；面线糊章节中的四餐比较、油条吃法、离开前一餐（L177—246）。",
+      "limitations": "按平台署名收录，不断言全网首发。网页行程字段为1天但正文写四天，采用正文并保留矛盾；不把旧店址、配方和口味评价当当前权威资料。",
+      "evidenceKind": "author_first_person_report_not_independently_verified",
+      "destination": "中国·福建·泉州",
+      "language": "zh",
+      "batch": "s2-domestic-v1"
+    },
+    {
+      "id": "cn-shanghai",
+      "author": "明明（明明如月成长笔记）",
+      "title": "见证苏州河的华丽蜕变：苏州河工业文明展示馆参观记",
+      "url": "https://lmmsoft.github.io/shanghai_suzhou_creek_industrial_civilization_museum/",
+      "accessedAt": "2026-10-30",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "personal_blog_local_visit",
+      "readingScope": "2023-10-28个人博客，开头熟悉河岸与临时选近处参观、未播放短片、三楼休息与后续计划段（L11—17、106—122）。",
+      "limitations": "城市本地出游而非外地长途旅行。只取亲历行为；不搬历史数据、现行展览/商家信息或把下次乘船计划当成已完成。",
+      "evidenceKind": "author_first_person_report_not_independently_verified",
+      "destination": "中国·上海·苏州河",
+      "language": "zh",
+      "batch": "s2-domestic-v1"
+    },
+    {
+      "id": "cn-yangzhou",
+      "author": "明明（明明如月成长笔记）",
+      "title": "扬州一日游：博物馆、历史、恐龙、雕版印刷、富春茶社",
+      "url": "https://lmmsoft.github.io/yangzhou_trip/",
+      "accessedAt": "2026-10-30",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "personal_blog_family_trip",
+      "readingScope": "2024-08-13个人博客，午饭后继续参观、雕版工作室现场演示、餐前确认套餐段（L64—67、100—104、124）。",
+      "limitations": "作者说现场可体验，不等于作者亲手完成。历史解释、文物价格与食品制作知识未独立核实；票价/预约/商家套餐不移植为当前事实。",
+      "evidenceKind": "author_first_person_report_not_independently_verified",
+      "destination": "中国·江苏·扬州",
+      "language": "zh",
+      "batch": "s2-domestic-v1"
+    }
+  ],
+  "provenance": [
+    {
+      "motifId": "s2-alps-01",
+      "sourceId": "alps",
+      "title": "想点的东西不在菜单上",
+      "locator": "Kissa Alps，菜单段（读取时L41—44）",
+      "anchor": "pizza toast on the menu",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "轻微不如意",
+      "visualScene": "柜台菜单与端上来的碗",
+      "adaptationCaution": "不照搬油腻引发不适或劝勉。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-alps-02",
+      "sourceId": "alps",
+      "title": "推荐地址已经过时",
+      "locator": "Kissa Alps，询问吐司店段（L46）",
+      "anchor": "no longer existed",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "轻微不如意",
+      "visualScene": "旧地址旁的新招牌",
+      "adaptationCaution": "查到已不在不等于作者实际走到店门口；站在门前是原创改编。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-alps-03",
+      "sourceId": "alps",
+      "title": "身份来自日常工作",
+      "locator": "Kissa Alps，结尾询问姓名段（L48）",
+      "anchor": "Tomato farmer",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "偶遇",
+      "visualScene": "摊主手边的普通工具",
+      "adaptationCaution": "不搬用原句、政治讨论、烟酒与作者对人的揣测。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-silver-01",
+      "sourceId": "silver",
+      "title": "日常机器穿上木外壳",
+      "locator": "矿镇街道段（L28）",
+      "anchor": "wooden boxes",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "安静观察",
+      "visualScene": "木壳内的按钮和饮料窗口",
+      "adaptationCaution": "不把一个街道细节写成所有历史街区的普遍事实。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-silver-02",
+      "sourceId": "silver",
+      "title": "同一种物品有不同形状",
+      "locator": "矿镇博物馆银币段（L31—36）",
+      "anchor": "ingot",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "安静观察",
+      "visualScene": "两件不同形状器物的并排展台",
+      "adaptationCaution": "只借对照机制；不移植原文历史解释或贬低展品。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-silver-03",
+      "sourceId": "silver",
+      "title": "阳光走进山谷",
+      "locator": "山路早晨转暖段（L50—51）",
+      "anchor": "fog lifted",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "环境变化",
+      "visualScene": "阴影边界、薄雾与收起的围巾",
+      "adaptationCaution": "跨天继续需重设当天天气；不能硬说雾等了几天。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-silver-04",
+      "sourceId": "silver",
+      "title": "散步被一只狗打断",
+      "locator": "遇狗段（L58）",
+      "anchor": "Along the path we met a dog",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "偶遇",
+      "visualScene": "路边停下的鱼与远处等候者",
+      "adaptationCaution": "不照搬原队伍与狗的外貌，不把动物行为拟成魔法。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-bread-01",
+      "sourceId": "bread",
+      "title": "在重复早餐里改一次选择",
+      "locator": "电话与结尾早餐段（L31、49）",
+      "anchor": "bread breakfast",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "主动尝试",
+      "visualScene": "旅店小餐桌上的早餐",
+      "adaptationCaution": "不能由作者偏好推出当地早餐客观好坏。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-bread-02",
+      "sourceId": "bread",
+      "title": "熟路上的第二次观看",
+      "locator": "重走路线段（L34、40）",
+      "anchor": "rewalks",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "安静观察",
+      "visualScene": "同一街角的远景与局部视角",
+      "adaptationCaution": "这是作者经验判断；鱼的具体发现为原创，不假称来源记载。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-textures-01",
+      "sourceId": "textures",
+      "title": "用小路填满自己的地图",
+      "locator": "探索不同路段落（L35—39）",
+      "anchor": "new path",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "安静观察",
+      "visualScene": "路口、普通标识与看得见的去向",
+      "adaptationCaution": "不搬游戏隐喻，也不把摸清地图当收集任务。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-textures-02",
+      "sourceId": "textures",
+      "title": "把注意力给纹理与光",
+      "locator": "纹理光线与富士山文字段（L29、48）",
+      "anchor": "textures, light",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "安静观察",
+      "visualScene": "前景细纹与远方轮廓",
+      "adaptationCaution": "只借观察尺度；未检查来源照片，不能声明照片里有什么。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-rail-01",
+      "sourceId": "rail",
+      "title": "以为是另一种小吃",
+      "locator": "巴基斯坦车站买食物段（L79—80）",
+      "anchor": "deep-fried",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "轻微不如意",
+      "visualScene": "掰开的点心与小纸袋",
+      "adaptationCaution": "原经历强烈不适；产品只保留误判机制，不暗示原作是轻松趣事。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-rail-02",
+      "sourceId": "rail",
+      "title": "停站让风景有了节奏",
+      "locator": "印度返程列车段（L86）",
+      "anchor": "sweet tea",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "交通观察",
+      "visualScene": "车窗内的小杯与窗外站台",
+      "adaptationCaution": "不复现原文危险乘车姿态，不伪造每站菜名。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-rail-03",
+      "sourceId": "rail",
+      "title": "闲聊从问路变成兴趣",
+      "locator": "搭车交谈段（L91—95）",
+      "anchor": "conversation",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "偶遇",
+      "visualScene": "休息处的两位普通旅客",
+      "adaptationCaution": "不是原作具体对话复述；不复制搭车风险和私人经历。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-sunset-01",
+      "sourceId": "sunset",
+      "title": "想看一场快结束的景色",
+      "locator": "视频后补记段（L80）",
+      "anchor": "try to catch the sunset",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "轻微不如意",
+      "visualScene": "坡顶与正在变暗的天空",
+      "adaptationCaution": "原文未确认成败；实际日落目标不得悬在两轮授权间倒计时。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-saigon-01",
+      "sourceId": "saigon",
+      "title": "被纠正的米纸折法",
+      "locator": "导言亲历回忆（L61）",
+      "anchor": "rice paper folding skills",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "主动尝试",
+      "visualScene": "桌上的米纸、配料和正在收边的手",
+      "adaptationCaution": "不照搬原人物与对白，不让摊主成为必出教学NPC。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-saigon-02",
+      "sourceId": "saigon",
+      "title": "再次光顾被记住的口味",
+      "locator": "导言亲历回忆（L61）",
+      "anchor": "starfruit",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "关系延续",
+      "visualScene": "同一小摊的第二次点单",
+      "adaptationCaution": "作者源自长期回访；三轮内只能建立轻度熟悉，不能写成多年知己。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-saigon-03",
+      "sourceId": "saigon",
+      "title": "调味也是吃饭的一部分",
+      "locator": "导言亲历回忆（L61）",
+      "anchor": "pickled garlic",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "主动尝试",
+      "visualScene": "碗边几小碟调味品",
+      "adaptationCaution": "不给角色或用户强加口味，不把个人回忆推广成文化规则。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-trek-01",
+      "sourceId": "trek",
+      "title": "接近村子时景色才展开",
+      "locator": "Day 2（L36—40）",
+      "anchor": "approach to Adishi",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "环境变化",
+      "visualScene": "近处坡沿与远处聚落轮廓",
+      "adaptationCaution": "原作高强度路程不移植，分轮不是把真实地理压成两小时可达。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-trek-02",
+      "sourceId": "trek",
+      "title": "想象的荒野也有日常生活",
+      "locator": "文明设施反差段（L63—72）",
+      "anchor": "where there are roads",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "轻微不如意",
+      "visualScene": "山路一侧的通行空间与普通小店",
+      "adaptationCaution": "不能编造作者特定购买某饮料；喝什么为原创选择。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-trek-03",
+      "sourceId": "trek",
+      "title": "背包里一件没必要却喜欢的东西",
+      "locator": "背包段（L111—117）",
+      "anchor": "pillowcase from home",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "住宿日常",
+      "visualScene": "旅店枕边的普通布巾与小包",
+      "adaptationCaution": "物件不自动承载悲伤身世，也不等同角色已被用户赋予的记忆。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-station-01",
+      "sourceId": "station",
+      "title": "没坐上的车成为回访理由",
+      "locator": "导言（L13）",
+      "anchor": "missed my chance",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "轻微不如意",
+      "visualScene": "允许参观的站厅与停放车辆",
+      "adaptationCaution": "不使用真实复运预告或未核验时刻表；不能把其他乘客叙述冒充作者经验。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated"
+    },
+    {
+      "motifId": "s2-cn-dali-01",
+      "sourceId": "cn-dali",
+      "title": "先在摊上看见，再在餐桌认出",
+      "locator": "蔬果与鲜花段（L45）",
+      "anchor": "玫瑰花炒煎蛋",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "主动尝试",
+      "visualScene": "菜篮中的食材与摊位标识",
+      "adaptationCaution": "来源未明确先逛市场后尝菜，因果顺序由本项目新创；特定菜名需再核验。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated",
+      "batch": "s2-domestic-v1",
+      "destination": "中国·云南·大理"
+    },
+    {
+      "motifId": "s2-cn-dali-02",
+      "sourceId": "cn-dali",
+      "title": "闻不懂的干货先问名字",
+      "locator": "干货摊段（L49）",
+      "anchor": "酸木瓜乾",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "安静观察",
+      "visualScene": "分格干货摊前的小小停留",
+      "adaptationCaution": "不把原文列出的植物直接写进大肥鱼可食清单，疗效与烹饪建议不入库。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated",
+      "batch": "s2-domestic-v1",
+      "destination": "中国·云南·大理"
+    },
+    {
+      "motifId": "s2-cn-dali-03",
+      "sourceId": "cn-dali",
+      "title": "买菜人的一声招呼",
+      "locator": "离开市场结尾（L51）",
+      "anchor": "背著菜籃",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "安静观察",
+      "visualScene": "菜篮、摊位与侧身让路的鱼",
+      "adaptationCaution": "只保留可见互动，不推断人物关系年限或私人经历。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated",
+      "batch": "s2-domestic-v1",
+      "destination": "中国·云南·大理"
+    },
+    {
+      "motifId": "s2-cn-quanzhou-01",
+      "sourceId": "cn-quanzhou",
+      "title": "同一种早餐，几家不同的碗",
+      "locator": "面线糊章节四餐比较（L198）",
+      "anchor": "吃了四顿面线糊",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "主动尝试",
+      "visualScene": "配料档口前的选择",
+      "adaptationCaution": "不照搬作者四餐行程；配料差别须由实际生成内容建立，不能预写成经历。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated",
+      "batch": "s2-domestic-v1",
+      "destination": "中国·福建·泉州"
+    },
+    {
+      "motifId": "s2-cn-quanzhou-02",
+      "sourceId": "cn-quanzhou",
+      "title": "油条泡多久，由自己试出来",
+      "locator": "面线糊与油条段（L194）",
+      "anchor": "油条剪成小块",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "主动尝试",
+      "visualScene": "碗边一块尚未浸湿的小油条",
+      "adaptationCaution": "两次浸泡实验是原创；来源口感为作者主观描述，不普遍保证。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated",
+      "batch": "s2-domestic-v1",
+      "destination": "中国·福建·泉州"
+    },
+    {
+      "motifId": "s2-cn-quanzhou-03",
+      "sourceId": "cn-quanzhou",
+      "title": "离开前再吃一碗",
+      "locator": "行程最后一日午餐段（L241—246）",
+      "anchor": "有头有尾",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "关系延续",
+      "visualScene": "窗边一碗午餐与收好的行李",
+      "adaptationCaution": "不是回到同一家店，来源末餐是另一家；回应的是食物与记忆。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated",
+      "batch": "s2-domestic-v1",
+      "destination": "中国·福建·泉州"
+    },
+    {
+      "motifId": "s2-cn-shanghai-01",
+      "sourceId": "cn-shanghai",
+      "title": "熟悉的河，也有没问过的问题",
+      "locator": "开头与本次目的地选择（L11—15）",
+      "anchor": "更深入了解它",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "安静观察",
+      "visualScene": "岸边设施与停下观察的鱼",
+      "adaptationCaution": "不把作者从苏州搬上海的个人生涯移植为角色设定。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated",
+      "batch": "s2-domestic-v1",
+      "destination": "中国·上海·苏州河"
+    },
+    {
+      "motifId": "s2-cn-shanghai-02",
+      "sourceId": "cn-shanghai",
+      "title": "想看的短片没有播放",
+      "locator": "不足小节（L108）",
+      "anchor": "一直是静止画面",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "轻微不如意",
+      "visualScene": "静止屏幕旁仍可看的说明板",
+      "adaptationCaution": "来源只确认当次没播放，不认定长期故障或工作人员失责。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated",
+      "batch": "s2-domestic-v1",
+      "destination": "中国·上海·苏州河"
+    },
+    {
+      "motifId": "s2-cn-shanghai-03",
+      "sourceId": "cn-shanghai",
+      "title": "换个高度再看同一条河",
+      "locator": "三楼咖啡厅与后续计划（L113—122）",
+      "anchor": "室外找了张桌子",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "安静观察",
+      "visualScene": "桌角与窗外已见过的河湾",
+      "adaptationCaution": "不照搬作者写博客的设备或品牌，不新增表达记录功能。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated",
+      "batch": "s2-domestic-v1",
+      "destination": "中国·上海·苏州河"
+    },
+    {
+      "motifId": "s2-cn-yangzhou-01",
+      "sourceId": "cn-yangzhou",
+      "title": "看一双手怎样印出图案",
+      "locator": "中国雕版印刷博物馆小节（L100—104）",
+      "anchor": "大师现场雕刻表演",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "主动尝试",
+      "visualScene": "演示台上的版与纸",
+      "adaptationCaution": "原文未说作者亲手制作；图案、材料和操作步骤需要独立核实或另作原创。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated",
+      "batch": "s2-domestic-v1",
+      "destination": "中国·江苏·扬州"
+    },
+    {
+      "motifId": "s2-cn-yangzhou-02",
+      "sourceId": "cn-yangzhou",
+      "title": "吃饭休息后再回来看",
+      "locator": "通史展厅前段（L64—67）",
+      "anchor": "午餐和午休之后",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "休息节奏",
+      "visualScene": "收好导览册后去吃饭的鱼",
+      "adaptationCaution": "原作同日午休，分为三轮是原创；主题和预约需按虚构设定或另核实。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated",
+      "batch": "s2-domestic-v1",
+      "destination": "中国·江苏·扬州"
+    },
+    {
+      "motifId": "s2-cn-yangzhou-03",
+      "sourceId": "cn-yangzhou",
+      "title": "菜单相似，问清再决定",
+      "locator": "富春茶社套餐段（L124）",
+      "anchor": "反复与前台确认",
+      "sourceObservationField": "motifs.detail",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation"
+      ],
+      "category": "轻微不如意",
+      "visualScene": "两份简短菜单与指向其中一项的鱼",
+      "adaptationCaution": "不搬套餐价格和商家结论，不把作者评价当当前服务质量。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_s3_trial_not_user_validated",
+      "batch": "s2-domestic-v1",
+      "destination": "中国·江苏·扬州"
+    }
+  ]
+}
