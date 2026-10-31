@@ -41,11 +41,15 @@ export function derivePaperStates(observations:PaperObservation[]):VisiblePaperS
  validatePaperObservations(observations);
  return observations.map(o=>{
   let state:VisiblePaperState['state']='uncertain';
-  if(o.form==='display_stand'||o.form==='single_sheet')state='not_applicable';
+  if(o.form==='display_stand')state='not_applicable';
+  else if(o.visibleInnerPages===true||o.spreadPanels===true)state='open';
+  else if(o.form==='single_sheet')state='not_applicable';
   else if(o.form==='booklet'||o.form==='foldout'){
-   if(o.visibleInnerPages===true||o.spreadPanels===true)state='open';
-   else if(o.outerCoverOnly===true&&o.visibleInnerPages===false&&o.spreadPanels===false)state='closed';
+   if(o.outerCoverOnly===true&&o.visibleInnerPages===false&&o.spreadPanels===false)state='closed';
   }
   return {object:o.object,state,evidence:o.evidence};
  });
 }
+
+export const PAPER_REGION_PROMPT='另给paperRegions数组，每项{object:menu|guide|book,box:[左,上,右,下]}框住实际可见的纸页/册子，坐标归一化0至1，无法确认位置就返回空数组，不框不存在物件。用于在同图上局部放大检查，不是新画面。';
+export function validatePaperRegions(v:any){if(!Array.isArray(v)||v.length>3||v.some((r:any)=>!r||!['menu','guide','book'].includes(r.object)||!Array.isArray(r.box)||r.box.length!==4||r.box.some((x:any)=>typeof x!=='number'||!Number.isFinite(x)||x<0||x>1)||r.box[2]<=r.box[0]||r.box[3]<=r.box[1]))throw Error('paperRegions须为最多三个有效的归一化矩形，无法定位用[]');}

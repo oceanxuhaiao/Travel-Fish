@@ -18,13 +18,15 @@ it.each(['guide','menu'] as const)('实际生成链：%s展开拦截首稿，反
  const transport=vi.fn<Transport>(async(kind,payload)=>{
   const result=(v:any)=>({choices:[{finish_reason:'stop',message:{content:JSON.stringify(v)}}]});
   if(kind==='image')return {data:[{b64_json:bytes.toString('base64')}]};const p=(payload.messages as any)[0].content[0].text;
-  if(p.startsWith('图1为候选'))return result({paperStates:states(object).map(s=>({object:s.object,form:s.state==='open'?'booklet':'absent',visibleInnerPages:s.state==='open'?true:null,spreadPanels:s.state==='open'?true:null,outerCoverOnly:s.state==='open'?false:null,evidence:s.evidence})),portrayal:{orientation:'side',action:'sit',expression:'focused',subjectHeightRatio:.6},scene_match:true,character_match:true,usable:true,background_conflicts:[],issues:[],facts:['角色坐在桌边','纸页清晰摊开','桌边有窗户']});
+  if(p.startsWith('图1为候选'))return result({paperRegions:object==='guide'?[{object:'guide',box:[.3,.3,.7,.7]}]:[],paperStates:states(object).map(s=>({object:s.object,form:s.state==='open'?'booklet':'absent',visibleInnerPages:s.state==='open'?true:null,spreadPanels:s.state==='open'?true:null,outerCoverOnly:s.state==='open'?false:null,evidence:s.evidence})),portrayal:{orientation:'side',action:'sit',expression:'focused',subjectHeightRatio:.6},scene_match:true,character_match:true,usable:true,background_conflicts:[],issues:[],facts:['角色坐在桌边','纸页清晰摊开','桌边有窗户']});
+  if(p.startsWith('图1为同一候选原图'))return result({paperStates:states(object).map(s=>({object:s.object,form:s.state==='open'?'single_sheet':'absent',visibleInnerPages:s.state==='open'?false:null,spreadPanels:s.state==='open'?true:null,outerCoverOnly:s.state==='open'?false:null,evidence:s.evidence}))});
   if(p.startsWith('写桌宠旅行'))return result({title:'先把眼前这页看清',note:++drafts===1?'我坐在桌旁，'+(object==='menu'?'把菜单合上':'把导览页折起来')+'，想着刚才还想把所有地方都走一遍，如今却愿意多停一会儿，先弄清眼前这一小处，倒也不用那么着急了。':'我坐在桌旁，让纸页摊在眼前，想着刚才还想把所有地方都走一遍，如今却愿意多停一会儿，先弄清眼前这一小处，倒也不用那么着急了。'});
   if(p.startsWith('只检查文字'))return result({has_real_place_name:false,names:[]});if(p.startsWith('审核当前短笺'))return result({accepted:true,issues:[]});return result({checks:[],has_explicit_conflict:false,conflicts:[],uncertain_details:[]});
  });
  try{const generator=createCloudGenerator({root,characterReference:ref,styleReference:ref,secret:()=> 'test-only',storyContext:async()=>({policy:'travel-story-v1',journeyId:trip.series!.id,nodeIndex:1,planHash:'fixed',priorHash:'none',priorCards:[],node:{index:1,role:'停留',location:'展馆',event:'看纸页',action:'阅读',payoff:'留下兴趣',visibleScene:'坐在桌旁看展开纸页',composition:'中景',dependencies:[],carryovers:[],nextInterest:null}})},transport);trip.generation=generator.prepare!(trip);const artifact=await generator(trip,new AbortController().signal);
  expect(artifact.generation?.noteAttempt).toBe(2);expect(transport.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);expect(transport.mock.calls.filter(c=>c[0]==='text'&&(c[1].messages as any)[0].content[0].text.startsWith('写桌宠旅行'))[1][1].messages).toEqual(expect.any(Array));
  const second=(transport.mock.calls.filter(c=>c[0]==='text'&&(c[1].messages as any)[0].content[0].text.startsWith('写桌宠旅行'))[1][1].messages as any)[0].content[0].text;expect(second).toContain('VISIBLE_PAPER_STATE_CONFLICT');expect(second).toContain('不改图');expect(artifact.generation?.visualEvidence).toHaveProperty('paperStates');
+ if(object==='guide')expect(transport.mock.calls.filter(c=>c[0]==='text'&&(c[1].messages as any)[0].content[0].text.startsWith('图1为同一候选原图'))).toHaveLength(1);
  const calls=transport.mock.calls.length;await generator(trip,new AbortController().signal);expect(transport).toHaveBeenCalledTimes(calls);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
@@ -34,6 +36,7 @@ it('先识别物理形态：立牌不适用开合，有折痕且展开是open，
  expect(derivePaperStates(make('display_stand',false,false,false) as any)[0].state).toBe('not_applicable');
  expect(derivePaperStates(make('single_sheet',null,false,null) as any)[0].state).toBe('not_applicable');
  expect(derivePaperStates(make('foldout',true,true,false) as any)[0].state).toBe('open');
+ expect(derivePaperStates(make('single_sheet',false,true,false) as any)[0].state).toBe('open');
  expect(derivePaperStates(make('booklet',false,false,true) as any)[0].state).toBe('closed');
  expect(derivePaperStates(make('booklet',null,false,true) as any)[0].state).toBe('uncertain');
  expect(derivePaperStates(make('unknown',false,false,true) as any)[0].state).toBe('uncertain');

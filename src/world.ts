@@ -1,3 +1,4 @@
+import {DevelopmentValidation} from './development-validation.ts';
 import {ReadinessCheck} from './readiness.ts';
 import {costEstimate} from './cost.ts';
 import {PickupQueue} from './pickup.ts';
@@ -40,7 +41,7 @@ export class PostcardWorld implements World {
   readonly service: TravelService;
   readonly records: PostcardRecords;
   readonly story?:StoryEngine;
-  private verification:ReadinessCheck;
+  private verification:ReadinessCheck;private developmentValidation?:DevelopmentValidation;
   private timer?: ReturnType<typeof setInterval>;
   private host?: WorldHost;
   private pulseFlight?: Promise<void>;
@@ -58,7 +59,8 @@ export class PostcardWorld implements World {
     this.verification=new ReadinessCheck(join(opts.dataDir,'postcard'),opts.cfg,n=>opts.setup?.secret(n)??'',()=>this.host?.modelFacts.model()??'',opts.generator,opts.now);
     this.setup=new SetupPanel(opts.cfg,opts.setup,join(opts.dataDir,'postcard/character-imports'),()=>!!this.host?.modelFacts.accepts('image/png'),opts.setup?{state:()=>this.verification.state(),start:()=>{if(this.service.status()&&['traveling','generating','failed','awaiting_service'].includes(this.service.status()!.status))throw Error('请先结束已有旅行，再验证配置');return this.verification.start();}}:undefined,opts.restart?{required:()=>signature()!==applied,appliedModel:()=>appliedModel,restart:async()=>{if(this.verification.state().phase==='checking'||this.service.status()&&['traveling','generating','awaiting_service','failed'].includes(this.service.status()!.status))throw Error('旅行或制作验证尚未结束，暂不能重启；请先完成或处理当前任务');await opts.restart!();}}:undefined);
     this.service = new TravelService(new TravelStore(join(opts.dataDir,'postcard')), opts.generator, opts.now,true,opts.cfg.developmentTestMode===true?5:TRAVEL_MINUTES);
-    if(opts.bridge)this.story=new StoryEngine(this.service,opts.bridge.transport,undefined,opts.cfg.developmentTestMode===true&&opts.cfg.developmentStoryReview===true);
+    if(opts.bridge&&opts.cfg.developmentValidation===true)this.developmentValidation=new DevelopmentValidation(join(opts.dataDir,'postcard/development-validation'),this.service.store,opts.bridge.transport);
+    if(opts.bridge)this.story=new StoryEngine(this.service,opts.bridge.transport,undefined,opts.cfg.developmentStoryReview===true);
     this.records = new PostcardRecords(this.service.store);
     this.invitations=new InvitationSchedule(join(opts.dataDir,'postcard'),opts.now);
     this.mailbox=new MailboxStore(this.service,opts.now);
@@ -88,7 +90,7 @@ export class PostcardWorld implements World {
     } }))];
   }
   webUi(): WorldWebUiDecl {
-    return { label: '旅行大肥鱼',lamps:this.lamps(), panels:[{id:'album',title:'远方来信',description:'旅行、翻看明信片与保存收藏。'},{id:'setup',title:'配置引导',description:'配置云端 API、参考图及旅行选项。'}],invoke:async(panel,method,args)=>panel==='setup'?this.setup.invoke(method,args):this.panel.invoke(panel,method,args),config: [POSTCARD_CONFIG_GROUP], promptDocs: [{ key:'worlds.postcard.envPrompt', title:'旅行环境说明', description:'旅行状态、费用与生成服务边界。', path:ENV_PROMPT_FILE, role:'envPrompt', vars:[{name:'postcard.availability',description:'当前生成服务接入情况'}] }] };
+    return { label: '旅行大肥鱼',lamps:this.lamps(), panels:[...(this.developmentValidation?[{id:'validation',title:'开发复验',description:'显式启用的本地文字与旧图复验，不生图。'}]:[]),{id:'album',title:'远方来信',description:'旅行、翻看明信片与保存收藏。'},{id:'setup',title:'配置引导',description:'配置云端 API、参考图及旅行选项。'}],invoke:async(panel,method,args)=>panel==='validation'?(this.developmentValidation?(method==='start'?this.developmentValidation.start(String(args[0])):method==='status'?this.developmentValidation.status(String(args[0])):Promise.reject(Error('未知验证方法'))):Promise.reject(Error('开发验证未启用'))):panel==='setup'?this.setup.invoke(method,args):this.panel.invoke(panel,method,args),config: [POSTCARD_CONFIG_GROUP], promptDocs: [{ key:'worlds.postcard.envPrompt', title:'旅行环境说明', description:'旅行状态、费用与生成服务边界。', path:ENV_PROMPT_FILE, role:'envPrompt', vars:[{name:'postcard.availability',description:'当前生成服务接入情况'}] }] };
   }
   private assertReady(){if(!this.opts.cfg.cloudEnabled||!this.opts.generator)throw Error('明信片生成能力未启用，尚未开始旅行');if(this.opts.bridge&&!this.opts.bridge.ready())throw Error('连续叙事需要支持PNG的宿主模型，尚未开始旅行');if(!this.opts.setup)return;const c=this.setup.invoke('check') as {readyForTravel:boolean};if(!c.readyForTravel)throw Error('请先完成配置引导并通过“验证明信片制作”；尚未开始旅行或发起图片请求');}
   private lamps():NonNullable<WorldWebUiDecl['lamps']>{
@@ -144,7 +146,7 @@ export class PostcardWorld implements World {
   }
   async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
-    this.timer = undefined;this.verification.stop();this.opts.bridge?.detach(); this.host = undefined;await this.story?.stop(); await this.mailboxWindow.close(); await this.service.close();
+    this.timer = undefined;await this.developmentValidation?.stop();this.verification.stop();this.opts.bridge?.detach(); this.host = undefined;await this.story?.stop(); await this.mailboxWindow.close(); await this.service.close();
   }
 }
 

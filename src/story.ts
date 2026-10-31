@@ -14,6 +14,7 @@ const words=(v:unknown):v is string[]=>Array.isArray(v)&&v.every(x=>typeof x==='
 const text=(v:unknown,max=1000):v is string=>typeof v==='string'&&!!v.trim()&&v.length<=max;
 const DIMENSIONS=['detail','agency','connection','standalone_payoff','visual','novelty','naturalness'];
 const VOCAB:Record<string,string[]>={motive:['taste','learn_action','understand_place','watch_details','rest','meet_routine','try_route','keep_wish'],development:['preference_compare','skill_practice','question_follow','perspective_compare','route_learning','relationship_revisit','expectation_adjust','deliberate_pause','weather_detour'],links:['memory','question','skill','preference','route','relationship','object','feeling'],ending:['choose_preference','apply_skill','recognize_detail','leave_question','accept_regret','familiar_greeting','rest_content'],activities:['choose_food','eat','observe','ask','walk','rest','compare','practice','ride','greet']};
+export {VOCAB as STORY_VOCABULARY};
 const POLICY='真实生活逻辑，可爱表现，不用魔法，不编造用户同行或长期记忆。每轮独立同意2小时，只制作本轮，三张各有独立收获。跨天只延续合理的物件、技能、兴趣或记忆，不存同一份鲜食，不因用户暂停错过日落或受罚。允许朴素遗憾，不必补偿，不强求赠物或升华。全部地点虚构，不使用真实地名。来源保留具体处境、行动、结果，明确改编和原创，绝不换主角照抄作者整程。';
 
 /** Structural validation is deliberately separate from the model's semantic review. */
@@ -51,6 +52,9 @@ export function planningSchema(bundle:any){
  const names=['text','tags','motive','dependency','carryover','node','signature','candidate'];
  const defs=Object.fromEntries(names.map(name=>{if(!bundle.$defs?.[name])throw Error('缺少故事Schema定义 '+name);return [name,bundle.$defs[name]];}));
  const node=structuredClone(defs.node);node.required.push('emotionalBeat','visualBeat');node.properties.emotionalBeat={type:'object',required:['before','trigger','response','after'],properties:Object.fromEntries(['before','trigger','response','after'].map(k=>[k,{type:'string',minLength:1}]))};node.properties.visualBeat={type:'object',required:['orientation','action','expression'],properties:{orientation:{enum:['front','side','three-quarter-back']},action:{type:'string',minLength:1},expression:{type:'string',minLength:1}}};defs.node=node;
+ const signature=structuredClone(defs.signature);
+ for(const [field,values] of Object.entries(VOCAB))signature.properties[field]=['links','activities'].includes(field)?{type:'array',minItems:1,items:{enum:values}}:{type:'string',enum:values};
+ defs.signature=signature;
  const candidate=structuredClone(defs.candidate);candidate.required.push('grounding');
  const groundingProperties={nodeIndex:{type:'integer',minimum:1,maximum:3},motifId:{type:'string'},...Object.fromEntries(['sourceSituation','sourceAction','sourceResult','retained','adaptation'].map(k=>[k,{type:'string',minLength:1}])),originalDetails:{type:'array',items:{type:'string'}},knowledgeClaims:{type:'array',items:{type:'object',required:['statement','basis','evidence'],properties:{statement:{type:'string'},basis:{enum:['source','character_guess']},evidence:{type:'string'}}}}};
  candidate.properties.grounding={type:'array',minItems:3,maxItems:3,items:{type:'object',required:Object.keys(groundingProperties),properties:groundingProperties}};defs.candidate=candidate;
