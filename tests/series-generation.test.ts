@@ -15,7 +15,7 @@ it('系列生成使用本节点画面；场景偏离但身份与图片可用时�
  let storyChecks=0;const transport=vi.fn<Transport>(async(kind,payload)=>{
   if(kind==='image')return {data:[{b64_json:image.toString('base64')}]};
   const p=(payload.messages as any[])[0].content[0].text;
-  if(p.startsWith('图1为候选'))return response({portrayal:{orientation:'side',action:'sit',expression:'focused',subjectHeightRatio:.75},scene_match:false,character_match:true,usable:true,background_conflicts:[],issues:[],facts:['女孩坐在室内桌边','手里有一本导览册','旁边有展示台']});
+  if(p.startsWith('图1为候选'))return response({paperStates:[{object:'menu',state:'uncertain',evidence:'未见菜单'},{object:'guide',state:'open',evidence:'手中可见摊开内页'},{object:'book',state:'uncertain',evidence:'无其他书'}],portrayal:{orientation:'side',action:'sit',expression:'focused',subjectHeightRatio:.75},scene_match:false,character_match:true,usable:true,background_conflicts:[],issues:[],facts:['女孩坐在室内桌边','手里有一本导览册','旁边有展示台']});
   if(p.startsWith('写桌宠旅行'))return response({title:'导览册边的小停留',note:'我坐在小桌旁把导览册翻开，慢慢看清了一个图示，原来身边的展台就在这一页里。没有急着把每一页都读完，能先弄明白这一小处，我就觉得很有意思。'});
   if(p.startsWith('只检查文字'))return response({has_real_place_name:false,names:[]});
   if(p.startsWith('审核当前短笺'))return response({accepted:++storyChecks===2,issues:storyChecks===1?['受控替身首版需要改写']:[]});
