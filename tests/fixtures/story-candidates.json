@@ -143,7 +143,48 @@
         "柜台侧面中景",
         "窗边全景"
       ]
-    }
+    },
+    "grounding": [
+      {
+        "nodeIndex": 1,
+        "motifId": "s2-cn-quanzhou-01",
+        "sourceSituation": "每轮新购新食",
+        "sourceAction": "作者在四天中吃了四顿面线糊，注意到各家的味道和配菜不同。",
+        "sourceResult": "已尝过的配料",
+        "retained": "作者在四天中吃了四顿面线糊，注意到各家的味道和配菜不同。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "配料摆了好几小盘，她先点简单的一碗"
+        ],
+        "knowledgeClaims": []
+      },
+      {
+        "nodeIndex": 2,
+        "motifId": "s2-cn-quanzhou-01",
+        "sourceSituation": "每轮新购新食",
+        "sourceAction": "作者在四天中吃了四顿面线糊，注意到各家的味道和配菜不同。",
+        "sourceResult": "已尝过的配料",
+        "retained": "作者在四天中吃了四顿面线糊，注意到各家的味道和配菜不同。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "看见相似早餐，这次没有把所有配料都加上"
+        ],
+        "knowledgeClaims": []
+      },
+      {
+        "nodeIndex": 3,
+        "motifId": "s2-cn-quanzhou-01",
+        "sourceSituation": "每轮新购新食",
+        "sourceAction": "作者在四天中吃了四顿面线糊，注意到各家的味道和配菜不同。",
+        "sourceResult": "已尝过的配料",
+        "retained": "作者在四天中吃了四顿面线糊，注意到各家的味道和配菜不同。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "临走仍想吃同类早餐"
+        ],
+        "knowledgeClaims": []
+      }
+    ]
   },
   {
     "id": "dip",
@@ -288,7 +329,48 @@
         "俯看餐桌",
         "人物与街巷中景"
       ]
-    }
+    },
+    "grounding": [
+      {
+        "nodeIndex": 1,
+        "motifId": "s2-cn-quanzhou-02",
+        "sourceSituation": "食物与进食动作适配角色",
+        "sourceAction": "文中描写剪小的油条浸入面线糊，吸汤后仍留些酥脆。",
+        "sourceResult": "自己喜欢的浸泡程度",
+        "retained": "文中描写剪小的油条浸入面线糊，吸汤后仍留些酥脆。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "一小块油条浸一下汤便拿起"
+        ],
+        "knowledgeClaims": []
+      },
+      {
+        "nodeIndex": 2,
+        "motifId": "s2-cn-quanzhou-02",
+        "sourceSituation": "食物与进食动作适配角色",
+        "sourceAction": "文中描写剪小的油条浸入面线糊，吸汤后仍留些酥脆。",
+        "sourceResult": "自己喜欢的浸泡程度",
+        "retained": "文中描写剪小的油条浸入面线糊，吸汤后仍留些酥脆。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "新买的一份早餐仍配油条"
+        ],
+        "knowledgeClaims": []
+      },
+      {
+        "nodeIndex": 3,
+        "motifId": "s2-cn-quanzhou-02",
+        "sourceSituation": "食物与进食动作适配角色",
+        "sourceAction": "文中描写剪小的油条浸入面线糊，吸汤后仍留些酥脆。",
+        "sourceResult": "自己喜欢的浸泡程度",
+        "retained": "文中描写剪小的油条浸入面线糊，吸汤后仍留些酥脆。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "这次不再忙着把整根都浸进去"
+        ],
+        "knowledgeClaims": []
+      }
+    ]
   },
   {
     "id": "counter",
@@ -434,6 +516,47 @@
         "侧面中景",
         "街巷远景"
       ]
-    }
+    },
+    "grounding": [
+      {
+        "nodeIndex": 1,
+        "motifId": "s2-cn-dali-03",
+        "sourceSituation": "市场正常营业",
+        "sourceAction": "离开时作者看见背菜篮的大婶向干货摊摊主笑着打招呼。",
+        "sourceResult": "对市场日常的印象",
+        "retained": "离开时作者看见背菜篮的大婶向干货摊摊主笑着打招呼。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "第一次买早点时说明少加一味调料"
+        ],
+        "knowledgeClaims": []
+      },
+      {
+        "nodeIndex": 2,
+        "motifId": "s2-cn-dali-03",
+        "sourceSituation": "市场正常营业",
+        "sourceAction": "离开时作者看见背菜篮的大婶向干货摊摊主笑着打招呼。",
+        "sourceResult": "对市场日常的印象",
+        "retained": "离开时作者看见背菜篮的大婶向干货摊摊主笑着打招呼。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "再次经过，摊主只是认出她来过"
+        ],
+        "knowledgeClaims": []
+      },
+      {
+        "nodeIndex": 3,
+        "motifId": "s2-cn-dali-03",
+        "sourceSituation": "市场正常营业",
+        "sourceAction": "离开时作者看见背菜篮的大婶向干货摊摊主笑着打招呼。",
+        "sourceResult": "对市场日常的印象",
+        "retained": "离开时作者看见背菜篮的大婶向干货摊摊主笑着打招呼。",
+        "adaptation": "离线受控替身：仅测试字段与反馈链，不作为真实模型质量证据",
+        "originalDetails": [
+          "她已经吃过饭，仍路过摊位"
+        ],
+        "knowledgeClaims": []
+      }
+    ]
   }
 ]

@@ -20,3 +20,13 @@ export function portrayalIssues(current:Portrayal,previous?:Portrayal):string[]{
  if(previous&&current.orientation!=='uncertain'&&current.action!=='uncertain'&&!['uncertain','not-visible'].includes(current.expression)&&current.orientation===previous.orientation&&current.action===previous.action&&current.expression===previous.expression)issues.push('与上一张实际朝向、动作、神态三项全部相同，请保留角色身份但改变事件相关动作或朝向与表情，不能只换背景');
  return issues;
 }
+
+export const GROUNDING_GUIDANCE='真实游记改编必须保留可辨认的处境—行动—结果，不能只抽取观察/好奇机制后发明整段经历。每节点给grounding一项{nodeIndex,motifId,sourceSituation,sourceAction,sourceResult,retained,adaptation,originalDetails:字符串数组,knowledgeClaims:[{statement,basis:source|character_guess,evidence}]}。motifId须属于本故事素材。前三字段只写资料明确提供的内容，不从未读照片猜。retained说明保留的具体经历关系；adaptation说明虚构地点角色和跨轮调整；originalDetails标出原创物件/动作/情绪，不伪称原文。知识性因果结论只能有来源证据或明确保留为未证实猜想，禁止从鞋尖划沙等单次动作推导自然规律。三个节点应有不同的具体生活处境和行动结果，不将同一观察拆成三次伪行程；无需强塞衣食住行全套。';
+export function validateGroundedPlan(p:StoryPlan){
+ const g=p.grounding;
+ if(!Array.isArray(g)||g.length!==3||new Set(g.map(a=>a.nodeIndex)).size!==3)throw Error('grounding须逐一覆盖三个节点的真实处境、行动和结果');
+ for(const a of g){
+  if(![1,2,3].includes(a.nodeIndex)||!p.motifIds.includes(a.motifId)||!['sourceSituation','sourceAction','sourceResult','retained','adaptation'].every(k=>typeof (a as any)[k]==='string'&&(a as any)[k].trim())||!Array.isArray(a.originalDetails)||a.originalDetails.some(x=>typeof x!=='string'||!x.trim())||!Array.isArray(a.knowledgeClaims))throw Error('grounding来源映射不完整，不能只提供素材编号');
+  for(const c of a.knowledgeClaims)if(!c.statement?.trim()||!['source','character_guess'].includes(c.basis)||!c.evidence?.trim())throw Error('知识结论必须说明来源证据或明确未证实的猜想');
+ }
+}

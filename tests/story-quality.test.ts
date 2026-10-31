@@ -1,7 +1,9 @@
-import {it,expect} from 'vitest';
-import {readFileSync,mkdtempSync,rmSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {StoryEngine} from '../src/story.ts';
+import {it,expect,vi} from 'vitest';
+import {readFileSync,mkdtempSync,rmSync,mkdirSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';import {join} from 'node:path';
-import {validateExpressivePlan,validatePortrayal,portrayalIssues} from '../src/story-quality.ts';
+import {validateGroundedPlan,validateExpressivePlan,validatePortrayal,portrayalIssues} from '../src/story-quality.ts';
 import {TravelService,TravelStore,collectionSceneLabel} from '../src/travel.ts';
 import {PostcardPanel} from '../src/panel.ts';
 const plans=JSON.parse(readFileSync(new URL('./fixtures/story-candidates.json',import.meta.url),'utf8'));
@@ -28,4 +30,22 @@ it('实际服务入口和面板一致：开发5分钟，正式120分钟，不能
 
 it('旧系列卡不把旧目录标签当成实际场景，新卡用故事地点且不改原记录',()=>{
  const card:any={series:{nodeIndex:1},sceneLabel:'树洞与溪流'};expect(collectionSceneLabel(card)).toBeUndefined();expect(card.sceneLabel).toBe('树洞与溪流');expect(collectionSceneLabel({...card,generation:{storyLocation:'村口晾衣绳旁'}})).toBe('村口晾衣绳旁');expect(collectionSceneLabel({sceneLabel:'旧单卡标签'} as any)).toBe('旧单卡标签');
+});
+
+it('grounding缺失和不受控知识依据会反馈失败',()=>{
+ const p=structuredClone(plans[0]);expect(()=>validateGroundedPlan(p)).not.toThrow();
+ delete p.grounding;expect(()=>validateGroundedPlan(p)).toThrow('覆盖三个节点');
+ p.grounding=structuredClone(plans[0].grounding);p.grounding[0].knowledgeClaims=[{statement:'越高风越狠',basis:'invented',evidence:'划沙'}];expect(()=>validateGroundedPlan(p)).toThrow('知识结论');
+});
+it('开发预审阻止未批准或改动的方案；批准后精确复用方案且不调用模型规划',async()=>{
+ const root=mkdtempSync(join(tmpdir(),'postcard-review-')),transport=vi.fn();
+ const service=new TravelService(new TravelStore(root),undefined);service.open();
+ try{const trip=service.startSeries(),engine=new StoryEngine(service,transport,undefined,true),signal=new AbortController().signal;
+  await expect(engine.context(trip,signal)).rejects.toThrow('等待用户预审');expect(transport).not.toHaveBeenCalled();
+  mkdirSync(join(root,'development-story-review'),{recursive:true});const file=join(root,'development-story-review/approved-plan.json');
+  const plan=structuredClone(plans[0]),planHash=createHash('sha256').update(JSON.stringify(plan)).digest('hex');
+  writeFileSync(file,JSON.stringify({approved:false,planHash,plan}));await expect(engine.context(trip,signal)).rejects.toThrow('明确批准');
+  writeFileSync(file,JSON.stringify({approved:true,planHash,plan:{...plan,theme:'changed'}}));await expect(engine.context(trip,signal)).rejects.toThrow('哈希');
+  writeFileSync(file,JSON.stringify({approved:true,planHash,plan}));const ctx=await engine.context(trip,signal);expect(ctx.planHash).toBe(planHash);expect(ctx.node).toEqual(plan.nodes[0]);expect(transport).not.toHaveBeenCalled();
+ }finally{await service.close();rmSync(root,{recursive:true,force:true});}
 });
