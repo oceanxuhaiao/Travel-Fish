@@ -1,6 +1,6 @@
 import type {StoryPlan,StoryNode,Portrayal} from './journey-types.ts';
 export const EMOTIONAL_GUIDANCE='每节点写emotionalBeat{before,trigger,response,after}：原先期待/心境→具体发生的小事→自己的选择或反应→此刻感受。情绪可细微，也可留下小遗憾；不强求冲突、补偿或升华。平静可以有层次，但三节点不能只是换三处景物再重复心慢下来。至少两节点有具体可辨的主动选择，情感由事件引起，不堆情绪形容词。';
-export const VISUAL_GUIDANCE='每节点写visualBeat{orientation:front|side|three-quarter-back,action,expression}。三节点至少两种朝向、两种实际动作和两种神态；动作服务当前事件，表情可含蓄，不能三张都正面直立看镜头。角色含帽目标占画面高度18%至28%，背景主体、前中远层次与可探索细节更丰富；背景不能只是空白天空。保留身份服装，不照搬参考图的姿态和脸部表情。';
+export const VISUAL_GUIDANCE='每节点写visualBeat{orientation:front|side|three-quarter-back,action,expression}。三节点至少两种朝向、两种实际动作和两种神态；动作服务当前事件，表情可含蓄，不能三张都正面直立看镜头。由每节点composition决定近景、中景或远景及人物大小，不设统一人物占比；环境细节与当前景别和事件相适应。保留身份服装，不照搬参考图的姿态和脸部表情。';
 export function validateExpressiveNode(node:StoryNode){
  const e=node.emotionalBeat,v=node.visualBeat;
  if(!e||!['before','trigger','response','after'].every(k=>typeof (e as any)[k]==='string'&&(e as any)[k].trim()))throw Error('emotionalBeat缺少before/trigger/response/after，需具体事件、角色反应及感受');
@@ -17,7 +17,6 @@ export function validatePortrayal(p:any):asserts p is Portrayal {
 export const PORTRAYAL_INSTRUCTION='另返回portrayal{orientation:front|side|three-quarter|back|uncertain,action:idle|walk|sit|bend|reach|interact|other|uncertain,expression:neutral|curious|focused|surprised|pleased|disappointed|amused|not-visible|other|uncertain,subjectHeightRatio:含帽全身高度/画布高度的估计比例或无法判断时null}。必须报告实际看见的状态，不复述生成要求；侧背面看不到神态用not-visible。';
 export function portrayalIssues(current:Portrayal,previous?:Portrayal):string[]{
  const issues:string[]=[];
- if(current.subjectHeightRatio!==null&&current.subjectHeightRatio>.42)issues.push('角色过大（估计高度比例'+current.subjectHeightRatio+'），拉远镜头至18%—28%，增加有内容的环境层次');
  if(previous&&current.orientation!=='uncertain'&&current.action!=='uncertain'&&!['uncertain','not-visible'].includes(current.expression)&&current.orientation===previous.orientation&&current.action===previous.action&&current.expression===previous.expression)issues.push('与上一张实际朝向、动作、神态三项全部相同，请保留角色身份但改变事件相关动作或朝向与表情，不能只换背景');
  return issues;
 }

@@ -10,11 +10,11 @@ it('骨架有事件触发的情感、反应与不同朝向动作神态；三张�
  const a=structuredClone(plans[0]);a.nodes.forEach((n:any)=>n.visualBeat={orientation:'front',action:'站着',expression:'平静'});expect(()=>validateExpressivePlan(a)).toThrow('不能只换背景');
  const b=structuredClone(plans[0]);delete b.nodes[1].emotionalBeat;expect(()=>validateExpressivePlan(b)).toThrow('emotionalBeat');
 });
-it('按实际看图评估过大人物与三项全同；不把背面看不见表情当成同款',()=>{
+it('按实际看图评估三项全同，不按人物比例拦截；不把背面看不见表情当成同款',()=>{
  const p={orientation:'front',action:'idle',expression:'neutral',subjectHeightRatio:.25};
  expect(portrayalIssues(p,{...p})).toHaveLength(1);
  expect(portrayalIssues({...p,action:'reach'},p)).toHaveLength(0);
- expect(portrayalIssues({...p,subjectHeightRatio:.65})).toHaveLength(1);
+ expect(portrayalIssues({...p,subjectHeightRatio:.65})).toHaveLength(0);
  expect(portrayalIssues({...p,expression:'not-visible'},p)).toHaveLength(0);
  expect(()=>validatePortrayal({...p,subjectHeightRatio:65})).toThrow('比例');
 });

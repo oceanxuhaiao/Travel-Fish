@@ -20,7 +20,7 @@ export const SCENE_PROMPTS: Record<'forest'|'coast'|'snow',string> = {
   snow:'蓝紫色雪夜小镇，女孩在面包店橱窗外木长椅旁休息，捧着冒轻柔热气的浅色杯子，积雪屋顶、小街、橱窗暖光和远处山影。围绕长椅与斜向街道重新构图，不出现海水、沙滩、沙堡或螃蟹。',
 };
 const COMMON = '生成完整收藏级旅行明信片，竖版2:3，单张。图1仅作角色身份与服装参考：保持图1的发色、发型、脸部、头饰、服装主色与独特配件，不能把不同服饰强改成冬装或鲸鱼帽；自定义角色也严格跟随图1。图2仅作浅淡透明水彩、细铅笔线、象牙白纸与通透留白参考；必须舍弃图2背景，不能搬用海天水平线或沙堡布局。人物含帽约占画面高度18%至33%，具体按本次景别，风景主导，角色自然融入环境光。细节克制，不画文字、日期、签名、logo、邮票；无贴纸感、多余肢体或其他人物。本次场景：';
-const EXPRESSIVE_COMMON=COMMON.replace('人物含帽约占画面高度18%至33%，具体按本次景别，风景主导','人物含帽目标只占画面高度18%至28%，远景或环境全景，背景占主体').replace('脸部、头饰','身份特征、头饰')+' 参考图不能作为姿态模板，必须重新画朝向、动作与神态，不要每次正面直立看镜头。画面前中远至少两层可探索环境细节，避免大片空白天空取代场景。本轮：';
+const EXPRESSIVE_COMMON=COMMON.replace('人物含帽约占画面高度18%至33%，具体按本次景别，风景主导','人物大小与镜头距离完全遵循故事节点composition指定的景别，不设统一人物占比').replace('脸部、头饰','身份特征、头饰')+' 参考图不能作为姿态模板，必须重新画朝向、动作与神态，不要每次正面直立看镜头。画面前中远至少两层可探索环境细节，避免大片空白天空取代场景。本轮：';
 
 type Json = Record<string,unknown>;
 export interface ImageRoute {backend?:ImageBackend;baseUrl?:string;outputContract?:OutputContract;}
@@ -121,7 +121,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     const story=trip.series?await options.storyContext?.(trip,signal):undefined;
     if(trip.series&&!story)throw new PipelineError('系列叙事尚未接入，未发起生图');
     const expressive=spec.visualPolicy==='expressive-v1'&&!!story;
-    const imagePrompt=story?(expressive?EXPRESSIVE_COMMON:COMMON)+' 本轮为连续旅行中的第'+story.nodeIndex+'张，但画面只画这一个时刻，不拼图。'+story.node.visibleScene+'；构图：'+story.node.composition+'。虚构生活环境，不画文字；角色保持参考图身份。'+(expressive?' 本张角色表现：'+JSON.stringify(story.node.visualBeat??{orientation:trip.sceneSnapshot?.visualVariation?.orientation,action:story.node.action,expression:'由当前事件引起的自然神态'})+'；按当前事件重新安排身体、视线与神态。原镜头变化参考：'+JSON.stringify(trip.sceneSnapshot?.visualVariation)+'；冲突时以当前事件可执行性优先，不能照搬参考图站姿。':''):spec.prompt;
+    const imagePrompt=story?(expressive?EXPRESSIVE_COMMON:COMMON)+' 本轮为连续旅行中的第'+story.nodeIndex+'张，但画面只画这一个时刻，不拼图。'+story.node.visibleScene+'；构图：'+story.node.composition+'。虚构生活环境，不画文字；角色保持参考图身份。'+(expressive?' 本张角色表现：'+JSON.stringify(story.node.visualBeat??{orientation:trip.sceneSnapshot?.visualVariation?.orientation,action:story.node.action,expression:'由当前事件引起的自然神态'})+'；按当前事件重新安排身体、视线与神态。故事节点composition决定镜头距离，近景、中景或远景均可；不套用场景目录的通用景别或人物占比，不能照搬参考图站姿。':''):spec.prompt;
     const invalidSchema=(label:string,message:string):never=>{
       const file=join(folder,label+'.json');
       if(existsSync(file))renameSync(file,join(folder,label+'.invalid-'+(cp.textRequests[label]??0)+'.json'));
