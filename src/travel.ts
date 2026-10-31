@@ -11,6 +11,11 @@ export interface Card { tripId: string; scene: Scene; series?:SeriesRef;sceneLab
 interface Snapshot { schema: 1; trips: Trip[]; notified: string[]; journeys?:Journey[]; }
 /** Adapter must return an approved complete artifact, never a temporary URL. */
 export interface Artifact { image: Uint8Array; title: string; note: string; generation?: Record<string,unknown>; }
+/** A legacy catalogue label on a series card is a plan, not the delivered scene. */
+export function collectionSceneLabel(card:Card):string|undefined {
+ const actual=card.generation?.storyLocation;
+ return typeof actual==='string'&&actual.trim()?actual:card.series?undefined:card.sceneLabel;
+}
 export interface Generator {
   (trip: Readonly<Trip>, signal: AbortSignal, phase?: (value: string)=>void): Promise<Artifact>;
   prepare?(trip: Readonly<Trip>): Record<string,unknown>;
@@ -129,7 +134,7 @@ export class TravelStore {
     const existing = this.card(trip.id); if (existing) return existing;
     const bytes = Buffer.from(artifact.image);
     if (!bytes.subarray(0,8).equals(png) || !artifact.title || !artifact.note) throw new Error('生成产物不完整');
-    const record: Card = { tripId: trip.id, scene: trip.scene, ...(trip.series?{series:trip.series}:{}),...(trip.sceneSnapshot?{sceneLabel:trip.sceneSnapshot.label}:{}), title: artifact.title, note: artifact.note, sha256: createHash('sha256').update(bytes).digest('hex'), completedAt: now, ...(artifact.generation ? { generation:artifact.generation } : {}) };
+    const record: Card = { tripId: trip.id, scene: trip.scene, ...(trip.series?{series:trip.series}:{}),...(typeof artifact.generation?.storyLocation==='string'?{sceneLabel:artifact.generation.storyLocation}:trip.sceneSnapshot?{sceneLabel:trip.sceneSnapshot.label}:{}), title: artifact.title, note: artifact.note, sha256: createHash('sha256').update(bytes).digest('hex'), completedAt: now, ...(artifact.generation ? { generation:artifact.generation } : {}) };
     const pending = join(this.collection, trip.id+'.'+randomUUID()+'.pending');
     mkdirSync(pending);
     writeFileSync(join(pending,'postcard.png'), bytes, { flag: 'wx' });
@@ -144,7 +149,7 @@ export class TravelService {
   private flight?: Promise<void>;
   private controller?: AbortController;
   private stopped = true;
-  constructor(readonly store: TravelStore, private generator: Generator | undefined, private now: () => number = Date.now,private earlyPreparation=false) {}
+  constructor(readonly store: TravelStore, private generator: Generator | undefined, private now: () => number = Date.now,private earlyPreparation=false,readonly roundMinutes=120) {if(roundMinutes!==120&&roundMinutes!==5)throw Error('仅支持正式2小时或开发5分钟');}
   open(): void { this.store.open(); this.stopped = false; }
   async close(): Promise<void> { this.stopped = true; this.controller?.abort(); try {await this.flight;} finally {this.store.close();} }
   status(): Trip | null { const trips = this.store.snapshot().trips; return trips.find(t => active.has(t.status)) ?? trips.at(-1) ?? null; }
@@ -160,7 +165,7 @@ export class TravelService {
     }
     return {id:j.id,mark:j.mark,completed:cards.length,total:3,phase:j.endedAt?'ended':running?'traveling':cards.length===3?'completed':'waiting_continue',nextNode:cards.length<3?cards.length+1:null,summary};
   }
-  startSeries():Trip {return this.start('surprise',120,true);}
+  startSeries():Trip {return this.start('surprise',this.roundMinutes,true);}
   endJourney(id:string){
     const j=this.store.snapshot().journeys?.find(j=>j.id===id);if(!j)throw Error('没有这个系列');
     if(this.store.snapshot().trips.some(t=>t.series?.id===id&&active.has(t.status)))throw Error('请先完成或取消当前这一轮，再结束系列');
@@ -182,7 +187,7 @@ export class TravelService {
       series={id:journey.id,mark:journey.mark,nodeIndex,total:3};
       previous=[...state.trips].reverse().find(t=>t.series?.id===journey!.id&&t.series.nodeIndex===nodeIndex&&t.status==='cancelled');
       if(previous)this.generator?.confirmRetry?.(previous,false);
-      minutes=120;
+      minutes=this.roundMinutes;
     }
     const recent=state.trips.slice().reverse();
     const recentScenes=recent.map(t=>t.scene);

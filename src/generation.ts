@@ -7,8 +7,9 @@ import { fetch, ProxyAgent, Agent } from 'undici';
 import { atomicJson, type Generator, type Trip, type Artifact, type Scene } from './travel.ts';
 import {CONTENT_POLICY,LEGACY_POLICY,selectCoastVariant,selectNoteVoice,notePrompt} from './content.ts';
 import {freezeScene,type SceneSnapshot} from './scenes.ts';
+import {PORTRAYAL_INSTRUCTION,validatePortrayal,portrayalIssues} from './story-quality.ts';
 import type {StoryContext} from './journey-types.ts';
-import {generationContract,outputFeedback,feedbackPrompt,type OutputContract} from './model-feedback.ts';
+import {generationContract,objectContract,outputFeedback,feedbackPrompt,type OutputContract} from './model-feedback.ts';
 
 export const POLICY = 'non-contradiction-cloud-v3';
 export const IMAGE_MODEL = 'doubao-seedream-5-0-flash-260915';
@@ -19,12 +20,14 @@ export const SCENE_PROMPTS: Record<'forest'|'coast'|'snow',string> = {
   snow:'蓝紫色雪夜小镇，女孩在面包店橱窗外木长椅旁休息，捧着冒轻柔热气的浅色杯子，积雪屋顶、小街、橱窗暖光和远处山影。围绕长椅与斜向街道重新构图，不出现海水、沙滩、沙堡或螃蟹。',
 };
 const COMMON = '生成完整收藏级旅行明信片，竖版2:3，单张。图1仅作角色身份与服装参考：保持图1的发色、发型、脸部、头饰、服装主色与独特配件，不能把不同服饰强改成冬装或鲸鱼帽；自定义角色也严格跟随图1。图2仅作浅淡透明水彩、细铅笔线、象牙白纸与通透留白参考；必须舍弃图2背景，不能搬用海天水平线或沙堡布局。人物含帽约占画面高度18%至33%，具体按本次景别，风景主导，角色自然融入环境光。细节克制，不画文字、日期、签名、logo、邮票；无贴纸感、多余肢体或其他人物。本次场景：';
+const EXPRESSIVE_COMMON=COMMON.replace('人物含帽约占画面高度18%至33%，具体按本次景别，风景主导','人物含帽目标只占画面高度18%至28%，远景或环境全景，背景占主体').replace('脸部、头饰','身份特征、头饰')+' 参考图不能作为姿态模板，必须重新画朝向、动作与神态，不要每次正面直立看镜头。画面前中远至少两层可探索环境细节，避免大片空白天空取代场景。本轮：';
+
 type Json = Record<string,unknown>;
 export interface ImageRoute {backend?:ImageBackend;baseUrl?:string;outputContract?:OutputContract;}
 export function imageEndpoint(base:string){let u:URL;try{u=new URL(base);}catch{throw new PipelineError('生图API请求地址无效');}if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.search||u.hash)throw new PipelineError('生图接口只支持不含凭据或查询参数的HTTP(S)地址');return u.href.replace(/\/$/,'')+(u.pathname.replace(/\/$/,'').endsWith('/images/generations')?'':'/images/generations');}
 export interface CloudOptions { storyContext?:(trip:Readonly<Trip>,signal:AbortSignal)=>Promise<StoryContext>;imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string; imageModel?:string; hostReady?:()=>boolean; hostTransport?:Transport; useHostModel?:boolean; root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
 export type Transport = (kind:'image'|'text', payload:Json, signal:AbortSignal,route?:ImageRoute)=>Promise<Json>;
-interface Spec { imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string;policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; sceneSnapshot?:SceneSnapshot; placeScopeVersion?:'v1'|'v2'; noteReviewVersion?:'v1'|'v2'|'v3'; }
+interface Spec {visualPolicy?:'expressive-v1'; imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string;policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; sceneSnapshot?:SceneSnapshot; placeScopeVersion?:'v1'|'v2'; noteReviewVersion?:'v1'|'v2'|'v3'; }
 interface Checkpoint { schema:1; imageAttempt:number; pendingImage:boolean; stage:string; textRequests:Record<string,number>; errors:string[]; }
 export class PipelineError extends Error { constructor(message:string) {super(message);this.name='PostcardPipelineError';} }
 export class HttpError extends Error { constructor(readonly status:number) {super('Cloud HTTP '+status);} }
@@ -117,7 +120,8 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     const cp=getCp(trip);
     const story=trip.series?await options.storyContext?.(trip,signal):undefined;
     if(trip.series&&!story)throw new PipelineError('系列叙事尚未接入，未发起生图');
-    const imagePrompt=story?COMMON+' 本轮为连续旅行中的第'+story.nodeIndex+'张，但画面只画这一个时刻，不拼图。'+story.node.visibleScene+'；构图：'+story.node.composition+'。虚构生活环境，不画文字；角色保持参考图身份。':spec.prompt;
+    const expressive=spec.visualPolicy==='expressive-v1'&&!!story;
+    const imagePrompt=story?(expressive?EXPRESSIVE_COMMON:COMMON)+' 本轮为连续旅行中的第'+story.nodeIndex+'张，但画面只画这一个时刻，不拼图。'+story.node.visibleScene+'；构图：'+story.node.composition+'。虚构生活环境，不画文字；角色保持参考图身份。'+(expressive?' 本张角色表现：'+JSON.stringify(story.node.visualBeat??{orientation:trip.sceneSnapshot?.visualVariation?.orientation,action:story.node.action,expression:'由当前事件引起的自然神态'})+'；按当前事件重新安排身体、视线与神态。原镜头变化参考：'+JSON.stringify(trip.sceneSnapshot?.visualVariation)+'；冲突时以当前事件可执行性优先，不能照搬参考图站姿。':''):spec.prompt;
     const invalidSchema=(label:string,message:string):never=>{
       const file=join(folder,label+'.json');
       if(existsSync(file))renameSync(file,join(folder,label+'.invalid-'+(cp.textRequests[label]??0)+'.json'));
@@ -138,7 +142,8 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     }
     async function textCall(label:string,prompt:string,images:Buffer[]=[]):Promise<Json>{
       const target=join(folder,label+'.json');
-      const contract=generationContract(label,spec.policy===POLICY&&spec.noteReviewVersion==='v3');
+      const baseContract=generationContract(label,spec.policy===POLICY&&spec.noteReviewVersion==='v3');
+      const contract=expressive&&/^image-[12]-review$/.test(label)?objectContract('image-review-expressive-v1',v=>{baseContract.validate(v);validatePortrayal(v.portrayal);}):baseContract;
       const feedbackFile=join(folder,label+'-feedback.json');
       const validate=(value:Json)=>{const feedback=outputFeedback(label,contract,value);atomicJson(feedbackFile,feedback);if(!feedback.valid){atomicJson(join(folder,label+'-invalid-output-'+(cp.textRequests[label]??0)+'.json'),value);if(existsSync(target))renameSync(target,join(folder,label+'.invalid-'+(cp.textRequests[label]??0)+'.json'));throw new PipelineError(feedback.errors.map(e=>e.message).join('；'));}return value;};
       if(existsSync(target))return validate(load<Json>(target));
@@ -199,13 +204,14 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
         }
       }
       stage('reviewing_image');
-      imageReview=await textCall('image-'+cp.imageAttempt+'-review', (spec.policy===POLICY?'图1为候选，图2仅角色参考。核对图1的核心景观、图2参考角色身份和服饰（发色、头饰、主色和独特配件；不要求统一为冬装）、明显肢体破碎/乱码等不可用问题。只把核心景观及明确冲突作为场景门槛，具体构图、气氛、可选装饰、手势及细小服饰变化不是硬要求，不清晰不等于错误。不核验真实地理，不要求某座地标。返回JSON：scene_match、character_match、usable（布尔），background_conflicts、issues（字符串数组），facts（3到8条图1直接可见事实）。核心景观：'+spec.sceneSnapshot!.core+'；明确冲突：'+spec.sceneSnapshot!.conflicts+'；可选装饰：'+spec.sceneSnapshot!.optional:'图1为候选，图2仅角色参考。核对图1目标场景、图2参考角色身份和服饰（发色、头饰、主色和独特配件；不要求统一为冬装）、明显肢体破碎/乱码等不可用问题。细微服饰变化和不清晰细节不直接失败；坐站姿势和蒸汽数量为创作建议，不是硬门槛。森林/雪夜不能带入海岸/沙堡/螃蟹。返回JSON：scene_match、character_match、usable（布尔），background_conflicts、issues（字符串数组），facts（3到8条图1直接可见事实）。目标：'+(spec.scenePrompt??SCENE_PROMPTS[trip.scene as keyof typeof SCENE_PROMPTS])),[readFileSync(imagePath()),refs[0]]);
-      if(imageAccepted(imageReview)||(story&&imageReview.character_match===true&&imageReview.usable===true&&strings(imageReview.facts,3,8)&&typeof imageReview.scene_match==='boolean'&&Array.isArray(imageReview.background_conflicts)))break;
+      imageReview=await textCall('image-'+cp.imageAttempt+'-review', (spec.policy===POLICY?'图1为候选，图2仅角色参考。核对图1的核心景观、图2参考角色身份和服饰（发色、头饰、主色和独特配件；不要求统一为冬装）、明显肢体破碎/乱码等不可用问题。只把核心景观及明确冲突作为场景门槛，具体构图、气氛、可选装饰、手势及细小服饰变化不是硬要求，不清晰不等于错误。不核验真实地理，不要求某座地标。返回JSON：scene_match、character_match、usable（布尔），background_conflicts、issues（字符串数组），facts（3到8条图1直接可见事实）。核心景观：'+(expressive?story!.node.visibleScene:spec.sceneSnapshot!.core)+'；明确冲突：'+(expressive?'只拦明显环境类型或体量冲突，如明确接续的一层小屋变高楼；角度/材质/门窗变化不算。':spec.sceneSnapshot!.conflicts)+'；可选装饰：'+spec.sceneSnapshot!.optional:'图1为候选，图2仅角色参考。核对图1目标场景、图2参考角色身份和服饰（发色、头饰、主色和独特配件；不要求统一为冬装）、明显肢体破碎/乱码等不可用问题。细微服饰变化和不清晰细节不直接失败；坐站姿势和蒸汽数量为创作建议，不是硬门槛。森林/雪夜不能带入海岸/沙堡/螃蟹。返回JSON：scene_match、character_match、usable（布尔），background_conflicts、issues（字符串数组），facts（3到8条图1直接可见事实）。目标：'+(spec.scenePrompt??SCENE_PROMPTS[trip.scene as keyof typeof SCENE_PROMPTS]))+(expressive?PORTRAYAL_INSTRUCTION+' facts如有建筑请说明可确定的大致体量（低矮小屋/高层等），无法判断就如实说。background_conflicts只列明确环境类型/体量冲突，不把角度材质或未展示细节当冲突。':''),[readFileSync(imagePath()),refs[0]]);
+      const qualityIssues=expressive?[...portrayalIssues(imageReview.portrayal as any,story!.priorCards.at(-1)?.portrayal),...((imageReview.background_conflicts as string[]).map(c=>'明确环境类型/体量冲突：'+c))]:[];
+      if(!qualityIssues.length&&(imageAccepted(imageReview)||(story&&imageReview.character_match===true&&imageReview.usable===true&&strings(imageReview.facts,3,8)&&typeof imageReview.scene_match==='boolean'&&Array.isArray(imageReview.background_conflicts))))break;
       // A malformed check does not justify paying for another image.
       if(['scene_match','character_match','usable'].some(k=>typeof imageReview![k]!=='boolean')||!Array.isArray(imageReview.background_conflicts)||!strings(imageReview.facts,3,8))invalidSchema('image-'+cp.imageAttempt+'-review','图像审核格式无效，请检查后恢复本张图片');
       if(cp.imageAttempt>=2)throw new PipelineError('两张候选图均未通过，暂不入库');
       stage('image_rejected');
-      atomicJson(join(folder,'image-'+cp.imageAttempt+'-rejected.json'),{rejected:true,validation:'business',review:imageReview,repairInstruction:'只修正审核指出的身份或不可用问题，不用改字掩盖坏图'});
+      atomicJson(join(folder,'image-'+cp.imageAttempt+'-rejected.json'),{rejected:true,validation:'business',review:imageReview,qualityIssues,repairInstruction:'只修正审核指出的身份或不可用问题，不用改字掩盖坏图'});
     }
     const image=readFileSync(imagePath());
     for(let attempt=1;attempt<=2;attempt++){
@@ -213,7 +219,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       const priorNoteFile=join(folder,'image-'+cp.imageAttempt+'-note-'+(attempt-1)+'-outcome.json');
       const priorNote=existsSync(priorNoteFile)?load<Json>(priorNoteFile):null;
       const rejectNote=(code:string,details:unknown)=>atomicJson(join(folder,'image-'+cp.imageAttempt+'-note-'+attempt+'-outcome.json'),{valid:false,validation:'business',code,previousOutput:note,details,repairInstruction:'保留本张图片，只修正短笺中具体未通过项；不能把审核拒绝改写为通过'});
-      const raw=await textCall('image-'+cp.imageAttempt+'-note-'+attempt,notePrompt(imageReview.facts,options.recentTitles?.().slice(0,12)??[],spec.policy!==LEGACY_POLICY?spec.noteVoice:undefined)+(spec.policy===POLICY?' 本次地点虚构，title和note不得使用任何真实省市、景区、国家等专有地名，只写通用环境或风景。':'')+(story?' 连续故事DATA仅供参考：'+JSON.stringify(story)+'。实际画面事实优先于计划，计划未实现时改本张文字，不重画合格图。不把未展示当反证，但不得编前序短笺未建立的物件/技能/约定；延续已有具体认识，当前有自己的小收获与感受，不只写风景。日落等目标当轮结清，跨天食物新购，不惩罚用户暂停。':'')+feedbackPrompt(priorNote));
+      const raw=await textCall('image-'+cp.imageAttempt+'-note-'+attempt,(expressive?'写桌宠旅行短笺，返回JSON：title（4到20字）、note（60到110字，最多120字）。第一人称写给收信人，写我遇见什么、怎么选择或反应、为何产生此刻感受。用具体小动作或心中念头表达情绪，不只列景物再说心慢下来；也不强制每张都想你、变开心或升华。具体动作若画中未成立可写合理过去经过，当前明确姿态须与图相容。只凭实际图像和已交付短笺，不把预案未成立细节写成经历。画面事实：'+JSON.stringify(imageReview.facts)+'。本节点情绪预案（可因图和实际前文调整）：'+JSON.stringify(story!.node.emotionalBeat)+'。':notePrompt(imageReview.facts,options.recentTitles?.().slice(0,12)??[],spec.policy!==LEGACY_POLICY?spec.noteVoice:undefined))+(spec.policy===POLICY?' 本次地点虚构，title和note不得使用任何真实省市、景区、国家等专有地名，只写通用环境或风景。':'')+(story?' 连续故事DATA仅供参考：'+JSON.stringify(story)+'。实际画面事实优先于计划，计划未实现时改本张文字，不重画合格图。不把未展示当反证，但不得编前序短笺未建立的物件/技能/约定；延续已有具体认识，当前有自己的小收获与感受，不只写风景。日落等目标当轮结清，跨天食物新购，不惩罚用户暂停。':'')+feedbackPrompt(priorNote));
       const note=formatNote(raw);
       atomicJson(join(folder,'image-'+cp.imageAttempt+'-note-'+attempt+'-formatted.json'),{policy:'sentence-boundary-length-v1',changed:note.note!==raw.note,note});
       if(!noteFormatted(note)){rejectNote('NOTE_FORMAT','title须4至20字符，note须40至120字符，保留完整句');continue;}
@@ -227,12 +233,12 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       }
       if(textAccepted(review,spec.policy===POLICY&&spec.noteReviewVersion==='v3')){
         if(story){
-          const storyReview=await textCall('image-'+cp.imageAttempt+'-note-'+attempt+'-story-review','审核当前短笺与实际画面事实、前序最终短笺是否连贯。计划不是已发生；仅引用编号不证明句意。未展示的感受/过去对话不是反证，但不能把未拿到的物件、只看过的演示说成已有作品/技能，不能编用户同行、跨天旧食物或强行圆满。当前须有独立收获和具体感受。图文不符只改字，不因故事偏差重画图。返回{accepted:boolean,issues:string[]}。DATA：'+JSON.stringify({note,visualFacts:imageReview.facts,previousFinalCards:story.priorCards,plannedNode:story.node}));
+          const storyReview=await textCall('image-'+cp.imageAttempt+'-note-'+attempt+'-story-review','审核当前短笺与实际画面事实、前序最终短笺是否连贯。计划不是已发生；仅引用编号不证明句意。未展示的感受/过去对话不是反证，但不能把未拿到的物件、只看过的演示说成已有作品/技能，不能编用户同行、跨天旧食物或强行圆满。当前须有独立收获、自己的反应和由事件引起的具体感受，不能只列景物后重复心慢下来；允许轻微遗憾、不强制开心或升华。跨卡只拦明确接续地点的明显类型体量不符，如一层小屋变高楼；角度、材质、门窗变化不阻断。图文不符只改字，不因故事偏差重画图。返回{accepted:boolean,issues:string[]}。DATA：'+JSON.stringify({note,visualFacts:imageReview.facts,previousFinalCards:story.priorCards,plannedNode:story.node}));
           if(storyReview.accepted!==true||!Array.isArray(storyReview.issues)||storyReview.issues.length){rejectNote('STORY_CONTINUITY',storyReview);continue;}
         }
         atomicJson(join(folder,'image-'+cp.imageAttempt+'-note-'+attempt+'-outcome.json'),{valid:true,validation:'business',reviews:'已通过当前图文、地点及适用的故事评审；不等于已交付'});
         stage('committing');
-        return {image,title:note.title as string,note:note.note as string,generation:{...(story?{storyPolicy:story.policy,storyPlanHash:story.planHash,previousCardsHash:story.priorHash,visualEvidence:{imageSha:hash(image),facts:imageReview.facts,reviewHash:hash(Buffer.from(JSON.stringify(imageReview)))}}:{}),policy:spec.policy,noteFormatting:'sentence-boundary-length-v1',...(spec.policy===POLICY?{placeScopeVersion:spec.placeScopeVersion??'v1',noteReviewVersion:spec.noteReviewVersion??'v1'}:{}),imageModel:spec.imageModel,visionModel:spec.visionModel,characterSha:spec.characterSha,styleSha:spec.styleSha,imageAttempt:cp.imageAttempt,noteAttempt:attempt,...(spec.sceneSnapshot?{catalogVersion:spec.sceneSnapshot.catalogVersion,sceneLabel:spec.sceneSnapshot.label}:{}),...(spec.sceneVariant?{sceneVariant:spec.sceneVariant,noteVoice:spec.noteVoice}:{})}} satisfies Artifact;
+        return {image,title:note.title as string,note:note.note as string,generation:{...(story?{storyLocation:story.node.location,...(expressive?{portrayal:imageReview.portrayal}:{}),storyPolicy:story.policy,storyPlanHash:story.planHash,previousCardsHash:story.priorHash,visualEvidence:{imageSha:hash(image),facts:imageReview.facts,reviewHash:hash(Buffer.from(JSON.stringify(imageReview)))}}:{}),policy:spec.policy,noteFormatting:'sentence-boundary-length-v1',...(spec.policy===POLICY?{placeScopeVersion:spec.placeScopeVersion??'v1',noteReviewVersion:spec.noteReviewVersion??'v1'}:{}),imageModel:spec.imageModel,visionModel:spec.visionModel,characterSha:spec.characterSha,styleSha:spec.styleSha,imageAttempt:cp.imageAttempt,noteAttempt:attempt,...(spec.sceneSnapshot?{catalogVersion:spec.sceneSnapshot.catalogVersion,sceneLabel:spec.sceneSnapshot.label}:{}),...(spec.sceneVariant?{sceneVariant:spec.sceneVariant,noteVoice:spec.noteVoice}:{})}} satisfies Artifact;
       }
       rejectNote('IMAGE_TEXT_CONFLICT',review);
       if(typeof review.has_explicit_conflict!=='boolean'||!Array.isArray(review.conflicts)||!strings(review.uncertain_details))invalidSchema('image-'+cp.imageAttempt+'-note-'+attempt+'-review','文案审核格式无效，不能按通过处理');
@@ -250,7 +256,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     ['character.png','style.png'].forEach((name,i)=>writeFileSync(join(folder,'input',name),refs[i],{flag:'wx'}));
     const sceneSnapshot=trip.sceneSnapshot??freezeScene(trip.id,trip.scene,[],options.recentVariants?.(trip.scene)??[]);
     const variant={id:sceneSnapshot.id,prompt:sceneSnapshot.prompt};
-    const spec:Spec={imageBackend:backend,...(backend!=='ark'?{imageBaseUrl:options.imageBaseUrl,imageSize:options.imageSize?.trim()||(backend==='gemini'?'2K':backend==='qwen'?'1024*1536':'1024x1536')}:{}),sceneSnapshot,placeScopeVersion:'v2',noteReviewVersion:'v3',policy:POLICY,imageModel:options.imageModel?.trim()||IMAGE_MODEL,visionModel:options.useHostModel?'host-model':VISION_MODEL,prompt:COMMON+variant.prompt,characterSha:hash(refs[0]),styleSha:hash(refs[1]),scenePrompt:variant.prompt,sceneVariant:variant.id,noteVoice:selectNoteVoice(trip.id)};
+    const spec:Spec={visualPolicy:'expressive-v1',imageBackend:backend,...(backend!=='ark'?{imageBaseUrl:options.imageBaseUrl,imageSize:options.imageSize?.trim()||(backend==='gemini'?'2K':backend==='qwen'?'1024*1536':'1024x1536')}:{}),sceneSnapshot,placeScopeVersion:'v2',noteReviewVersion:'v3',policy:POLICY,imageModel:options.imageModel?.trim()||IMAGE_MODEL,visionModel:options.useHostModel?'host-model':VISION_MODEL,prompt:EXPRESSIVE_COMMON+variant.prompt,characterSha:hash(refs[0]),styleSha:hash(refs[1]),scenePrompt:variant.prompt,sceneVariant:variant.id,noteVoice:selectNoteVoice(trip.id)};
     atomicJson(join(folder,'spec.json'),spec);return {...spec};
   };
   generate.confirmRetry=(trip,confirmed)=>{

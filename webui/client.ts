@@ -49,10 +49,10 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
     }else{
       const continuation=data.journey?.phase==='waiting_continue';
       title.textContent=continuation?'继续这段小旅程':'让它去远方走走';
-      sub.textContent=data.generatorConnected?'每趟旅行固定 2 小时。明信片在旅途中制作，到时交付；云端生成按服务计费。':'先在扩展配置中连接图片与视觉服务，再让它出发。已收到的来信随时可以翻看。';
+      sub.textContent=data.generatorConnected?'每趟'+(data.minutes===5?'开发测试等待5分钟':'旅行固定2小时')+'。明信片在旅途中制作，到时交付；云端生成按服务计费。':'先在扩展配置中连接图片与视觉服务，再让它出发。已收到的来信随时可以翻看。';
       if(data.cost)text.append(el('p','pc-cost',data.cost.normalImageCost===null?'下一趟图片费用按所选模型费率，另加宿主模型用量。':'下一趟图片通常约 ¥'+data.cost.normalImageCost.toFixed(2)+'，两张候选约 ¥'+data.cost.maxImageCost!.toFixed(2)+'；另加宿主模型用量。'));
-      if(continuation){sub.textContent=data.journey!.mark+' · 已收到 '+data.journey!.completed+'/3 张。下次出发仍等2小时；隔几天再来、没读上一张都不影响进度。';controls.append(button('结束这段旅程',async()=>{if(await ctx.ui.confirm({title:'结束这段旅程？',body:'已收到的明信片保留，不再补齐剩余节点，也不额外制作总结。'}))await action('endJourney',[data!.journey!.id]);}));}
-      const start=button(continuation?'再出发2小时 · 第'+data.journey!.nextNode+'/3张':'带一封来信回来',()=>action('start'),'pc-button pc-primary');start.disabled=!data.generatorConnected||data.readyForTravel===false||busy;controls.append(start);
+      if(continuation){sub.textContent=data.journey!.mark+' · 已收到 '+data.journey!.completed+'/3 张。下次出发仍等'+(data.minutes===5?'5分钟（开发测试）':'2小时')+'；隔几天再来、没读上一张都不影响进度。';controls.append(button('结束这段旅程',async()=>{if(await ctx.ui.confirm({title:'结束这段旅程？',body:'已收到的明信片保留，不再补齐剩余节点，也不额外制作总结。'}))await action('endJourney',[data!.journey!.id]);}));}
+      const start=button(continuation?'再出发'+(data.minutes===5?'5分钟':'2小时')+' · 第'+data.journey!.nextNode+'/3张':'带一封来信回来',()=>action('start'),'pc-button pc-primary');start.disabled=!data.generatorConnected||data.readyForTravel===false||busy;controls.append(start);
       if(!data.generatorConnected||data.readyForTravel===false){
         const notice=el('div','pc-start-blocked'),reason=el('p','',data.generatorConnected?'配置已更改，请先验证明信片制作':'请先完成生图配置，并验证明信片制作');reason.id='pc-start-disabled-reason';start.setAttribute('aria-describedby',reason.id);start.title=reason.textContent??'';
         const link=el('a','pc-button','前往验证');link.href='#/provider/world%3Apostcard/setup';link.addEventListener('click',()=>{try{doc.defaultView?.sessionStorage.setItem('postcard:focus-verification','1');}catch{}});notice.append(reason,link);controls.append(notice);

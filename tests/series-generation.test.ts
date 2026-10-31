@@ -15,14 +15,14 @@ it('系列生成使用本节点画面；场景偏离但身份与图片可用时�
  let storyChecks=0;const transport=vi.fn<Transport>(async(kind,payload)=>{
   if(kind==='image')return {data:[{b64_json:image.toString('base64')}]};
   const p=(payload.messages as any[])[0].content[0].text;
-  if(p.startsWith('图1为候选'))return response({scene_match:false,character_match:true,usable:true,background_conflicts:['实际室内而非旧目录海岸'],issues:[],facts:['女孩坐在室内桌边','手里有一本导览册','旁边有展示台']});
+  if(p.startsWith('图1为候选'))return response({portrayal:{orientation:'side',action:'sit',expression:'focused',subjectHeightRatio:.23},scene_match:false,character_match:true,usable:true,background_conflicts:[],issues:[],facts:['女孩坐在室内桌边','手里有一本导览册','旁边有展示台']});
   if(p.startsWith('写桌宠旅行'))return response({title:'导览册边的小停留',note:'我坐在小桌旁把导览册翻开，慢慢看清了一个图示，原来身边的展台就在这一页里。没有急着把每一页都读完，能先弄明白这一小处，我就觉得很有意思。'});
   if(p.startsWith('只检查文字'))return response({has_real_place_name:false,names:[]});
   if(p.startsWith('审核当前短笺'))return response({accepted:++storyChecks===2,issues:storyChecks===1?['受控替身首版需要改写']:[]});
   return response({checks:[],has_explicit_conflict:false,conflicts:[],uncertain_details:[]});
  });
  try{const generator=createCloudGenerator({root,characterReference:ref,styleReference:ref,secret:()=> 'test-only',storyContext:async()=>ctx},transport);trip.generation=generator.prepare!(trip);const result=await generator(trip,new AbortController().signal);
-  expect(transport.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);expect(transport.mock.calls.find(c=>c[0]==='image')![1].prompt).toContain(ctx.node.visibleScene);expect(result.generation?.noteAttempt).toBe(2);expect(result.generation?.visualEvidence).toMatchObject({facts:['女孩坐在室内桌边','手里有一本导览册','旁边有展示台']});
+  expect(transport.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);expect(transport.mock.calls.find(c=>c[0]==='image')![1].prompt).toContain(ctx.node.visibleScene);expect(result.generation?.noteAttempt).toBe(2);expect(result.generation?.storyLocation).toBe('室内小馆');expect(result.generation?.portrayal).toMatchObject({orientation:'side',action:'sit'});expect(transport.mock.calls.find(c=>c[0]==='image')![1].prompt).toContain('18%至28%');expect(result.generation?.visualEvidence).toMatchObject({facts:['女孩坐在室内桌边','手里有一本导览册','旁边有展示台']});
   const next={...trip,id:randomUUID(),contentId:trip.id};const calls=transport.mock.calls.length;await generator(next,new AbortController().signal);expect(transport).toHaveBeenCalledTimes(calls);
  }finally{rmSync(root,{recursive:true,force:true});}
 });

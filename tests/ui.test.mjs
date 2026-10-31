@@ -16,6 +16,10 @@ function fixture(cards=[]){
 }
 const card=(id,scene)=>({tripId:id,scene,title:'一封安静的来信',note:'像把一阵风轻轻留在信里。',completedAt:1700000000000});
 const flush=()=>new Promise(r=>setImmediate(r));
+it('开发5分钟的初始和续行文案都取服务时长，不残留固定2小时',async()=>{
+ const f=fixture();f.setState({trip:null,cards:[],minutes:5,generatorConnected:true});await mountAlbum(f.ctx);await flush();expect(f.ctx.root.textContent).toContain('开发测试等待5分钟');expect(f.ctx.root.textContent).not.toContain('2 小时');
+ f.setState({trip:null,cards:[],minutes:5,generatorConnected:true,journey:{id:'dev',mark:'测试',phase:'waiting_continue',completed:1,nextNode:2}});f.timers.forEach(fn=>fn());await flush();expect(f.ctx.root.textContent).toContain('再出发5分钟');expect(f.ctx.root.textContent).not.toContain('仍等2小时');
+});
 it('系列仍时间平铺，共同标识可见；等待继续必须点新一轮按钮',async()=>{
  const a={...card('a','forest'),series:{id:'journey-a',mark:'旅迹·abcd',nodeIndex:1,total:3}},f=fixture([a]);
  f.setState({trip:null,cards:[a],minutes:120,generatorConnected:true,journey:{id:'journey-a',mark:'旅迹·abcd',phase:'waiting_continue',completed:1,nextNode:2}});
