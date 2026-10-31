@@ -29,11 +29,12 @@ export class PickupQueue {
     if(next.active&&(next.active.expiresAt<=this.now()||!cards.some(c=>c.tripId===next.active!.tripId&&(c.unread||next.active!.replay)))){delete next.active;changed=true;}
     if(changed)this.save(next);
   }
-  snapshot(){this.sync();return {active:this.state.active?structuredClone(this.state.active):null,pending:this.state.records.filter(r=>!r.done&&this.mail().cards.some(c=>c.tripId===r.tripId&&c.unread)).map(r=>r.tripId)};}
+  private pendingCards(){return this.mail().cards.filter(c=>c.unread&&this.state.records.some(r=>r.tripId===c.tripId&&!r.done)).sort((a,b)=>a.completedAt-b.completedAt||a.tripId.localeCompare(b.tripId));}
+  snapshot(){this.sync();return {active:this.state.active?structuredClone(this.state.active):null,pending:this.pendingCards().map(c=>c.tripId)};}
   offer(manual=false,tripId?:string):PickupRequest|null {
     this.sync();if(this.state.active)return structuredClone(this.state.active);
     const where=this.placement();if(!where)return null;
-    const cards=this.mail().cards;const record=this.state.records.find(r=>(manual||!r.done)&&(manual||!r.attempted)&&(!tripId||r.tripId===tripId)&&cards.some(c=>c.tripId===r.tripId&&(manual||c.unread)));
+    const cards=this.mail().cards;const first=this.pendingCards()[0];if(first)tripId=first.tripId;const record=this.state.records.find(r=>(manual||!r.done)&&(manual||!r.attempted)&&(!tripId||r.tripId===tripId)&&cards.some(c=>c.tripId===r.tripId&&(manual||c.unread)));
     if(!record)return null;
     const next=structuredClone(this.state);next.records.find(r=>r.tripId===record.tripId)!.attempted=true;
     next.active={requestId:randomUUID(),tripId:record.tripId,to:where.to,phase:'offered',expiresAt:this.now()+120000,...(!cards.find(c=>c.tripId===record.tripId)!.unread?{replay:true}:{})};this.save(next);return structuredClone(next.active);
@@ -44,7 +45,9 @@ export class PickupQueue {
     if(!record||!this.mail().cards.some(c=>c.tripId===tripId))throw Error('没有这封已入藏的来信');
     if(this.state.active)return {kind:'in_progress',tripId:this.state.active.tripId,request:structuredClone(this.state.active)};
     if(record.done)return {kind:'open_local',tripId};
-    const elapsed=record.requestedAt===undefined?Infinity:this.now()-record.requestedAt;
+    tripId=this.pendingCards()[0]?.tripId??tripId;
+    const target=this.state.records.find(r=>r.tripId===tripId)!;
+    const elapsed=target.requestedAt===undefined?Infinity:this.now()-target.requestedAt;
     if(elapsed<60000)return {kind:record.done?'open_local':'cooldown',tripId,retryAfterMs:Math.max(0,60000-elapsed)};
     const request=this.offer(true,tripId);if(!request)return {kind:'unavailable',tripId};
     const next=structuredClone(this.state);next.records.find(r=>r.tripId===tripId)!.requestedAt=this.now();this.save(next);
