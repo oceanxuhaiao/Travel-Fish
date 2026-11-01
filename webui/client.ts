@@ -6,8 +6,8 @@ interface Trip {id:string;scene:string;status:string;startedAt:number;dueAt:numb
 interface Snapshot {journey?:{id:string;mark:string;phase:string;completed:number;nextNode:number|null;summary?:{status:string;error?:string;text?:string}}|null;cost?:{normalImageCost:number|null;maxImageCost:number|null;hostCost:string};readyForTravel?:boolean;trip:Trip|null;cards:Card[];minutes:number;generatorConnected:boolean;mailbox?:{unreadCount:number};mailboxWindow?:{phase:string;detail:string};}
 const date=(n:number)=>new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:'long',day:'numeric'}).format(new Date(n));
 const active=(t:Trip|null)=>!!t&&['traveling','generating','awaiting_service','failed'].includes(t.status);
-const SEAL_COLORS=['#2f5d55','#3b4f7d','#7a4632','#5c3a55','#4d5c32','#33536b','#6d3b3b','#3a5748'];
-function sealTheme(id:string){let h=2166136261;for(let i=0;i<id.length;i++){h^=id.charCodeAt(i);h=Math.imul(h,16777619);}const n=h>>>0;return {color:SEAL_COLORS[n%SEAL_COLORS.length],rotate:(-10+(n>>>9)%7)+'deg',code:id.replace(/[^a-z0-9]/gi,'').slice(-6).toUpperCase()};}
+const SEAL_COLORS=['#2456a0','#1f5a9e','#1d4f8f','#2b5fa8','#1d5f96','#23549b','#2a5f8f','#2c4f8a'];
+function sealTheme(id:string){let h=2166136261;for(let i=0;i<id.length;i++){h^=id.charCodeAt(i);h=Math.imul(h,16777619);}const n=h>>>0;return {color:SEAL_COLORS[n%SEAL_COLORS.length],rotate:(-9+(n>>>9)%6)+'deg',code:id.replace(/[^a-z0-9]/gi,'').slice(-4).toUpperCase(),seed:n%997};}
 
 export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
   const doc=ctx.root.ownerDocument;
@@ -38,14 +38,39 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
     wrap.style.setProperty('--pc-seal-color',theme.color);wrap.style.setProperty('--pc-seal-rotate',theme.rotate);
     const svg=doc.createElementNS(SVGNS,'svg');svg.setAttribute('viewBox','0 0 100 100');svg.setAttribute('focusable','false');
     const make=(tag:string,attrs:Record<string,string|number>)=>{const n=doc.createElementNS(SVGNS,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));return n;};
-    svg.append(make('circle',{cx:50,cy:50,r:46,fill:'rgba(255,253,247,.62)',stroke:'none'}));
-    svg.append(make('circle',{cx:50,cy:50,r:46,fill:'none',stroke:'currentColor','stroke-width':3}));
-    svg.append(make('circle',{cx:50,cy:50,r:39,fill:'none',stroke:'currentColor','stroke-width':1,'stroke-dasharray':'1.4 3.6',opacity:.72}));
-    for(let i=0;i<12;i++){const a=i*Math.PI/6;svg.append(make('circle',{cx:(50+43*Math.cos(a)).toFixed(2),cy:(50+43*Math.sin(a)).toFixed(2),r:1.05,fill:'currentColor',opacity:.7}));}
-    const top=make('text',{x:50,y:31.5,'text-anchor':'middle','font-size':11,'letter-spacing':1.8,fill:'currentColor','font-family':'ui-serif, "Noto Serif SC", "SimSun", serif'});top.textContent='旅迹';svg.append(top);
-    const num=make('text',{x:50,y:59,'text-anchor':'middle','font-size':26,'font-weight':600,fill:'currentColor','font-family':'ui-serif, "Noto Serif SC", "SimSun", serif'});num.textContent=series.nodeIndex+'/'+series.total;svg.append(num);
-    const code=make('text',{x:50,y:71.5,'text-anchor':'middle','font-size':8.2,'letter-spacing':1.1,fill:'currentColor',opacity:.9});code.textContent=theme.code.slice(-4);svg.append(code);
-    const star=make('path',{d:'M50 76.5 l2.3 2.9 -2.3 2.9 -2.3-2.9 z',fill:'currentColor',opacity:.75});svg.append(star);
+    const uid=++sealSeq,arcId='pc-seal-arc-'+uid,filterId='pc-seal-rough-'+uid;
+    const defs=make('defs',{});
+    const rough=make('filter',{id:filterId,x:'-8%',y:'-8%',width:'116%',height:'116%'});
+    rough.append(make('feTurbulence',{type:'fractalNoise',baseFrequency:'0.9',numOctaves:2,seed:theme.seed,result:'noise'}));
+    rough.append(make('feDisplacementMap',{in:'SourceGraphic',in2:'noise',scale:0.6,xChannelSelector:'R',yChannelSelector:'G'}));
+    defs.append(rough,make('path',{id:arcId,d:'M 10.5 50 A 39.5 39.5 0 0 1 89.5 50'}));
+    svg.append(defs,make('circle',{cx:50,cy:50,r:47,fill:'#fffdf7','fill-opacity':.45,stroke:'none'}));
+    const rings=make('g',{fill:'none',stroke:'currentColor',filter:'url(#'+filterId+')'});
+    rings.append(make('circle',{cx:50,cy:50,r:47,'stroke-width':2.4}));
+    rings.append(make('circle',{cx:50,cy:50,r:42.5,'stroke-width':.9,opacity:.9}));
+    rings.append(make('circle',{cx:50,cy:50,r:37.5,'stroke-width':.55,opacity:.45}));
+    svg.append(rings);
+    const arc=make('text',{fill:'currentColor','font-size':9.8,'letter-spacing':1.5,'font-family':'ui-serif, "Noto Serif SC", "SimSun", serif','font-weight':600});
+    const pathText=make('textPath',{href:'#'+arcId,startOffset:'50%','text-anchor':'middle'});pathText.textContent='POST MARK';arc.append(pathText);svg.append(arc);
+    const whale=make('g',{fill:'currentColor',filter:'url(#'+filterId+')',transform:'translate(50 53) scale(.94) translate(-50 -50)'});
+    whale.append(make('path',{d:'M20 54 C20 45 29 38 43 37 C57 36 67 42 71 49 C73 53 71 57 66 58 L36 61 C27 62 20 60 20 54 Z'}));
+    whale.append(make('path',{d:'M70 50 C74 47 78 44 82 41 C82 46 80 50 77 53 C80 55 83 58 84 62 C79 61 74 58 71 55 Z'}));
+    whale.append(make('path',{d:'M55 38 C57 34 61 34 63 38 Z'}));
+    whale.append(make('path',{d:'M46 57 C47 61 50 63 54 63 C52 60 51 58 50 56 Z'}));
+    whale.append(make('path',{d:'M23 56 C30 61 42 63 54 60 L52 64 C38 66 26 63 23 56 Z',fill:'#fffdf7',opacity:.92}));
+    for(const d of ['M37 37 C33 31 34 26 38 22','M40 36 C39 30 41 26 45 23','M43 37 C46 32 49 29 53 28'])whale.append(make('path',{d,fill:'none',stroke:'currentColor','stroke-width':1.5,'stroke-linecap':'round'}));
+    for(const [cx,cy] of [[37,21],[45,22],[53,27]])whale.append(make('circle',{cx,cy,r:1.25}));
+    svg.append(whale);
+    const light='#fffdf7';
+    svg.append(make('circle',{cx:30.5,cy:48.5,r:1.35,fill:light}));
+    svg.append(make('path',{d:'M24 55 q5 2 9 1',fill:'none',stroke:light,'stroke-width':1.1,'stroke-linecap':'round'}));
+    for(const d of ['M27 59 C34 62 42 62 49 60','M31 62 C37 64 44 63 49 61'])svg.append(make('path',{d,fill:'none',stroke:light,'stroke-width':.9,'stroke-linecap':'round',opacity:.85}));
+    for(const [d,w] of [['M17 66 q6 -3 12 0 t12 0 t12 0 t12 0 t12 0',1.5],['M23 70.5 q6 -3 12 0 t12 0 t12 0 t12 0',1]])svg.append(make('path',{d,fill:'none',stroke:'currentColor','stroke-width':w,'stroke-linecap':'round',opacity:.9}));
+    const star=(cx:number,cy:number,r:number)=>{let d='';for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rr=i%2?r*.45:r;d+=(i?'L':'M')+(cx+rr*Math.cos(a)).toFixed(2)+' '+(cy+rr*Math.sin(a)).toFixed(2);}return d+'Z';};
+    for(const [cx,cy] of [[16.5,60],[83.5,60]])svg.append(make('path',{d:star(cx,cy,2.6),fill:'currentColor'}));
+    svg.append(make('circle',{cx:50,cy:80.5,r:11,fill:'currentColor'}));
+    const num=make('text',{x:50,y:83.8,'text-anchor':'middle','font-size':13,'font-weight':700,fill:light,'font-family':'ui-serif, "Noto Serif SC", "SimSun", serif'});num.textContent=series.nodeIndex+'/'+series.total;svg.append(num);
+    const code=make('text',{x:50,y:89.4,'text-anchor':'middle','font-size':3.8,'letter-spacing':.7,fill:light,opacity:.9});code.textContent=theme.code;svg.append(code);
     wrap.append(svg);return wrap;
   }
   function releaseDetail(){if(detailUrl){URL.revokeObjectURL(detailUrl);detailUrl=undefined;}}
