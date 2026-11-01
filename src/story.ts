@@ -6,7 +6,8 @@ import {atomicJson,type Trip,type TravelService,type Card} from './travel.ts';
 import type {Transport} from './generation.ts';
 import {GROUNDING_GUIDANCE,validateGroundedPlan,EMOTIONAL_GUIDANCE,VISUAL_GUIDANCE,validateExpressiveNode,validateExpressivePlan} from './story-quality.ts';
 import type {StoryNode,StoryPlan,StoryContext} from './journey-types.ts';
-import {objectContract,decisionContract,outputFeedback,feedbackPrompt,type OutputContract} from './model-feedback.ts';
+import {objectContract,decisionContract,outputFeedback,feedbackPrompt,OutputValidationError,type OutputContract} from './model-feedback.ts';
+import {PipelineError} from './generation.ts';
 import {selectMaterialPool,MATERIAL_GUIDANCE} from './materials.ts';
 import {checkpointPrompt,StoryCheckpointError} from './story-checkpoint.ts';
 
@@ -39,10 +40,17 @@ export function structureSimilarity(a:StoryPlan['signature'],b:StoryPlan['signat
 export function validateStoryReview(r:any,plans:StoryPlan[],historyIds:string[]):string[]{
  if(!r||!Array.isArray(r.reviews)||r.reviews.length!==plans.length)throw Error('故事评审格式无效');
  const ids=new Set<string>(),accepted:string[]=[];
- for(const review of r.reviews){const p=plans.find(p=>p.id===review.candidateId);
+ for(const [reviewIndex,review] of r.reviews.entries()){const p=plans.find(p=>p.id===review?.candidateId);
   if(!p||ids.has(p.id)||review.candidateVersion!==p.version||!words(review.ruleIssues)||!words(review.historyIds)||review.historyIds.length!==historyIds.length||!historyIds.every(id=>review.historyIds.includes(id))||!['accept','revise','reject','pending'].includes(review.decision)||!Array.isArray(review.ratings)||review.ratings.length!==7||new Set(review.ratings.map((x:any)=>x.dimension)).size!==7)throw Error('故事评审引用或版本无效');
   ids.add(p.id);
-  for(const rating of review.ratings)if(!DIMENSIONS.includes(rating.dimension)||!text(rating.reason)||!(rating.dimension==='novelty'&&!historyIds.length?rating.score===null:Number.isInteger(rating.score)&&rating.score>=0&&rating.score<=3))throw Error('逐项故事评审不完整');
+  for(const [ratingIndex,rating] of review.ratings.entries()){
+   const path='reviews['+reviewIndex+'].ratings['+ratingIndex+']';
+   if(!DIMENSIONS.includes(rating.dimension))throw new OutputValidationError(path+'.dimension',DIMENSIONS.join('/'),'评审维度必须使用约定名称');
+   if(!text(rating.reason))throw new OutputValidationError(path+'.reason','非空说明字符串','该维度缺少评分依据');
+   if(rating.dimension==='novelty'&&!historyIds.length){
+    if(rating.score!==null)throw new OutputValidationError(path+'.score','null','没有历史故事可比较，novelty.score必须为null，不是0或其他数字；保留其他维度的真实评分');
+   }else if(!Number.isInteger(rating.score)||rating.score<0||rating.score>3)throw new OutputValidationError(path+'.score','0至3的整数','该维度score必须为0至3的整数');
+  }
   if(review.decision==='accept'&&(review.ruleIssues.length||review.ratings.some((x:any)=>x.score!==null&&x.score<2)))throw Error('reviews中'+p.id+'的accept与规则问题或低于2分的评分矛盾，请修正decision或逐项重核评分，不能只为通过而调高分数');
   if(review.decision==='accept'&&!review.ruleIssues.length&&review.ratings.every((x:any)=>x.score===null||x.score>=2))accepted.push(p.id);
  }
@@ -76,7 +84,7 @@ export class StoryEngine {
   let cp=existsSync(file)?JSON.parse(readFileSync(file,'utf8')):{requestHash,prompt,attempts:0};
   prompt=checkpointPrompt(label,cp,prompt);
   if(cp.response){contract.validate(cp.response);return cp.response;}
-  if(!Number.isInteger(cp.attempts)||cp.attempts<0||cp.attempts>=2)throw Error('本阶段宿主任务已达两次尝试上限');
+  if(!Number.isInteger(cp.attempts)||cp.attempts<0||cp.attempts>=2)throw new PipelineError('故事阶段已达两次尝试上限，恢复次数已耗尽；不会自动增加次数，请先检查原任务反馈');
   cp.attempts++;atomicJson(file,cp);
   const result=await this.transport('text',{model:'host-model',stream:false,response_format:{type:'json_object'},max_tokens:7000,messages:[{role:'user',content:[{type:'text',text:prompt}]}],__postcardTask:{tripId:id,label}},signal,{outputContract:contract});
   signal.throwIfAborted();let value:any;
@@ -124,7 +132,7 @@ export class StoryEngine {
     const score=(p:StoryPlan)=>review.reviews.find((r:any)=>r.candidateId===p.id).ratings.reduce((sum:number,r:any)=>sum+(r.score??0)*(['agency','detail','standalone_payoff','naturalness'].includes(r.dimension)?2:1),0);
     choices.sort((a,b)=>score(b)-score(a));
     const chosen=choices[0];this.service.store.updateJourney(id,j=>{j.plan=chosen;});return chosen;
-   }catch(error){if(signal.aborted||error instanceof StoryCheckpointError)throw error;atomicJson(join(this.service.store.root,'journey-tasks',id,'plan-'+attempt+'-issues.json'),{error:error instanceof Error?error.message:'候选失败'});}
+   }catch(error){if(signal.aborted||error instanceof StoryCheckpointError||error instanceof PipelineError)throw error;atomicJson(join(this.service.store.root,'journey-tasks',id,'plan-'+attempt+'-issues.json'),{error:error instanceof Error?error.message:'候选失败'});}
   }
   throw Error('两组故事候选未通过；未发起生图，请查看原因或结束本系列');
  }
@@ -165,7 +173,7 @@ export class StoryEngine {
     const score=(p:StoryPlan)=>review.reviews.find((r:any)=>r.candidateId===p.id).ratings.reduce((sum:number,r:any)=>sum+(r.score??0)*(['agency','detail','standalone_payoff','naturalness'].includes(r.dimension)?2:1),0);
     choices.sort((a,b)=>score(b)-score(a));
     const chosen=choices[0];this.service.setShortPlan(id,chosen);return chosen;
-   }catch(error){if(signal.aborted||error instanceof StoryCheckpointError)throw error;atomicJson(join(materialDir,'short-plan-'+attempt+'-issues.json'),{error:error instanceof Error?error.message:'候选失败'});}
+   }catch(error){if(signal.aborted||error instanceof StoryCheckpointError||error instanceof PipelineError)throw error;atomicJson(join(materialDir,'short-plan-'+attempt+'-issues.json'),{error:error instanceof Error?error.message:'候选失败'});}
   }
   throw Error('两组短途故事候选未通过；未发起生图，请查看原因或结束本趟');
  }

@@ -32,7 +32,7 @@ export class HostModelBridge {
   if(existsSync(file))task=this.load(id);else{task={id,digest,tripId:meta.tripId,label:meta.label,payload,createdAt:Date.now()};atomicJson(file,task);}
   const response=(r:Record<string,unknown>)=>({model:'host-model',choices:[{finish_reason:'stop',message:{content:JSON.stringify(r)}}]});
   if(task.result){route?.outputContract?.validate(task.result);return response(task.result);}
-  if((task.submissions?.length??0)>=2)throw new PipelineError('本阶段两次结构提交已耗尽；请查看已保存反馈，不会自动重新收费');
+  if((task.submissions?.length??0)>=2)throw new PipelineError('本阶段两次结构提交已耗尽；继续准备不会增加次数，请先检查已保存反馈或决定结束原旅程，不会自动重新收费');
   if(this.active.has(id))throw new PipelineError('同一宿主待办正在处理，请等待');
   this.active.set(id,signal);
   if(route?.outputContract)this.contracts.set(id,route.outputContract);

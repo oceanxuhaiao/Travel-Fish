@@ -13,6 +13,7 @@ it('only planning wording drift can reuse an intact original request',()=>{
  const cp={prompt:old,requestHash:hash(old)};
  expect(checkpointPrompt('plan-1',cp,current)).toBe(old);
  expect(checkpointPrompt('short-plan-2',cp,current)).toBe(old);
+ expect(checkpointPrompt('short-review-2',cp,current)).toBe(old);
  expect(()=>checkpointPrompt('node-1',cp,current)).toThrow('无法安全续用');
  expect(()=>checkpointPrompt('plan-1',cp,current.replace('"a"','"b"'))).toThrow('无法安全续用');
  expect(()=>checkpointPrompt('plan-1',{...cp,prompt:old+'改动'},current)).toThrow('完整性');
@@ -45,3 +46,4 @@ it('unfinished requests retain their old prompt, hash and accumulated attempt co
  try{await (engine as any).call('j','plan-1',current,new AbortController().signal);const saved=JSON.parse(readFileSync(file,'utf8'));expect(saved.attempts).toBe(2);expect(saved.requestHash).toBe(hash(old));expect(saved.prompt).toBe(old);expect(transport).toHaveBeenCalledTimes(1);}
  finally{rmSync(root,{recursive:true,force:true});}
 });
+

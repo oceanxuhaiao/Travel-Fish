@@ -16,6 +16,6 @@ export function checkpointPrompt(label:string,cp:{requestHash:string;prompt?:str
  if(typeof cp.prompt!=='string'||hash(cp.prompt)!==cp.requestHash)
   throw new StoryCheckpointError('故事检查点完整性校验失败；已保留原记录，请勿删除缓存或反复重试');
  const oldData=payload(cp.prompt),newData=payload(current);
- if(/^(?:short-)?plan(?:-review)?-[12]$/.test(label)&&oldData!==undefined&&newData!==undefined&&hash(oldData)===hash(newData))return cp.prompt;
+ if(/^(?:plan(?:-review)?|short-(?:plan|review))-[12]$/.test(label)&&oldData!==undefined&&newData!==undefined&&hash(oldData)===hash(newData))return cp.prompt;
  throw new StoryCheckpointError('故事任务的素材、候选或输入版本已变化，无法安全续用旧检查点；尚未因此发起生图，请先检查兼容性，不要反复重试');
 }
