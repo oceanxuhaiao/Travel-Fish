@@ -42,8 +42,8 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
     const text=el('div','pc-journey-copy');const title=el('h2');const sub=el('p','pc-muted');const controls=el('div','pc-journey-actions');
     const inTravel=!!t&&Date.now()<t.dueAt;
     if(active(t)){
-      title.textContent=inTravel&&t!.status!=='failed'?'正在远方旅行':t!.status==='failed'?'这封来信还没准备好':t!.status==='awaiting_service'?'旅途到了，等来信启程':'正在把旅途装进信里';
-      sub.textContent=inTravel&&t!.status!=='failed'?'预计 '+new Date(t!.dueAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})+' 归来，明信片将在旅途中准备。':t!.status==='failed'?'已经保存这趟旅程，可以稍后继续准备。':t!.status==='awaiting_service'?'请先在扩展配置中连接云端生成服务。':'明信片和短笺准备好后，会自动收进下面的收藏册。';
+      title.textContent=inTravel&&t!.status!=='failed'?'正在远方旅行':t!.status==='failed'?'这封来信还在整理中':t!.status==='awaiting_service'?'旅途到了，等来信启程':'正在把旅途装进信里';
+      sub.textContent=inTravel&&t!.status!=='failed'?'预计 '+new Date(t!.dueAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})+' 归来，明信片将在旅途中准备。':t!.status==='failed'?'已有成果与旅程进度已保留；会优先复用已有成果，问题未解决时暂缓交付。':t!.status==='awaiting_service'?'请先在扩展配置中连接云端生成服务。':'明信片和短笺准备好后，会自动收进下面的收藏册。';
       if(t!.status==='failed')controls.append(button('继续准备',retry,'pc-button pc-primary'));
       controls.append(button('先回家',cancel));
       if(t!.error){const info=el('details','pc-error-details');info.append(el('summary','','查看原因'),el('p','',t!.error));text.append(info);}
@@ -76,7 +76,7 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
       const total=t!.dueAt-t!.startedAt;
       const fraction=Number.isFinite(total)&&total>0?Math.max(0,Math.min(1,(Date.now()-t!.startedAt)/total)):0;
       const traveling=inTravel;const percent=traveling?Math.floor(fraction*100):100;
-      const label=el('p','pc-progress-label',traveling?'旅行进度 · '+percent+'%':'旅行等待已结束 · 明信片尚未完成');
+      const label=el('p','pc-progress-label',traveling?'旅行进度 · '+percent+'%':'预计归来时间已到 · 来信仍在整理');
       const bar=el('progress','pc-progress');bar.max=100;bar.value=percent;bar.setAttribute('aria-label','旅行等待进度');bar.setAttribute('aria-valuetext',traveling?percent+'%，明信片在旅途中准备':'旅行等待已结束，明信片尚未完成');
       const left=Math.max(0,Math.ceil((t!.dueAt-Date.now())/60000));
       const hint=el('p','pc-muted',traveling?(left>0?'约 '+left+' 分钟后结束旅行':'旅行等待已结束，正在同步归来状态'):'这条进度仅表示旅行等待，明信片保存后才算收到来信。');
@@ -124,4 +124,6 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
   await refresh();ctx.interval(()=>{void refresh();},5000);ctx.interval(()=>{if(!ctx.signal.aborted&&data?.trip&&active(data.trip))renderJourney();},1000);
 }
 export default {panels:{album:{mount:mountAlbum},setup:{mount:mountSetup}}};
+
+
 

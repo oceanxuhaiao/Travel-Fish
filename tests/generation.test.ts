@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { PNG } from 'pngjs';
-import { createCloudGenerator,textAccepted,formatNote,noteFormatted,HttpError, type Transport } from '../src/generation.ts';
+import { createCloudGenerator,textAccepted,formatNote,noteFormatted,HttpError,base64ImageBytes, type Transport } from '../src/generation.ts';
 import {verificationFailure} from '../src/readiness.ts';
 import type { Trip,Generator } from '../src/travel.ts';
 
@@ -80,8 +80,8 @@ it.each([408,500,502,504])('图片HTTP %s保留远端不确定状态，不能当
 });
 it('图片超时或损坏输出不能入库或自动重新请求',async()=>{
  const t=vi.fn<Transport>(async()=>({data:[{b64_json:Buffer.from('broken png').toString('base64')}]})),g=make(t);prepare(g);
- await expect(g(trip,new AbortController().signal)).rejects.toThrow('不确定');
- await expect(g(trip,new AbortController().signal)).rejects.toThrow('不确定');expect(t).toHaveBeenCalledTimes(1);
+ await expect(g(trip,new AbortController().signal)).rejects.toThrow('未知格式');
+ await expect(g(trip,new AbortController().signal)).rejects.toThrow('未知格式');expect(t).toHaveBeenCalledTimes(1);
 });
 it('出发副本被修改则在任何网络调用前停止',async()=>{
  const t=vi.fn(transport()),g=make(t);prepare(g);writeFileSync(join(root,'trips',trip.id,'input/character.png'),'tampered');
@@ -178,6 +178,53 @@ it('生成器不会吞掉明确HTTP错误，验证诊断可显示具体403',asyn
 
 it.each(['qwen','gemini'] as const)('%s双参考结果进入原有审核收藏链，恢复不重复请求且接口出发时固定',async backend=>{
  const options={root,characterReference:ref,styleReference:ref,secret:()=> 'local-test-only',imageBackend:backend,imageModel:backend==='qwen'?'qwen-image-2.0':'gemini-3-pro-image',imageBaseUrl:backend==='qwen'?'https://dashscope.aliyuncs.com/api/v1':'https://generativelanguage.googleapis.com/v1beta',imageSize:backend==='qwen'?'1024*1536':'2K'};
- const base=transport();let calls=0;const t:Transport=async(k,p,s,route)=>{if(k!=='image')return base(k,p,s);calls++;expect(route?.backend).toBe(backend);expect(p.image).toHaveLength(2);const wire=imageWireRequest(backend,route!.baseUrl!,p,'test-only');expect(wire.url).not.toContain('wrong');return normalizeImageResponse(backend,backend==='qwen'?{output:{choices:[{finish_reason:'stop',message:{content:[{image:'https://result.oss-cn-beijing.aliyuncs.com/a.png'}]}}]}}:{candidates:[{finishReason:'STOP',content:{parts:[{inlineData:{mimeType:'image/png',data:image.toString('base64')}}]}}]},async()=>image);};
+ const base=transport();let calls=0;const t:Transport=async(k,p,s,route)=>{if(k!=='image')return base(k,p,s);calls++;expect(route?.backend).toBe(backend);expect(p.image).toHaveLength(2);expect(p.output_format).toBeUndefined();expect(p.watermark).toBeUndefined();const wire=imageWireRequest(backend,route!.baseUrl!,p,'test-only');expect(wire.url).not.toContain('wrong');return normalizeImageResponse(backend,backend==='qwen'?{output:{choices:[{finish_reason:'stop',message:{content:[{image:'https://result.oss-cn-beijing.aliyuncs.com/a.png'}]}}]}}:{candidates:[{finishReason:'STOP',content:{parts:[{inlineData:{mimeType:'image/png',data:image.toString('base64')}}]}}]},async()=>image);};
  const g=createCloudGenerator(options,t);prepare(g);options.imageBaseUrl='https://wrong.test/v1';const result=await g(trip,new AbortController().signal);expect(result.image).toEqual(image);expect(result.title).toBe(note.title);await g(trip,new AbortController().signal);expect(calls).toBe(1);
 });
+
+it('ark keeps PNG output and watermark false regardless of compatible option',async()=>{
+ const t=vi.fn<Transport>(async(kind,payload)=>{if(kind==='image'){expect(payload.output_format).toBe('png');expect(payload.watermark).toBe(false);throw new HttpError(500);}return {};});
+ const g=createCloudGenerator({root,characterReference:ref,styleReference:ref,secret:()=> 'local-test-only',imageBackend:'ark',imageModel:'test',requestPngOutput:false},t);prepare(g);expect(trip.generation!.requestPngOutput).toBeUndefined();await expect(g(trip,new AbortController().signal)).rejects.toThrow('不确定');
+});
+it.each([true,false])('compatible freezes PNG preference %s and legacy requests omit it',async(requestPngOutput)=>{
+ const t=vi.fn<Transport>(async(kind,payload)=>{if(kind==='image'){expect(payload.output_format).toBe(requestPngOutput?'png':undefined);expect(payload.watermark).toBeUndefined();throw new HttpError(400);}return {};});
+ const g=createCloudGenerator({root,characterReference:ref,styleReference:ref,secret:()=> 'local-test-only',imageBackend:'compatible',imageBaseUrl:'http://127.0.0.1:8000/v1',imageModel:'test',imageSize:'1024x1536',requestPngOutput},t);prepare(g);expect(trip.generation!.requestPngOutput).toBe(requestPngOutput);
+ const pending=g(trip,new AbortController().signal);
+ if(requestPngOutput)await expect(pending).rejects.toThrow('output_format');else await expect(pending).rejects.toBeInstanceOf(HttpError);
+});
+it('old frozen compatible spec does not gain PNG output after update',async()=>{
+ const t=vi.fn<Transport>(async(kind,payload)=>{if(kind==='image'){expect(payload.output_format).toBeUndefined();throw new HttpError(400);}return {};});
+ const g=createCloudGenerator({root,characterReference:ref,styleReference:ref,secret:()=> 'local-test-only',imageBackend:'compatible',imageBaseUrl:'http://127.0.0.1:8000/v1',imageModel:'test',imageSize:'1024x1536'},t);prepare(g);delete trip.generation!.requestPngOutput;await expect(g(trip,new AbortController().signal)).rejects.toBeInstanceOf(HttpError);
+});
+it.each([['JPEG',Buffer.from([255,216,255,1])],['WebP',Buffer.from('RIFF0000WEBP')],['未知格式',Buffer.from('not an image')]])('saves %s bytes and reports exact failure without a second image request',async(format,raw)=>{
+ const t=vi.fn<Transport>(async()=>({data:[{b64_json:raw.toString('base64')}]}));const g=make(t);prepare(g);
+ await expect(g(trip,new AbortController().signal)).rejects.toThrow('返回了'+format);
+ await expect(g(trip,new AbortController().signal)).rejects.toThrow('返回了'+format);expect(t).toHaveBeenCalledTimes(1);
+ expect(readFileSync(join(root,'trips',trip.id,'image-1-raw.bin'))).toEqual(raw);
+ expect(()=>g.confirmRetry!(trip,false)).toThrow('确认');
+});
+it('corrupt PNG keeps the original bytes and reports integrity failure without a second request',async()=>{
+ const corrupt=Buffer.from(image);corrupt[corrupt.length-20]^=0xff;
+ const t=vi.fn<Transport>(async()=>({data:[{b64_json:corrupt.toString('base64')}]}));const g=make(t);prepare(g);
+ await expect(g(trip,new AbortController().signal)).rejects.toThrow('完整性校验失败');
+ await expect(g(trip,new AbortController().signal)).rejects.toThrow('完整性校验失败');expect(t).toHaveBeenCalledTimes(1);
+ expect(readFileSync(join(root,'trips',trip.id,'image-1-raw.bin'))).toEqual(corrupt);
+});
+it('invalid base64 and non-single image report distinct reasons and are never resent',async()=>{
+ for(const [payload,expected] of [
+  [{data:[{b64_json:'%%%not-base64%%%'}]},'base64无效'],
+  [{data:[{b64_json:'AAAA'},{b64_json:'AAAA'}]},'返回结构不支持'],
+  [{data:[]},'返回结构不支持'],
+ ] as const){
+  trip={id:randomUUID(),scene:'forest',startedAt:0,dueAt:1,status:'generating'};
+  const t=vi.fn<Transport>(async()=>({...payload}));const g=make(t);prepare(g);
+  await expect(g(trip,new AbortController().signal)).rejects.toThrow(expected);
+  await expect(g(trip,new AbortController().signal)).rejects.toThrow(expected);expect(t).toHaveBeenCalledTimes(1);
+ }
+});
+it('bounded base64 accepts missing padding and rejects oversize bytes before decoding',()=>{
+ expect(base64ImageBytes('TWFu')).toEqual(Buffer.from('Man'));expect(base64ImageBytes('TWE')).toEqual(Buffer.from('Ma'));
+ expect(()=>base64ImageBytes('A'.repeat(16),8)).toThrow('超过40MB上限');
+ expect(()=>base64ImageBytes('AAAA',2)).toThrow('超过40MB上限');
+});
+

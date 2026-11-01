@@ -11,6 +11,7 @@ import {freezeScene,type SceneSnapshot} from './scenes.ts';
 import {PORTRAYAL_INSTRUCTION,validatePortrayal,portrayalIssues} from './story-quality.ts';
 import type {StoryContext} from './journey-types.ts';
 import {generationContract,objectContract,outputFeedback,feedbackPrompt,type OutputContract} from './model-feedback.ts';
+import {recoverOutput,RECOVERY_VERSION} from './delivery-recovery.ts';
 
 export const POLICY = 'non-contradiction-cloud-v3';
 export const IMAGE_MODEL = 'doubao-seedream-5-0-flash-260915';
@@ -24,12 +25,12 @@ const COMMON = '生成完整收藏级旅行明信片，竖版2:3，单张。图1
 const EXPRESSIVE_COMMON=COMMON.replace('人物含帽约占画面高度18%至33%，具体按本次景别，风景主导','人物大小与镜头距离完全遵循故事节点composition指定的景别，不设统一人物占比').replace('脸部、头饰','身份特征、头饰')+' 参考图不能作为姿态模板，必须重新画朝向、动作与神态，不要每次正面直立看镜头。画面前中远至少两层可探索环境细节，避免大片空白天空取代场景。本轮：';
 
 type Json = Record<string,unknown>;
-export interface ImageRoute {backend?:ImageBackend;baseUrl?:string;outputContract?:OutputContract;}
+export interface ImageRoute {backend?:ImageBackend;baseUrl?:string;outputContract?:OutputContract;cacheOnly?:boolean;}
 export function imageEndpoint(base:string){let u:URL;try{u=new URL(base);}catch{throw new PipelineError('生图API请求地址无效');}if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.search||u.hash)throw new PipelineError('生图接口只支持不含凭据或查询参数的HTTP(S)地址');return u.href.replace(/\/$/,'')+(u.pathname.replace(/\/$/,'').endsWith('/images/generations')?'':'/images/generations');}
-export interface CloudOptions { storyContext?:(trip:Readonly<Trip>,signal:AbortSignal)=>Promise<StoryContext>;imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string; imageModel?:string; hostReady?:()=>boolean; hostTransport?:Transport; useHostModel?:boolean; root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
+export interface CloudOptions { storyContext?:(trip:Readonly<Trip>,signal:AbortSignal)=>Promise<StoryContext>;imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string;requestPngOutput?:boolean; imageModel?:string; hostReady?:()=>boolean; hostTransport?:Transport; useHostModel?:boolean; root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
 export type Transport = (kind:'image'|'text', payload:Json, signal:AbortSignal,route?:ImageRoute)=>Promise<Json>;
-interface Spec {visibleStatePolicy?:'v1'|'v2'|'v3';visualPolicy?:'expressive-v1'; imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string;policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; sceneSnapshot?:SceneSnapshot; placeScopeVersion?:'v1'|'v2'; noteReviewVersion?:'v1'|'v2'|'v3'; }
-interface Checkpoint { schema:1; imageAttempt:number; pendingImage:boolean; stage:string; textRequests:Record<string,number>; errors:string[]; }
+interface Spec {visibleStatePolicy?:'v1'|'v2'|'v3';visualPolicy?:'expressive-v1'; imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string;requestPngOutput?:boolean;policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; sceneSnapshot?:SceneSnapshot; placeScopeVersion?:'v1'|'v2'; noteReviewVersion?:'v1'|'v2'|'v3'; }
+interface Checkpoint { schema:1; imageAttempt:number; pendingImage:boolean; receivedImageError?:string;stage:string; textRequests:Record<string,number>; errors:string[]; }
 export class PipelineError extends Error { constructor(message:string) {super(message);this.name='PostcardPipelineError';} }
 export class HttpError extends Error { constructor(readonly status:number) {super('Cloud HTTP '+status);} }
 const hash = (b:Uint8Array)=>createHash('sha256').update(b).digest('hex');
@@ -44,6 +45,18 @@ export function decodePng(bytes:Buffer): {width:number;height:number} {
 }
 function binary(file:string, bytes:Buffer):void {
   const temporary=file+'.'+randomUUID()+'.tmp';writeFileSync(temporary,bytes,{flag:'wx'});renameSync(temporary,file);
+}
+/** Bounded base64 from one image item. Missing padding is tolerated; corrupt text is not. */
+export function base64ImageBytes(encoded:unknown,maxBytes=40*1024*1024):Buffer {
+  if(typeof encoded!=='string'||!encoded.length)throw new PipelineError('图片服务返回结构不支持：需要单张b64_json图片');
+  const clean=encoded.replace(/\s+/g,'');
+  if(!clean.length||!/^[A-Za-z0-9+/]+={0,2}$/.test(clean)||clean.length%4===1)throw new PipelineError('图片服务返回的base64无效');
+  const padded=clean+'='.repeat((4-clean.length%4)%4);
+  if(Math.ceil(padded.length/4)*3>maxBytes+2)throw new PipelineError('图片服务返回的图片超过40MB上限');
+  const bytes=Buffer.from(padded,'base64');
+  if(!bytes.length)throw new PipelineError('图片服务返回的base64无效');
+  if(bytes.length>maxBytes)throw new PipelineError('图片服务返回的图片超过40MB上限');
+  return bytes;
 }
 function strings(value:unknown,min=0,max=20):value is string[] {return Array.isArray(value)&&value.length>=min&&value.length<=max&&value.every(s=>typeof s==='string'&&s.trim().length>0);}
 export function imageAccepted(review:Json):boolean {return ['scene_match','character_match','usable'].every(k=>review[k]===true)&&Array.isArray(review.background_conflicts)&&review.background_conflicts.length===0&&strings(review.facts,3,8);}
@@ -142,6 +155,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     };
     if(cp.pendingImage){
       if(imageValid()){cp.pendingImage=false;atomicJson(cpFile(trip),cp);}
+      else if(cp.receivedImageError)throw new PipelineError(cp.receivedImageError);
       else throw new PipelineError('上次图片请求结果不确定，必须确认远端结果后显式重试，不能自动重复收费');
     }
     async function textCall(label:string,prompt:string,images:Buffer[]=[]):Promise<Json>{
@@ -149,7 +163,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       const baseContract=generationContract(label,spec.policy===POLICY&&spec.noteReviewVersion==='v3');
       const contract=/^image-[12]-paper-detail$/.test(label)?objectContract('paper-detail-v1',v=>validatePaperObservations(v.paperStates)):expressive&&/^image-[12]-review$/.test(label)?objectContract(observationReview?'image-review-physical-paper-v2':'image-review-expressive-v1',v=>{baseContract.validate(v);validatePortrayal(v.portrayal);if(observationReview){validatePaperObservations(v.paperStates);if(detailReview)validatePaperRegions(v.paperRegions);}else if(stateReview)validatePaperStates(v.paperStates);}):baseContract;
       const feedbackFile=join(folder,label+'-feedback.json');
-      const validate=(value:Json)=>{const feedback=outputFeedback(label,contract,value);atomicJson(feedbackFile,feedback);if(!feedback.valid){atomicJson(join(folder,label+'-invalid-output-'+(cp.textRequests[label]??0)+'.json'),value);if(existsSync(target))renameSync(target,join(folder,label+'.invalid-'+(cp.textRequests[label]??0)+'.json'));throw new PipelineError(feedback.errors.map(e=>e.message).join('；'));}return value;};
+      const validate=(value:Json)=>{const repaired=recoverOutput(label,value,contract,prompt);if(repaired.repairs.length){atomicJson(join(folder,label+'-local-recovery.json'),{version:RECOVERY_VERSION,original:value,repairs:repaired.repairs});value=repaired.value;}const feedback=outputFeedback(label,contract,value);atomicJson(feedbackFile,feedback);if(!feedback.valid){atomicJson(join(folder,label+'-invalid-output-'+(cp.textRequests[label]??0)+'.json'),value);if(existsSync(target))renameSync(target,join(folder,label+'.invalid-'+(cp.textRequests[label]??0)+'.json'));throw new PipelineError(feedback.errors.map(e=>e.message).join('；'));}return value;};
       if(existsSync(target))return validate(load<Json>(target));
       const prior=existsSync(feedbackFile)?load<Json>(feedbackFile):null;
       const effectivePrompt=prompt+(prior?.valid===false?feedbackPrompt(prior):'');
@@ -161,7 +175,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
         const result=await options.hostTransport('text',{...payload,__postcardTask:{tripId:trip.id,label}},signal,{outputContract:contract});
         const choice=(result.choices as any[])?.[0];let value:Json;
         try{value=JSON.parse(choice.message.content);}catch{atomicJson(feedbackFile,{schemaVersion:'model-feedback-v1',stage:label,validation:'structure',valid:false,errors:[{code:'JSON_PARSE',path:label,message:'宿主结果不是有效JSON'}]});throw new PipelineError('宿主结果不是有效JSON');}
-        validate(value);atomicJson(target,value);return value;
+        value=validate(value);atomicJson(target,value);return value;
       }
       while((cp.textRequests[label]??0)<2){
         cp.textRequests[label]=(cp.textRequests[label]??0)+1;atomicJson(cpFile(trip),cp);
@@ -173,7 +187,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
           if(!choice||choice.finish_reason!=='stop'){atomicJson(feedbackFile,{schemaVersion:'model-feedback-v1',stage:label,valid:false,validation:'structure',errors:[{code:'INCOMPLETE',path:label,message:'结果被截断；请压缩输出并完整闭合JSON，不删必需字段'}]});throw new PipelineError('云端文字结果不完整');}
           let value:Json;
           try {value=JSON.parse(choice.message.content) as Json;}catch{atomicJson(feedbackFile,{schemaVersion:'model-feedback-v1',stage:label,validation:'structure',valid:false,errors:[{code:'JSON_PARSE',path:label,message:'云端文字结果不是有效JSON'}]});throw new PipelineError('云端文字结果不是有效JSON');}
-          validate(value);atomicJson(target,value);return value;
+          value=validate(value);atomicJson(target,value);return value;
         } catch(error){
           if(signal.aborted)throw error;
           if(error instanceof PipelineError)throw error;
@@ -191,18 +205,30 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
         stage('generating_image');cp.imageAttempt++;cp.pendingImage=true;atomicJson(cpFile(trip),cp);
         const previousImageFile=join(folder,'image-'+(cp.imageAttempt-1)+'-rejected.json');
         const effectiveImagePrompt=imagePrompt+(existsSync(previousImageFile)?feedbackPrompt(load<Json>(previousImageFile)):'');
-        atomicJson(join(folder,'image-'+cp.imageAttempt+'-request.json'),{model:spec.imageModel,prompt:effectiveImagePrompt,referenceSha:[spec.characterSha,spec.styleSha],size:spec.imageSize??'2K',imageCount:2});
+        atomicJson(join(folder,'image-'+cp.imageAttempt+'-request.json'),{model:spec.imageModel,prompt:effectiveImagePrompt,referenceSha:[spec.characterSha,spec.styleSha],size:spec.imageSize??'2K',imageCount:2,...(spec.imageBackend==='compatible'?{requestPngOutput:spec.requestPngOutput===true}:{})});
         const started=Date.now();
         try {
-          const result=await transport('image',{model:spec.imageModel,prompt:effectiveImagePrompt,image:refs.map(b=>'data:image/png;base64,'+b.toString('base64')),size:spec.imageSize??'2K',response_format:'b64_json',...((spec.imageBackend??'ark')==='ark'?{output_format:'png',watermark:false}:{})},signal,{backend:spec.imageBackend??'ark',baseUrl:spec.imageBaseUrl});
+          const result=await transport('image',{model:spec.imageModel,prompt:effectiveImagePrompt,image:refs.map(b=>'data:image/png;base64,'+b.toString('base64')),size:spec.imageSize??'2K',response_format:'b64_json',...((spec.imageBackend??'ark')==='ark'?{output_format:'png',watermark:false}:spec.imageBackend==='compatible'&&spec.requestPngOutput===true?{output_format:'png'}:{})},signal,{backend:spec.imageBackend??'ark',baseUrl:spec.imageBaseUrl});
           const items=result.data as {b64_json?:string}[];
           atomicJson(join(folder,'image-'+cp.imageAttempt+'-response.json'),{model:result.model,usage:result.usage,elapsedMs:Date.now()-started,imageItems:items?.length});
-          if(!Array.isArray(items)||items.length!==1||typeof items[0].b64_json!=='string')throw new PipelineError('图片服务未返回单张PNG数据，请检查远端结果');
-          const bytes=Buffer.from(items[0].b64_json,'base64'),dims=decodePng(bytes);
+          let bytes:Buffer,dims:{width:number;height:number};
+          try{
+           if(!Array.isArray(items)||items.length!==1||typeof items[0].b64_json!=='string')throw new PipelineError('图片服务返回结构不支持：需要单张b64_json图片');
+           bytes=base64ImageBytes(items[0].b64_json);binary(join(folder,'image-'+cp.imageAttempt+'-raw.bin'),bytes);
+           const format=bytes.subarray(0,3).equals(Buffer.from([255,216,255]))?'JPEG':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP'?'WebP':bytes.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex'))?'PNG':'未知格式';
+           atomicJson(join(folder,'image-'+cp.imageAttempt+'-raw.json'),{format,bytes:bytes.length,sha256:hash(bytes)});
+           if(format!=='PNG')throw new PipelineError('图片服务返回了'+format+'，需要PNG；原始图片已保存在本地，不会自动转码');
+           dims=decodePng(bytes);
+          }catch(error){cp.receivedImageError=(error instanceof PipelineError?error.message:'图片返回数据保存或检查失败')+'；未自动重发，重试可能重复计费';atomicJson(cpFile(trip),cp);throw new PipelineError(cp.receivedImageError);}
           atomicJson(imagePath()+'.json',{sha256:hash(bytes),...dims});binary(imagePath(),bytes);
           cp.pendingImage=false;atomicJson(cpFile(trip),cp);
         }catch(error){
-          if(error instanceof HttpError&&error.status>=400&&error.status<500&&error.status!==408){cp.pendingImage=false;cp.imageAttempt--;atomicJson(cpFile(trip),cp);throw error;}
+          if(cp.receivedImageError)throw new PipelineError(cp.receivedImageError);
+          if(error instanceof HttpError&&error.status>=400&&error.status<500&&error.status!==408){
+            cp.pendingImage=false;cp.imageAttempt--;atomicJson(cpFile(trip),cp);
+            if(error.status===400&&spec.imageBackend==='compatible'&&spec.requestPngOutput===true)throw new PipelineError('兼容接口拒绝了本张图片请求（HTTP 400），可能不支持 output_format 参数；可在配置中关闭“兼容接口请求PNG输出”并重启后，确认费用再手动继续。不会自动重发');
+            throw error;
+          }
           // Connection loss, abort or malformed output may have incurred a charge.
           throw new PipelineError('图片请求未完整保存，远端结果或费用不确定；确认后才可显式重试');
         }
@@ -210,7 +236,9 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       stage('reviewing_image');
       imageReview=await textCall('image-'+cp.imageAttempt+'-review', (spec.policy===POLICY?'图1为候选，图2仅角色参考。核对图1的核心景观、图2参考角色身份和服饰（发色、头饰、主色和独特配件；不要求统一为冬装）、明显肢体破碎/乱码等不可用问题。只把核心景观及明确冲突作为场景门槛，具体构图、气氛、可选装饰、手势及细小服饰变化不是硬要求，不清晰不等于错误。不核验真实地理，不要求某座地标。返回JSON：scene_match、character_match、usable（布尔），background_conflicts、issues（字符串数组），facts（3到8条图1直接可见事实）。核心景观：'+(expressive?story!.node.visibleScene:spec.sceneSnapshot!.core)+'；明确冲突：'+(expressive?'只拦明显环境类型或体量冲突，如明确接续的一层小屋变高楼；角度/材质/门窗变化不算。':spec.sceneSnapshot!.conflicts)+'；可选装饰：'+spec.sceneSnapshot!.optional:'图1为候选，图2仅角色参考。核对图1目标场景、图2参考角色身份和服饰（发色、头饰、主色和独特配件；不要求统一为冬装）、明显肢体破碎/乱码等不可用问题。细微服饰变化和不清晰细节不直接失败；坐站姿势和蒸汽数量为创作建议，不是硬门槛。森林/雪夜不能带入海岸/沙堡/螃蟹。返回JSON：scene_match、character_match、usable（布尔），background_conflicts、issues（字符串数组），facts（3到8条图1直接可见事实）。目标：'+(spec.scenePrompt??SCENE_PROMPTS[trip.scene as keyof typeof SCENE_PROMPTS]))+(expressive?PORTRAYAL_INSTRUCTION+' facts如有建筑请说明可确定的大致体量（低矮小屋/高层等），无法判断就如实说。background_conflicts只列明确环境类型/体量冲突，不把角度材质或未展示细节当冲突。':'')+(stateReview?(observationReview?PAPER_OBSERVATION_PROMPT:PAPER_STATE_PROMPT):'')+(detailReview?PAPER_REGION_PROMPT:''),[readFileSync(imagePath()),refs[0]]);
       if(observationReview){imageReview.paperObservations=imageReview.paperStates;imageReview.paperStates=derivePaperStates(imageReview.paperObservations as any);}
-      const qualityIssues=expressive?[...portrayalIssues(imageReview.portrayal as any,story!.priorCards.at(-1)?.portrayal),...((imageReview.background_conflicts as string[]).map(c=>'明确环境类型/体量冲突：'+c))]:[];
+      const softIssues=expressive?portrayalIssues(imageReview.portrayal as any,story!.priorCards.at(-1)?.portrayal):[];
+      if(softIssues.length)atomicJson(join(folder,'image-'+cp.imageAttempt+'-quality-notes.json'),{policy:'soft-quality-v1',issues:softIssues,action:'保留可用图片，表现重复不作为交付阻断'});
+      const qualityIssues=expressive?(imageReview.background_conflicts as string[]).map(c=>'明确环境类型/体量冲突：'+c):[];
       if(!qualityIssues.length&&(imageAccepted(imageReview)||(story&&imageReview.character_match===true&&imageReview.usable===true&&strings(imageReview.facts,3,8)&&typeof imageReview.scene_match==='boolean'&&Array.isArray(imageReview.background_conflicts))))break;
       // A malformed check does not justify paying for another image.
       if(['scene_match','character_match','usable'].some(k=>typeof imageReview![k]!=='boolean')||!Array.isArray(imageReview.background_conflicts)||!strings(imageReview.facts,3,8))invalidSchema('image-'+cp.imageAttempt+'-review','图像审核格式无效，请检查后恢复本张图片');
@@ -270,7 +298,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     ['character.png','style.png'].forEach((name,i)=>writeFileSync(join(folder,'input',name),refs[i],{flag:'wx'}));
     const sceneSnapshot=trip.sceneSnapshot??freezeScene(trip.id,trip.scene,[],options.recentVariants?.(trip.scene)??[]);
     const variant={id:sceneSnapshot.id,prompt:sceneSnapshot.prompt};
-    const spec:Spec={visibleStatePolicy:'v3',visualPolicy:'expressive-v1',imageBackend:backend,...(backend!=='ark'?{imageBaseUrl:options.imageBaseUrl,imageSize:options.imageSize?.trim()||(backend==='gemini'?'2K':backend==='qwen'?'1024*1536':'1024x1536')}:{}),sceneSnapshot,placeScopeVersion:'v2',noteReviewVersion:'v3',policy:POLICY,imageModel:options.imageModel?.trim()||IMAGE_MODEL,visionModel:options.useHostModel?'host-model':VISION_MODEL,prompt:EXPRESSIVE_COMMON+variant.prompt,characterSha:hash(refs[0]),styleSha:hash(refs[1]),scenePrompt:variant.prompt,sceneVariant:variant.id,noteVoice:selectNoteVoice(trip.id)};
+    const spec:Spec={visibleStatePolicy:'v3',visualPolicy:'expressive-v1',imageBackend:backend,...(backend==='compatible'?{requestPngOutput:options.requestPngOutput??true}:{}),...(backend!=='ark'?{imageBaseUrl:options.imageBaseUrl,imageSize:options.imageSize?.trim()||(backend==='gemini'?'2K':backend==='qwen'?'1024*1536':'1024x1536')}:{}),sceneSnapshot,placeScopeVersion:'v2',noteReviewVersion:'v3',policy:POLICY,imageModel:options.imageModel?.trim()||IMAGE_MODEL,visionModel:options.useHostModel?'host-model':VISION_MODEL,prompt:EXPRESSIVE_COMMON+variant.prompt,characterSha:hash(refs[0]),styleSha:hash(refs[1]),scenePrompt:variant.prompt,sceneVariant:variant.id,noteVoice:selectNoteVoice(trip.id)};
     atomicJson(join(folder,'spec.json'),spec);return {...spec};
   };
   generate.confirmRetry=(trip,confirmed)=>{
@@ -278,8 +306,11 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       const file=join(tripFolder(trip),'image-'+cp.imageAttempt+'.png');
       if(existsSync(file))return;
       if(!confirmed)throw new PipelineError('上次图片结果不确定，请确认远端结果与可能费用后再显式重试');
-      cp.pendingImage=false;atomicJson(cpFile(trip),cp);
+      cp.pendingImage=false;delete cp.receivedImageError;atomicJson(cpFile(trip),cp);
     }
   };
   return generate;
 }
+
+
+

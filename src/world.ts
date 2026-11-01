@@ -61,7 +61,7 @@ export class PostcardWorld implements World {
   private mailboxHealthy=true;
   private invitationsHealthy=true;
   constructor(private opts: { cfg: PostcardConfigSection; dataDir: string; generator?: Generator; now?:()=>number; setup?:SetupSecrets; bridge?:HostModelBridge; mailboxRuntime?:()=>string|null;restart?:()=>Promise<void> }) {
-    const signature=()=>JSON.stringify([opts.cfg.cloudEnabled,opts.cfg.useHostModel,opts.cfg.imageBackend,opts.cfg.imageModel,opts.cfg.imageBaseUrl,opts.cfg.imageSize,opts.cfg.characterPreset,opts.cfg.characterReference,opts.cfg.styleReference,opts.cfg.imageProxyUrl,opts.cfg.visionProxyUrl]);const applied=signature(),appliedModel=opts.cfg.imageModel??'';
+    const signature=()=>JSON.stringify([opts.cfg.cloudEnabled,opts.cfg.useHostModel,opts.cfg.imageBackend,opts.cfg.imageModel,opts.cfg.imageBaseUrl,opts.cfg.imageSize,opts.cfg.requestPngOutput,opts.cfg.characterPreset,opts.cfg.characterReference,opts.cfg.styleReference,opts.cfg.imageProxyUrl,opts.cfg.visionProxyUrl]);const applied=signature(),appliedModel=opts.cfg.imageModel??'';
     this.verification=new ReadinessCheck(join(opts.dataDir,'postcard'),opts.cfg,n=>opts.setup?.secret(n)??'',()=>this.host?.modelFacts.model()??'',opts.generator,opts.now);
     this.setup=new SetupPanel(opts.cfg,opts.setup,join(opts.dataDir,'postcard/character-imports'),()=>!!this.host?.modelFacts.accepts('image/png'),opts.setup?{state:()=>this.verification.state(),start:()=>{if(this.service.status()&&['traveling','generating','failed','awaiting_service'].includes(this.service.status()!.status))throw Error('请先结束已有旅行，再验证配置');return this.verification.start();}}:undefined,opts.restart?{required:()=>signature()!==applied,appliedModel:()=>appliedModel,restart:async()=>{if(this.verification.state().phase==='checking'||this.service.status()&&['traveling','generating','awaiting_service','failed'].includes(this.service.status()!.status))throw Error('旅行或制作验证尚未结束，暂不能重启；请先完成或处理当前任务');await opts.restart!();}}:undefined);
     this.service = new TravelService(new TravelStore(join(opts.dataDir,'postcard')), opts.generator, opts.now,true,opts.cfg.developmentTestMode===true?5:TRAVEL_MINUTES);
@@ -171,4 +171,5 @@ export class PostcardWorld implements World {
     this.timer = undefined;await this.developmentValidation?.stop();this.verification.stop();this.opts.bridge?.detach(); this.host = undefined;await this.story?.stop(); await this.mailboxWindow.close(); await this.service.close();
   }
 }
+
 

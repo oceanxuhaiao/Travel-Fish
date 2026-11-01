@@ -85,7 +85,7 @@ it('旅行进度按保存的起止时间计算，制作阶段不冒充已收到'
  f.setState({trip:{id:'progress',scene:'forest',status:'traveling',startedAt:0,dueAt:7200000},cards:[],minutes:120,generatorConnected:true});await mountAlbum(f.ctx);
  expect(f.ctx.root.querySelector('progress').value).toBe(50);expect(f.ctx.root.textContent).toContain('约 60 分钟');
  Date.now.mockReturnValue(-100);f.timers[1]();expect(f.ctx.root.querySelector('progress').value).toBe(0);
- Date.now.mockReturnValue(7200000);f.setState({trip:{id:'progress',scene:'forest',status:'generating',startedAt:0,dueAt:7200000},cards:[],minutes:120,generatorConnected:true});await f.timers[0]();await flush();expect(f.ctx.root.querySelector('progress').value).toBe(100);expect(f.ctx.root.textContent).toContain('明信片尚未完成');
+ Date.now.mockReturnValue(7200000);f.setState({trip:{id:'progress',scene:'forest',status:'generating',startedAt:0,dueAt:7200000},cards:[],minutes:120,generatorConnected:true});await f.timers[0]();await flush();expect(f.ctx.root.querySelector('progress').value).toBe(100);expect(f.ctx.root.textContent).toContain('来信仍在整理');expect(f.ctx.root.textContent).not.toContain('已收到');
 });
 
 it('内置三服饰展示并通过标准配置接口选择，保留自定义入口',async()=>{

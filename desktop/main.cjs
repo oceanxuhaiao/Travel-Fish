@@ -9,10 +9,24 @@ let leftPressed;try{if(process.platform==='win32'){const ffi=require('koffi');co
 
 async function request(route,payload){if(typeof payload==='string')payload={tripId:payload};const response=await fetch(origin+route,{method:payload?'POST':'GET',headers:{Authorization:'Bearer '+token,...(payload?{'Content-Type':'application/json'}:{})},...(payload?{body:JSON.stringify(payload)}:{}),signal:AbortSignal.timeout(5000)});if(!response.ok)throw Error('暂时联系不上邮箱，收藏仍保留');return response.json();}
 const options={preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true};
+const readerVersion=(()=>{try{return String(app.getVersion());}catch{return '';}})();
+function readerDiagnostic(stage,code=''){try{
+ const file=path.join(process.env.POSTCARD_MAIL_PROFILE,'reader-diagnostics.json');let events=[];
+ try{const old=JSON.parse(fs.readFileSync(file,'utf8'));events=Array.isArray(old)?old:Array.isArray(old?.events)?old.events:[];}catch{}
+ events.push({stage,code:String(code??'').slice(0,120),version:readerVersion,at:new Date().toISOString()});
+ fs.writeFileSync(file,JSON.stringify({schema:1,latest:events.at(-1),events:events.slice(-20)},null,2));
+}catch{}}
+function watchReader(win){
+ win.webContents.on('preload-error',(_event,_preload,error)=>readerDiagnostic('preload-error',error?.name??''));
+ win.webContents.on('did-fail-load',(_event,code,description,_url,isMainFrame)=>{if(isMainFrame===false)return;readerDiagnostic('did-fail-load',String(code)+(description?':'+String(description).slice(0,60):''));});
+ win.webContents.on('render-process-gone',(_event,details)=>readerDiagnostic('render-process-gone',details?.reason));
+ win.on('unresponsive',()=>{readerDiagnostic('unresponsive');const timer=setTimeout(()=>{if(!win.isDestroyed()){readerDiagnostic('unresponsive-destroy');win.destroy();}},2000);timer.unref?.();});
+ win.on('close',()=>{const timer=setTimeout(()=>{if(!win.isDestroyed()){readerDiagnostic('close-timeout');win.destroy();}},1000);timer.unref?.();});
+}
 function secure(win){win.webContents.on('render-process-gone',()=>{if(win===mailbox)app.quit();else if(!win.isDestroyed())win.close();});win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());}
 app.whenReady().then(async()=>{
  const positionFile=path.join(process.env.POSTCARD_MAIL_PROFILE,'position.json');const initial=await request('/state');const height=Math.max(260,(Number(initial.height)||120)+140);
- const {groundBounds,placeBounds,chooseDisplay,restorePosition,fallStep}=require('./layout.cjs');
+ const {groundBounds,placeBounds,chooseDisplay,restorePosition,readerBounds,fallStep}=require('./layout.cjs');
  let falling=null;
  const displays=()=>{const all=screen.getAllDisplays();return all.length?all:[screen.getPrimaryDisplay()];};
  let savedPosition={};try{savedPosition=JSON.parse(fs.readFileSync(positionFile,'utf8'))||{};}catch{}
@@ -42,7 +56,13 @@ app.whenReady().then(async()=>{
     if(reader&&!reader.isDestroyed()&&readerTrip===id){if(!automatic)reader.show();return {};}
     readerOpening=(async()=>{await request('/skip-pickup',String(id));
     if(reader&&!reader.isDestroyed())reader.close();
-    reader=new BrowserWindow({width:570,height:760,title:'远方来信',show:false,autoHideMenuBar:true,webPreferences:options});readerTrip=id;const current=reader;current.once('closed',()=>{if(reader===current){reader=undefined;readerTrip=undefined;}});secure(reader);await reader.loadFile(path.join(__dirname,'mailbox.html'),{hash:'letter='+id+(automatic?'&preview=1':'')});if(automatic)reader.showInactive();else reader.show();return {};})();try{return await readerOpening;}finally{readerOpening=undefined;}
+    const box=mailbox.getBounds(),display=chooseDisplay(displays(),{x:box.x+box.width/2,y:box.y+box.height/2}),bounds=readerBounds(display.workArea);
+    reader=new BrowserWindow({...bounds,title:'远方来信',show:false,autoHideMenuBar:true,webPreferences:options});readerTrip=id;const current=reader;
+    current.once('closed',()=>{if(reader===current){reader=undefined;readerTrip=undefined;}});watchReader(current);secure(current);let timer;
+    try{await Promise.race([current.loadFile(path.join(__dirname,'mailbox.html'),{hash:'letter='+id+(automatic?'&preview=1':'')}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('reader-load-timeout')),10000);})]);
+     if(current.isDestroyed())throw Error('reader-closed');if(automatic)current.showInactive();else current.show();return {};
+    }catch{readerDiagnostic('open-failed');if(!current.isDestroyed())current.destroy();throw Error('阅读器未能打开，收藏仍保留，请重新打开或到收藏册查看');}finally{clearTimeout(timer);}
+    })();try{return await readerOpening;}finally{readerOpening=undefined;}
   }
   if(action==='close'){if(event.sender===mailbox.webContents)app.quit();else reader?.close();return {};}
   throw Error('未知邮箱操作');

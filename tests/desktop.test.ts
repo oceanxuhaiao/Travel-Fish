@@ -58,3 +58,22 @@ it('正式提示悬停可见、离开隐藏，点击显示五秒，不因未读�
  expect(status.hidden).toBe(true);mail.dispatchEvent(new dom.window.Event('pointerenter'));expect(status.hidden).toBe(false);mail.dispatchEvent(new dom.window.Event('pointerleave'));expect(status.hidden).toBe(true);
  mail.click();await flush();expect(status.hidden).toBe(false);now+=5001;timers[1]();expect(status.hidden).toBe(true);expect(api.call.mock.calls.some(c=>c[0]==='pickup-request')).toBe(false);
 });
+
+it('letter shows a loading shell and close action before read resolves, then times out without late writes',async()=>{
+ const dom=new JSDOM('<main id="root"></main>',{url:'https://local.test/#letter=00000000-0000-0000-0000-000000000001',runScripts:'outside-only'});fixtures.push(dom);let release:any;let timeout:any;
+ (dom.window as any).setTimeout=(fn:any)=>{timeout=fn;return 1;};(dom.window as any).clearTimeout=()=>{};
+ const api={call:vi.fn((action:string)=>action==='read'?new Promise(r=>{release=r;}):Promise.resolve({}))};(dom.window as any).postcard=api;dom.window.eval(script);
+ expect(dom.window.document.body.textContent).toContain('正在打开来信');expect(dom.window.document.querySelector('button')!.textContent).toBe('关闭');
+ timeout();await flush();expect(dom.window.document.body.textContent).toContain('读信超时');release({title:'迟到',note:'不应显示',imageBase64:'AA=='});await flush();expect(dom.window.document.body.textContent).not.toContain('迟到');expect(api.call.mock.calls.some(c=>c[0]==='mark-read')).toBe(false);
+});
+it.each(['missing','reject','invalid'])('letter failure %s has a visible explanation and close action',async(mode)=>{
+ const dom=new JSDOM('<main id="root"></main>',{url:'https://local.test/#letter=00000000-0000-0000-0000-000000000001',runScripts:'outside-only'});fixtures.push(dom);
+ if(mode!=='missing')(dom.window as any).postcard={call:async()=>{if(mode==='reject')throw Error('private remote detail');return {};}};dom.window.eval(script);await flush();const text=dom.window.document.body.textContent!;expect(text).toContain(mode==='missing'?'通信未就绪':mode==='invalid'?'数据不完整':'读信失败');expect(text).not.toContain('private remote detail');expect([...dom.window.document.querySelectorAll('button')].some(b=>b.textContent==='关闭')).toBe(true);
+});
+it('letter image failure keeps text readable and never marks read on error',async()=>{
+ const dom=new JSDOM('<main id="root"></main>',{url:'https://local.test/#letter=00000000-0000-0000-0000-000000000001',runScripts:'outside-only'});fixtures.push(dom);
+ const api={call:vi.fn(async(action:string)=>action==='read'?{title:'海边来信',note:'短笺内容',imageBase64:'AA=='}:{})};(dom.window as any).postcard=api;dom.window.eval(script);await flush();
+ const image=dom.window.document.querySelector('img')!;image.dispatchEvent(new dom.window.Event('error'));
+ expect(dom.window.document.body.textContent).toContain('图片暂时无法显示');expect(dom.window.document.body.textContent).toContain('短笺内容');
+ expect(api.call.mock.calls.some(c=>c[0]==='mark-read')).toBe(false);
+});

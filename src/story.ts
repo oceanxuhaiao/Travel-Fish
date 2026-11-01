@@ -8,6 +8,7 @@ import {GROUNDING_GUIDANCE,validateGroundedPlan,EMOTIONAL_GUIDANCE,VISUAL_GUIDAN
 import type {StoryNode,StoryPlan,StoryContext} from './journey-types.ts';
 import {objectContract,decisionContract,outputFeedback,feedbackPrompt,OutputValidationError,type OutputContract} from './model-feedback.ts';
 import {PipelineError} from './generation.ts';
+import {recoverOutput,parseBoundedOutput,RECOVERY_VERSION} from './delivery-recovery.ts';
 import {selectMaterialPool,MATERIAL_GUIDANCE} from './materials.ts';
 import {checkpointPrompt,StoryCheckpointError} from './story-checkpoint.ts';
 
@@ -84,11 +85,13 @@ export class StoryEngine {
   let cp=existsSync(file)?JSON.parse(readFileSync(file,'utf8')):{requestHash,prompt,attempts:0};
   prompt=checkpointPrompt(label,cp,prompt);
   if(cp.response){contract.validate(cp.response);return cp.response;}
-  if(!Number.isInteger(cp.attempts)||cp.attempts<0||cp.attempts>=2)throw new PipelineError('故事阶段已达两次尝试上限，恢复次数已耗尽；不会自动增加次数，请先检查原任务反馈');
-  cp.attempts++;atomicJson(file,cp);
-  const result=await this.transport('text',{model:'host-model',stream:false,response_format:{type:'json_object'},max_tokens:7000,messages:[{role:'user',content:[{type:'text',text:prompt}]}],__postcardTask:{tripId:id,label}},signal,{outputContract:contract});
+  if(!Number.isInteger(cp.attempts)||cp.attempts<0)throw new PipelineError('故事检查点次数无效，已保存进度，暂缓交付');
+  const cacheOnly=cp.attempts>=2;
+  if(!cacheOnly){cp.attempts++;atomicJson(file,cp);}
+  const result=await this.transport('text',{model:'host-model',stream:false,response_format:{type:'json_object'},max_tokens:7000,messages:[{role:'user',content:[{type:'text',text:prompt}]}],__postcardTask:{tripId:id,label}},signal,{outputContract:contract,...(cacheOnly?{cacheOnly:true}:{})});
   signal.throwIfAborted();let value:any;
-  try{const raw=(result.choices as any[])?.[0]?.message?.content;if(typeof raw!=='string'||raw.length>20000)throw Error();value=JSON.parse(raw);}catch{atomicJson(join(folder,label+'-feedback.json'),outputFeedback(label,objectContract('bounded-json-v1',()=>{throw Error('结果必须是有效的有界JSON');}),{}));throw Error('故事宿主结果不是有效的有界JSON');}
+  try{const raw=(result?.choices as any[])?.[0]?.message?.content;value=parseBoundedOutput(raw);}catch{if(cacheOnly)throw new PipelineError('故事阶段已达两次尝试上限；无可本地修复的缓存，已保存进度，暂缓交付');atomicJson(join(folder,label+'-feedback.json'),outputFeedback(label,objectContract('bounded-json-v1',()=>{throw Error('结果必须是有效的有界JSON');}),{}));throw Error('故事宿主结果不是有效的有界JSON');}
+  const repaired=recoverOutput(label,value,contract,prompt);if(repaired.repairs.length){atomicJson(join(folder,label+'-local-recovery.json'),{version:RECOVERY_VERSION,original:value,repairs:repaired.repairs});value=repaired.value;}
   const feedback=outputFeedback(label,contract,value);atomicJson(join(folder,label+'-feedback.json'),feedback);
   if(!feedback.valid){cp.rejectedResponse=value;atomicJson(file,cp);throw Error(feedback.errors.map(e=>e.message).join('；'));}
   cp.response=value;atomicJson(file,cp);return value;

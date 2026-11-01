@@ -35,7 +35,7 @@ it('cached answers are revalidated without spending attempts; exhausted budgets 
   await expect((engine as any).call('j','plan-1',current,new AbortController().signal,objectContract('reject',()=>{throw Error('旧结果不合规');}))).rejects.toThrow('旧结果不合规');
   expect(JSON.parse(readFileSync(file,'utf8'))).toEqual(cp);expect(transport).not.toHaveBeenCalled();
   delete (cp as any).response;writeFileSync(file,JSON.stringify(cp));
-  await expect((engine as any).call('j','plan-1',current,new AbortController().signal)).rejects.toThrow('两次尝试上限');expect(transport).not.toHaveBeenCalled();
+  await expect((engine as any).call('j','plan-1',current,new AbortController().signal)).rejects.toThrow('两次尝试上限');expect(transport.mock.calls.at(-1)![3]).toMatchObject({cacheOnly:true});expect(JSON.parse(readFileSync(file,'utf8')).attempts).toBe(2);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
 it('unfinished requests retain their old prompt, hash and accumulated attempt count',async()=>{
@@ -46,4 +46,6 @@ it('unfinished requests retain their old prompt, hash and accumulated attempt co
  try{await (engine as any).call('j','plan-1',current,new AbortController().signal);const saved=JSON.parse(readFileSync(file,'utf8'));expect(saved.attempts).toBe(2);expect(saved.requestHash).toBe(hash(old));expect(saved.prompt).toBe(old);expect(transport).toHaveBeenCalledTimes(1);}
  finally{rmSync(root,{recursive:true,force:true});}
 });
+
+
 

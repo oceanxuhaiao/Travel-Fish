@@ -11,3 +11,15 @@ it('原生读信窗口100次并发打开与后续重复打开只创建一个，�
  windows[1].webContents.emit('render-process-gone');expect(windows[1].destroyed).toBe(true);expect(quit).toBe(0);await handler({sender},'open-letter',id);expect(windows).toHaveLength(3);
  windows[0].webContents.emit('render-process-gone');expect(quit).toBe(1);
 });
+it('读信窗口加载失败会清理该窗口并释放打开锁，重试可重新打开',async()=>{
+ let handler:any,ready:Promise<void>;const windows:any[]=[];let fail=true;
+ class Win extends EventEmitter{destroyed=false;webContents:any=new EventEmitter();constructor(public options:any){super();this.webContents.setWindowOpenHandler=()=>{};windows.push(this);}isDestroyed(){return this.destroyed;}close(){this.destroyed=true;this.emit('closed');}destroy(){this.destroyed=true;this.emit('closed');}setIgnoreMouseEvents(){}showInactive(){}show(){}async loadFile(){if(fail&&this!==windows[0]){fail=false;throw Error('load failed');}}bounds={x:0,y:0,width:260,height:260};setBounds(){}getBounds(){return this.bounds;}}
+ const screen=Object.assign(new EventEmitter(),{getPrimaryDisplay:()=>({id:1,workArea:{x:-1920,y:0,width:1920,height:1040},bounds:{x:-1920,y:0,width:1920,height:1040},scaleFactor:1.25}),getAllDisplays:()=>[],getCursorScreenPoint:()=>({x:0,y:0})});
+ const app={disableHardwareAcceleration(){},setPath(){},getVersion:()=> '9.9.9',whenReady:()=>({then:(f:any)=>{ready=f();return ready;}}),on(){},quit(){}};const nativeRequire=createRequire(import.meta.url);
+ const fs={mkdirSync(){},readFileSync(){throw Error('not configured');},writeFileSync(){}};
+ const context={require:(name:string)=>name==='electron'?{app,BrowserWindow:Win,screen,powerMonitor:new EventEmitter(),ipcMain:{handle:(_:string,fn:any)=>{handler=fn;},on(){}}}:name==='node:fs'?fs:name==='./layer.cjs'?{keepBehindPet:()=>({update:()=>({supported:true}),dispose(){}})}:name==='./layout.cjs'?nativeRequire('../desktop/layout.cjs'):nativeRequire(name),__dirname:'test-mailbox',process:{env:{POSTCARD_MAIL_PROFILE:'test-profile'},pid:123,kill(){}},fetch:async()=>({ok:true,json:async()=>({height:120})}),AbortSignal,URLSearchParams,setTimeout:()=>1,clearTimeout(){},setInterval:()=>({unref(){}}),clearInterval(){},console};
+ vm.runInNewContext(readFileSync(new URL('../desktop/main.cjs',import.meta.url),'utf8'),context);await ready!;
+ const sender=windows[0].webContents,id='00000000-0000-0000-0000-000000000002';
+ await expect(handler({sender},'open-letter',id)).rejects.toThrow('阅读器未能打开');expect(windows).toHaveLength(2);expect(windows[1].destroyed).toBe(true);
+ await handler({sender},'open-letter',id);expect(windows).toHaveLength(3);expect(windows[2].destroyed).toBe(false);expect(windows[2].options).toMatchObject({x:-1245,y:140,width:570,height:760});
+});

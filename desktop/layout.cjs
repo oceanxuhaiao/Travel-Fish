@@ -25,9 +25,14 @@ function restorePosition(displays,primaryId,height,saved={}){
  const bounds=relative?{x:a.x+saved.relativeX*Math.max(0,a.width-260),y:a.y+saved.relativeY*Math.max(0,a.height-height)}:hasDisplay&&String(display.id)!==String(saved.displayId)?{}:saved;
  return {display,bounds:placeBounds(a,height,bounds)};
 }
+function readerBounds(area,width=570,height=760){
+ if(!area||!['x','y','width','height'].every(k=>Number.isFinite(area[k]))||area.width<=0||area.height<=0)throw Error('Invalid display geometry');
+ const w=Math.min(width,Math.round(area.width)),h=Math.min(height,Math.round(area.height));
+ return {x:Math.round(area.x+(area.width-w)/2),y:Math.round(area.y+(area.height-h)/2),width:w,height:h};
+}
 function fallStep(y,velocity,floor,dt){
  dt=Math.max(0,Math.min(.05,dt));
  const speed=Math.min(1800,velocity+2200*dt),next=Math.min(floor,y+(velocity+speed)*.5*dt);
  return {y:next,velocity:next>=floor?0:speed,landed:next>=floor};
 }
-module.exports={groundBounds,placeBounds,chooseDisplay,restorePosition,fallStep};
+module.exports={groundBounds,placeBounds,chooseDisplay,restorePosition,readerBounds,fallStep};

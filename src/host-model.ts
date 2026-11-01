@@ -6,7 +6,8 @@ import type {WorldHost,ToolDef} from 'cortico/core/types.ts';
 import {atomicJson} from './travel.ts';
 import {PipelineError,type Transport} from './generation.ts';
 import {objectContract,outputFeedback,type OutputContract,type OutputFeedback} from './model-feedback.ts';
-type Task={id:string;digest:string;tripId:string;label:string;payload:any;createdAt:number;result?:Record<string,unknown>;submissions?:Array<{resultJson:string;feedback:OutputFeedback}>;feedback?:OutputFeedback};
+import {recoverOutput,parseBoundedOutput,RECOVERY_VERSION} from './delivery-recovery.ts';
+type Task={id:string;digest:string;tripId:string;label:string;payload:any;createdAt:number;result?:Record<string,unknown>;submissions?:Array<{resultJson:string;feedback:OutputFeedback}>;feedback?:OutputFeedback;recovery?:{version:string;sourceSubmission:number;repairs:string[]}};
 export class HostModelBridge {
  private host?:WorldHost;private active=new Map<string,AbortSignal>();private closed=false;
  private contracts=new Map<string,OutputContract>();
@@ -29,9 +30,17 @@ export class HostModelBridge {
   const meta=payload.__postcardTask as {tripId:string;label:string};if(!meta?.tripId||!meta?.label)throw new PipelineError('宿主任务缺少归属');
   if(route?.outputContract)payload={...payload,__postcardOutputContract:route.outputContract.id};
   const digest=this.digest(payload),id=digest,file=this.file(id);let task:Task;
+  if(route?.cacheOnly&&!existsSync(file))throw new PipelineError('恢复预算已耗尽且没有可复用的宿主结果；已保存进度，暂缓交付');
   if(existsSync(file))task=this.load(id);else{task={id,digest,tripId:meta.tripId,label:meta.label,payload,createdAt:Date.now()};atomicJson(file,task);}
   const response=(r:Record<string,unknown>)=>({model:'host-model',choices:[{finish_reason:'stop',message:{content:JSON.stringify(r)}}]});
   if(task.result){route?.outputContract?.validate(task.result);return response(task.result);}
+  const last=task.submissions?.at(-1);
+  if(last&&route?.outputContract){
+   try{const recovered=recoverOutput(task.label,parseBoundedOutput(last.resultJson),route.outputContract,task.payload.messages[0].content.filter((x:any)=>x.type==='text').map((x:any)=>x.text).join('\n'));
+    if(recovered.feedback.valid&&recovered.repairs.length){task.result=recovered.value;task.recovery={version:RECOVERY_VERSION,sourceSubmission:task.submissions!.length,repairs:recovered.repairs};atomicJson(file,task);return response(task.result!);}
+   }catch{/* Invalid historical output stays rejected; never spend an extra submission. */}
+  }
+  if(route?.cacheOnly)throw new PipelineError('恢复预算已耗尽，现有结果未通过本地修复校验；已保存进度，暂缓交付');
   if((task.submissions?.length??0)>=2)throw new PipelineError('本阶段两次结构提交已耗尽；继续准备不会增加次数，请先检查已保存反馈或决定结束原旅程，不会自动重新收费');
   if(this.active.has(id))throw new PipelineError('同一宿主待办正在处理，请等待');
   this.active.set(id,signal);
@@ -53,11 +62,14 @@ export class HostModelBridge {
   if(contract&&!t.result){
    if((t.submissions?.length??0)>=2)throw Error('本阶段提交次数已耗尽，请查看反馈');
    let value:unknown;let parseError='';
-   try{if(typeof resultJson!=='string'||resultJson.length>20000)throw Error('JSON结果须为不超过20000字符的字符串');value=JSON.parse(resultJson);}catch(error){parseError=error instanceof Error?error.message:'JSON格式错误';}
+   try{value=parseBoundedOutput(resultJson);}catch(error){parseError=error instanceof Error?error.message:'JSON格式错误';}
    const check=parseError?objectContract(contract.id,()=>{throw Error(parseError);}):contract;
-   const feedback=outputFeedback(t.label,check,parseError?{}:value);
-   t.submissions??=[];t.submissions.push({resultJson:typeof resultJson==='string'?resultJson.slice(0,20000):'',feedback});t.feedback=feedback;
-   if(feedback.valid)t.result=value as Record<string,unknown>;
+   const rawFeedback=outputFeedback(t.label,check,parseError?{}:value);
+   const recovered=!parseError?recoverOutput(t.label,value,contract,t.payload.messages[0].content.filter((x:any)=>x.type==='text').map((x:any)=>x.text).join('\n')):null;
+   const feedback=recovered?.feedback??rawFeedback;
+   t.submissions??=[];t.submissions.push({resultJson:typeof resultJson==='string'?resultJson.slice(0,20000):'',feedback:rawFeedback});t.feedback=feedback;
+   if(feedback.valid)t.result=(recovered?.value??value) as Record<string,unknown>;
+   if(recovered?.repairs.length)t.recovery={version:RECOVERY_VERSION,sourceSubmission:t.submissions.length,repairs:recovered.repairs};
    atomicJson(this.file(id),t);
    return {accepted:feedback.valid,feedback,remainingSubmissions:2-t.submissions.length,nextAction:feedback.valid?'等待后续业务评审与交付回执':t.submissions.length<2?'按反馈修正后向同一任务重新提交':'停止提交，保留结果待用户处理'};
   }

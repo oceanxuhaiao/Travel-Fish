@@ -18,7 +18,7 @@ export class SetupPanel {
   if(this.importRoot&&existsSync(this.importRoot))for(const file of readdirSync(this.importRoot).filter(n=>/^[a-f0-9]{64}\.png$/.test(n))){let label='我的角色 '+file.slice(0,6);try{const meta=JSON.parse(readFileSync(join(this.importRoot,file+'.json'),'utf8'));if(typeof meta.label==='string')label=meta.label.slice(0,80);}catch{}items.push({id:'custom:'+file.slice(0,-4),label,path:join(this.importRoot,file)});}
   const legacy=this.cfg.characterReference.trim();if(legacy&&existsSync(legacy)&&!items.some(i=>i.path===legacy))items.push({id:'custom-current',label:'已有自定义角色',path:legacy});return items;
  }
- snapshot(){return {restartRequired:this.needsRestart(),keys:{qwen:!!this.secrets?.secret(names.qwen),gemini:!!this.secrets?.secret(names.gemini),ark:!!this.secrets?.secret(names.ark),compatible:!!this.secrets?.secret(names.compatible),vision:!!this.secrets?.secret(names.vision)},secureSaveAvailable:!!this.secrets,characterPreset:this.cfg.characterPreset??'auto',presets:CHARACTER_PRESETS,customReferences:this.library(),imageBackend:this.cfg.imageBackend??'ark',imageBaseUrl:this.cfg.imageBaseUrl??'http://127.0.0.1:8000/v1',imageSize:this.cfg.imageSize??'1024x1536',imageUnitPrice:this.cfg.imageUnitPrice??-1,imageModel:this.cfg.imageModel||'doubao-seedream-5-0-flash-260915',useHostModel:this.cfg.useHostModel??true,hostVisionReady:!!this.hostReady?.(),cloudEnabled:this.cfg.cloudEnabled,characterReference:this.cfg.characterReference,styleReference:this.cfg.styleReference,cost:costEstimate(this.cfg)};}
+ snapshot(){return {restartRequired:this.needsRestart(),keys:{qwen:!!this.secrets?.secret(names.qwen),gemini:!!this.secrets?.secret(names.gemini),ark:!!this.secrets?.secret(names.ark),compatible:!!this.secrets?.secret(names.compatible),vision:!!this.secrets?.secret(names.vision)},secureSaveAvailable:!!this.secrets,characterPreset:this.cfg.characterPreset??'auto',presets:CHARACTER_PRESETS,customReferences:this.library(),imageBackend:this.cfg.imageBackend??'ark',requestPngOutput:this.cfg.requestPngOutput??true,imageBaseUrl:this.cfg.imageBaseUrl??'http://127.0.0.1:8000/v1',imageSize:this.cfg.imageSize??'1024x1536',imageUnitPrice:this.cfg.imageUnitPrice??-1,imageModel:this.cfg.imageModel||'doubao-seedream-5-0-flash-260915',useHostModel:this.cfg.useHostModel??true,hostVisionReady:!!this.hostReady?.(),cloudEnabled:this.cfg.cloudEnabled,characterReference:this.cfg.characterReference,styleReference:this.cfg.styleReference,cost:costEstimate(this.cfg)};}
 
  invoke(method:string,args:unknown[]=[]):unknown {
   if(method==='importCharacter'){
@@ -54,3 +54,4 @@ export class SetupPanel {
   throw new Error('未知配置操作');
  }
 }
+

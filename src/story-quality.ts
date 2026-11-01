@@ -1,4 +1,5 @@
 import type {StoryPlan,StoryNode,Portrayal} from './journey-types.ts';
+import {OutputValidationError} from './model-feedback.ts';
 export const EMOTIONAL_GUIDANCE='每节点写emotionalBeat{before,trigger,response,after}：原先期待/心境→具体发生的小事→自己的选择或反应→此刻感受。情绪可细微，也可留下小遗憾；不强求冲突、补偿或升华。平静可以有层次，但三节点不能只是换三处景物再重复心慢下来。至少两节点有具体可辨的主动选择，情感由事件引起，不堆情绪形容词。';
 export const VISUAL_GUIDANCE='每节点写visualBeat{orientation:front|side|three-quarter-back,action,expression}。三节点至少两种朝向、两种实际动作和两种神态；动作服务当前事件，表情可含蓄，不能三张都正面直立看镜头。由每节点composition决定近景、中景或远景及人物大小，不设统一人物占比；环境细节与当前景别和事件相适应。保留身份服装，不照搬参考图的姿态和脸部表情。';
 export function validateExpressiveNode(node:StoryNode){
@@ -13,7 +14,9 @@ export function validateExpressivePlan(p:StoryPlan,nodeCount=3){
  if(new Set(p.nodes.map(n=>n.emotionalBeat!.trigger.trim())).size<2||new Set(p.nodes.map(n=>n.emotionalBeat!.response.trim())).size<2)throw Error('情绪发展重复：不同节点须有各自具体触发与角色反应');
 }
 export function validatePortrayal(p:any):asserts p is Portrayal {
- if(!p||!['front','side','three-quarter','back','uncertain'].includes(p.orientation)||!['idle','walk','sit','bend','reach','interact','other','uncertain'].includes(p.action)||!['neutral','curious','focused','surprised','pleased','disappointed','amused','not-visible','other','uncertain'].includes(p.expression)||!(p.subjectHeightRatio===null||typeof p.subjectHeightRatio==='number'&&p.subjectHeightRatio>0&&p.subjectHeightRatio<=1))throw Error('portrayal须按约定枚举报告真实朝向/动作/神态，subjectHeightRatio为0至1比例或无法判断时null');
+ const enums={orientation:['front','side','three-quarter','back','uncertain'],action:['idle','walk','sit','bend','reach','interact','other','uncertain'],expression:['neutral','curious','focused','surprised','pleased','disappointed','amused','not-visible','other','uncertain']};
+ for(const [field,allowed] of Object.entries(enums))if(!p||!allowed.includes(p[field]))throw new OutputValidationError('portrayal.'+field,allowed.join('|'),'portrayal.'+field+'不在识别词表中；请按实际观察选择'+allowed.join('/')+'，看不清不要猜测');
+ if(!(p.subjectHeightRatio===null||typeof p.subjectHeightRatio==='number'&&p.subjectHeightRatio>0&&p.subjectHeightRatio<=1))throw new OutputValidationError('portrayal.subjectHeightRatio','大于0且不超过1的比例或null','人物比例须为0至1比例或无法判断时null');
 }
 export const PORTRAYAL_INSTRUCTION='另返回portrayal{orientation:front|side|three-quarter|back|uncertain,action:idle|walk|sit|bend|reach|interact|other|uncertain,expression:neutral|curious|focused|surprised|pleased|disappointed|amused|not-visible|other|uncertain,subjectHeightRatio:含帽全身高度/画布高度的估计比例或无法判断时null}。必须报告实际看见的状态，不复述生成要求；侧背面看不到神态用not-visible。';
 export function portrayalIssues(current:Portrayal,previous?:Portrayal):string[]{

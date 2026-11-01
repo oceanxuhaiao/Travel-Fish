@@ -1,7 +1,7 @@
 import {it,expect} from 'vitest';
 import {createRequire} from 'node:module';
 const {groundBounds}=createRequire(import.meta.url)('../desktop/layout.cjs');
-const {placeBounds,chooseDisplay,restorePosition}=createRequire(import.meta.url)('../desktop/layout.cjs');
+const {placeBounds,chooseDisplay,restorePosition,readerBounds}=createRequire(import.meta.url)('../desktop/layout.cjs');
 const {fallStep}=createRequire(import.meta.url)('../desktop/layout.cjs');
 it('重力下落逐渐加速、限速且精确落地，卡顿不会穿过地面',()=>{
  let y=-900,v=0;const first=fallStep(y,v,640,1/60),second=fallStep(first.y,first.velocity,640,1/60);expect(second.y-first.y).toBeGreaterThan(first.y-y);
@@ -33,4 +33,10 @@ it('主屏为负坐标、任务栏在左/上、屏幕拔除回主屏时仍夹回
 });
 it('损坏的旧横坐标回默认位置；无效显示尺寸拒绝',()=>{
  expect(groundBounds({x:0,y:0,width:1920,height:1040},260,{x:NaN}).x).toBe(1214);expect(()=>groundBounds({x:0,y:0,width:0,height:1040},260)).toThrow();
+});
+it('读信窗口居中在邮箱所在屏幕并在负坐标/小屏/缩放工作区内夹紧',()=>{
+ expect(readerBounds({x:-1536,y:80,width:1536,height:824})).toEqual({x:-1053,y:112,width:570,height:760});
+ expect(readerBounds({x:0,y:0,width:800,height:600})).toEqual({x:115,y:0,width:570,height:600});
+ expect(readerBounds({x:1920,y:-200,width:500,height:400})).toEqual({x:1920,y:-200,width:500,height:400});
+ expect(()=>readerBounds({x:0,y:0,width:0,height:100})).toThrow();
 });
