@@ -7,6 +7,9 @@ import {StoryEngine,planningSchema,validatePlan} from '../src/story.ts';
 import type {Transport} from '../src/generation.ts';
 import type {StoryPlan} from '../src/journey-types.ts';
 import {PostcardPanel} from '../src/panel.ts';
+import {PostcardWorld} from '../src/world.ts';
+import {POSTCARD_DEFAULTS} from '../src/config.ts';
+import {FakeHost} from './helpers/fake-host.ts';
 const plans:StoryPlan[]=JSON.parse(readFileSync(new URL('./fixtures/story-candidates.json',import.meta.url),'utf8'));
 const response=(v:unknown)=>({choices:[{finish_reason:'stop',message:{content:JSON.stringify(v)}}]});
 const promptOf=(payload:any)=>payload.messages[0].content[0].text as string;
@@ -64,4 +67,23 @@ it('单节点计划Schema只接受一个节点和一条grounding',()=>{
  expect(schema.$defs.candidate.properties.nodes.minItems).toBe(1);
  expect(schema.$defs.candidate.properties.nodes.maxItems).toBe(1);
  expect(schema.$defs.candidate.properties.grounding.maxItems).toBe(1);
+});
+
+it('未交付短途计划保留内部，面板与状态/取消回执均不泄露',async()=>{
+ const world=new PostcardWorld({cfg:{...POSTCARD_DEFAULTS,mailboxEnabled:false,proactiveEnabled:false},dataDir:root,generator:async()=>{throw Error('must not generate');}});
+ await world.start(new FakeHost());
+ try{
+  await expect(world.tools().find(t=>t.name==='postcard_start')!.handler({},{} as any)).rejects.toThrow('面板选择短途或长途');
+  expect(world.service.store.snapshot().trips).toHaveLength(0);
+  const trip=world.service.startShort();world.service.setShortPlan(trip.id,shortPlan());
+  const internal=world.service.store.snapshot().trips.find(t=>t.id===trip.id)!;expect(internal.shortPlan).toBeTruthy();
+  expect(world.panel.snapshot().trip).not.toHaveProperty('shortPlan');
+  for(const name of ['postcard_status','postcard_cancel']){
+   const tool=world.tools().find(t=>t.name===name)!;
+   const result=JSON.parse(await tool.handler({tripId:trip.id},{} as any) as string);
+   const publicTrip=name==='postcard_status'?result.trip:result;
+   expect(publicTrip.id).toBe(trip.id);expect(publicTrip).not.toHaveProperty('shortPlan');
+   expect(publicTrip).not.toHaveProperty('generation');expect(publicTrip).not.toHaveProperty('sceneSnapshot');
+  }
+ }finally{await world.stop();}
 });

@@ -10,7 +10,7 @@ import {collectionSceneLabel,type Card,type Scene,type TravelService,type Trip} 
 export type PublicTrip=Omit<Trip,'generation'|'sceneSnapshot'|'shortPlan'>;
 export type PublicCard=Pick<Card,'tripId'|'scene'|'title'|'note'|'completedAt'|'sceneLabel'|'series'>;
 export interface PanelSnapshot { journey?:ReturnType<TravelService['journeyStatus']>;trip:PublicTrip|null; cards:Array<PublicCard&{unread?:boolean}>; mailbox?:MailboxSnapshot; mailboxWindow?:MailboxWindowState; minutes:number; generatorConnected:boolean; }
-function tripView(trip:Trip|null):PublicTrip|null {if(!trip)return null;const {generation,sceneSnapshot,...view}=trip;return view;}
+export function tripView(trip:Trip|null):PublicTrip|null {if(!trip)return null;const {generation,sceneSnapshot,shortPlan,...view}=trip;return view;}
 function cardView(card:Card):PublicCard {const {tripId,scene,title,note,completedAt,series}=card;const sceneLabel=collectionSceneLabel(card);return {tripId,scene,title,note,completedAt,...(series?{series}:{}),...(sceneLabel?{sceneLabel}:{})};}
 const binary=(mime:string,bytes:Uint8Array)=>({$binary:{mime,base64:Buffer.from(bytes).toString('base64')}});
 

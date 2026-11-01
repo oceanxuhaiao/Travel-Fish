@@ -14,7 +14,7 @@ import type { PostcardConfigSection } from './config.ts';
 import { TRAVEL_MINUTES, POSTCARD_CONFIG_GROUP } from './config.ts';
 import { TravelService, TravelStore, type Generator, type Scene } from './travel.ts';
 import {InvitationSchedule, invitationText, shouldRecap} from './invitations.ts';
-import { PostcardPanel } from './panel.ts';
+import { PostcardPanel,tripView } from './panel.ts';
 import { PostcardRecords, isDevelopmentCard, type RecordsQuery } from './records.ts';
 import {Reminiscence} from './reminiscence.ts';
 import {StoryEngine} from './story.ts';
@@ -92,7 +92,7 @@ export class PostcardWorld implements World {
         case 'postcard_journey':result=this.service.journeyStatus(typeof args.journeyId==='string'?args.journeyId:undefined);break;
         case 'postcard_end_journey':result=this.service.endJourney(String(args.journeyId));break;
         case 'postcard_summary_retry':if(!this.story)throw Error('宿主故事服务未接入');result=this.story.retrySummary(String(args.journeyId));break;
-        case 'postcard_status': result = {readyForTravel:!this.opts.setup?!!this.opts.generator:(this.setup.invoke('check') as {readyForTravel:boolean}).readyForTravel,cost:costEstimate(this.opts.cfg),journey:this.service.journeyStatus(), trip: this.service.status(), generatorConnected: !!this.opts.generator, invitation:{enabled:this.opts.cfg.proactiveEnabled??true,intervalMinutes:this.opts.cfg.proactiveIntervalMinutes??360,nextAt:this.invitations.snapshot()?.nextAt??null,...(!this.invitationsHealthy?{error:'主动询问日程损坏，已暂停'}:{})} }; break;
+        case 'postcard_status': result = {readyForTravel:!this.opts.setup?!!this.opts.generator:(this.setup.invoke('check') as {readyForTravel:boolean}).readyForTravel,cost:costEstimate(this.opts.cfg),journey:this.service.journeyStatus(), trip: tripView(this.service.status()), generatorConnected: !!this.opts.generator, invitation:{enabled:this.opts.cfg.proactiveEnabled??true,intervalMinutes:this.opts.cfg.proactiveIntervalMinutes??360,nextAt:this.invitations.snapshot()?.nextAt??null,...(!this.invitationsHealthy?{error:'主动询问日程损坏，已暂停'}:{})} }; break;
         case 'postcard_list': result = this.service.store.cards(); break;
         case 'postcard_records': result = this.records.search(args as RecordsQuery); break;
         case 'postcard_recall': result = this.reminiscence.recall(String(args.query),typeof args.limit==='number'?args.limit:undefined); break;
@@ -101,7 +101,7 @@ export class PostcardWorld implements World {
         case 'postcard_cancel': result = this.service.cancel(String(args.tripId)); break;
         case 'postcard_retry': result = this.service.retry(String(args.tripId),args.confirmUnknownOutcome===true); break;
       }
-      return JSON.stringify(result);
+      return JSON.stringify(['postcard_start','postcard_cancel','postcard_retry'].includes(decl.name)?tripView(result as ReturnType<TravelService['status']>):result);
     } }))];
   }
   webUi(): WorldWebUiDecl {
