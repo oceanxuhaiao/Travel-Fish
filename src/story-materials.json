@@ -1020,9 +1020,569 @@
         "选择自己的份量"
       ],
       "adaptation": "鱼不懂两种点心组合差在哪，问清后只选适合自己的一份；下轮可用上理解，不写成服务者考验或必须答题。"
+    },
+    {
+      "id": "d2-nature-coast",
+      "version": "d2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "许安平 SpermWhale",
+        "title": "烟台、海、蓝色多巴胺",
+        "url": "https://anpingwhale.com/dopamine/",
+        "recordedAt": "2026-11-01",
+        "summary": "限定亲历段摘要；来源与原创边界见provenance。"
+      },
+      "detail": "海面蓝色层次、岩壁反光与远处船的白色航迹。",
+      "mechanisms": [
+        "观看方式与感受变化"
+      ],
+      "conditions": [
+        "本类自然景观为主",
+        "安全平缓的观看位置"
+      ],
+      "incompatibleConditions": [
+        "歌词；岛名传说；地质和多巴胺解释；抓动物、投喂行为不导入。"
+      ],
+      "carryovers": [
+        "可辨认的观察或兴趣"
+      ],
+      "adaptation": "仅保留具体观看关系；虚构地点、大肥鱼动作与情绪措辞另创并标为原创。不移植危险路线，不承诺相同天气，不强加商店或人物。",
+      "requirementId": "D1-P5-01",
+      "activity": "P5",
+      "applicability": {
+        "environments": [
+          "coast"
+        ],
+        "prerequisites": [
+          "本类自然景观为主",
+          "安全平缓的观看位置"
+        ]
+      },
+      "sourceEvidence": {
+        "situation": "出差周末到岛上，骑车及沿悬崖栈道观看。",
+        "action": "骑车后沿栈道步行，停下看海面与岩壁光色。",
+        "result": "海面蓝色层次、岩壁反光与远处船的白色航迹。",
+        "feeling": "骑行时舒适；栈道上因景色惊喜、屏息。"
+      }
+    },
+    {
+      "id": "d2-nature-valley",
+      "version": "d2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "许安平 SpermWhale",
+        "title": "河南：南太行徒步之旅",
+        "url": "https://anpingwhale.com/south-taihang/",
+        "recordedAt": "2026-11-01",
+        "summary": "限定亲历段摘要；来源与原创边界见provenance。"
+      },
+      "detail": "跨谷看层叠山崖和云雾，向山下呼喊有回声。",
+      "mechanisms": [
+        "观看方式与感受变化"
+      ],
+      "conditions": [
+        "本类自然景观为主",
+        "安全平缓的观看位置"
+      ],
+      "incompatibleConditions": [
+        "临崖危险通行不作角色行动范本；山洪转述、地理介绍及未证实植物名称不导入。"
+      ],
+      "carryovers": [
+        "可辨认的观察或兴趣"
+      ],
+      "adaptation": "仅保留具体观看关系；虚构地点、大肥鱼动作与情绪措辞另创并标为原创。不移植危险路线，不承诺相同天气，不强加商店或人物。",
+      "requirementId": "D1-P5-02",
+      "activity": "P5",
+      "applicability": {
+        "environments": [
+          "valley"
+        ],
+        "prerequisites": [
+          "本类自然景观为主",
+          "安全平缓的观看位置"
+        ]
+      },
+      "sourceEvidence": {
+        "situation": "作者离村继续徒步，从山腰向谷对面观看。",
+        "action": "从山腰越过谷地看远山，朝山下呼喊并听回声。",
+        "result": "跨谷看层叠山崖和云雾，向山下呼喊有回声。",
+        "feeling": "呼喊后痛快，暂时放下烦琐心事。"
+      }
+    },
+    {
+      "id": "d2-nature-forest",
+      "version": "d2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "色影驴途",
+        "title": "《黑竹沟611林场穿越特克马鞍山》2024.04.15",
+        "url": "https://www.8264.com/youji/5728996.html",
+        "recordedAt": "2026-11-01",
+        "summary": "限定亲历段摘要；来源与原创边界见provenance。"
+      },
+      "detail": "笔直树干、树隙远山；作者回复补充苔藓、斜光、微风和鸟声。",
+      "mechanisms": [
+        "观看方式与感受变化"
+      ],
+      "conditions": [
+        "本类自然景观为主",
+        "安全平缓的观看位置"
+      ],
+      "incompatibleConditions": [
+        "作者回复作为回复证据单列，不能冒充第二页正文；人名电话、向导宣传、危险路线不导入。"
+      ],
+      "carryovers": [
+        "可辨认的观察或兴趣"
+      ],
+      "adaptation": "仅保留具体观看关系；虚构地点、大肥鱼动作与情绪措辞另创并标为原创。不移植危险路线，不承诺相同天气，不强加商店或人物。",
+      "requirementId": "D1-P5-03",
+      "activity": "P5",
+      "applicability": {
+        "environments": [
+          "forest"
+        ],
+        "prerequisites": [
+          "本类自然景观为主",
+          "安全平缓的观看位置"
+        ]
+      },
+      "sourceEvidence": {
+        "situation": "重访林场；按自己的速度边走边拍，作者回复记述林中慢行。",
+        "action": "按自己的速度边走边拍；作者回复记述林间慢行看光影。",
+        "result": "笔直树干、树隙远山；作者回复补充苔藓、斜光、微风和鸟声。",
+        "feeling": "喜欢慢看与记录；回复把林中体验形容为迷人的童话世界。"
+      }
+    },
+    {
+      "id": "d2-nature-lake",
+      "version": "d2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "半匹疯马",
+        "title": "在那遥远的地方-----环青海湖记",
+        "url": "https://www.8264.com/youji/5727802.html",
+        "recordedAt": "2026-11-01",
+        "summary": "限定亲历段摘要；来源与原创边界见provenance。"
+      },
+      "detail": "湖边微风与层浪，有风声、水声。",
+      "mechanisms": [
+        "观看方式与感受变化"
+      ],
+      "conditions": [
+        "本类自然景观为主",
+        "安全平缓的观看位置"
+      ],
+      "incompatibleConditions": [
+        "开头歌词、沙化成因、鸟种识别及现行价格不导入；2018旅行与2024发表分开。"
+      ],
+      "carryovers": [
+        "可辨认的观察或兴趣"
+      ],
+      "adaptation": "仅保留具体观看关系；虚构地点、大肥鱼动作与情绪措辞另创并标为原创。不移植危险路线，不承诺相同天气，不强加商店或人物。",
+      "requirementId": "D1-P5-04",
+      "activity": "P5",
+      "applicability": {
+        "environments": [
+          "lake"
+        ],
+        "prerequisites": [
+          "本类自然景观为主",
+          "安全平缓的观看位置"
+        ]
+      },
+      "sourceEvidence": {
+        "situation": "环湖骑行途中停在湖畔休息、闭眼听声音。",
+        "action": "骑行途中到湖边停留，闭上眼听风浪。",
+        "result": "湖边微风与层浪，有风声、水声。",
+        "feeling": "作者明确写到自由、辽阔。"
+      }
+    },
+    {
+      "id": "d2-nature-dunes",
+      "version": "d2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "阿唐老哥",
+        "title": "记5.1腾格里沙漠重装徒步",
+        "url": "https://www.8264.com/youji/5730485.html",
+        "recordedAt": "2026-11-01",
+        "summary": "限定亲历段摘要；来源与原创边界见provenance。"
+      },
+      "detail": "雨后风沙停止；沙丘侧面呈金字塔形，从丘上远观湖面。",
+      "mechanisms": [
+        "观看方式与感受变化"
+      ],
+      "conditions": [
+        "本类自然景观为主",
+        "安全平缓的观看位置"
+      ],
+      "incompatibleConditions": [
+        "雨量频率、湖水通则、药效采挖、族群概括不导入；诗词不是额外观景证据。"
+      ],
+      "carryovers": [
+        "可辨认的观察或兴趣"
+      ],
+      "adaptation": "仅保留具体观看关系；虚构地点、大肥鱼动作与情绪措辞另创并标为原创。不移植危险路线，不承诺相同天气，不强加商店或人物。",
+      "requirementId": "D1-P5-05",
+      "activity": "P5",
+      "applicability": {
+        "environments": [
+          "dunes"
+        ],
+        "prerequisites": [
+          "本类自然景观为主",
+          "安全平缓的观看位置"
+        ]
+      },
+      "sourceEvidence": {
+        "situation": "经历首日风沙后，次日沿较硬的湖边沙地前行；第三日远观。",
+        "action": "雨后沿湖边沙地行走，第三天在丘上远观湖面。",
+        "result": "雨后风沙停止；沙丘侧面呈金字塔形，从丘上远观湖面。",
+        "feeling": "作者明确对比前日，表达凉爽、走起来舒适；称沙丘壮观。"
+      }
+    },
+    {
+      "id": "d2-nature-flowers",
+      "version": "d2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "秦岭一笑",
+        "title": "醉美——油菜花",
+        "url": "https://www.8264.com/wenzhang/5696808.html",
+        "recordedAt": "2026-11-01",
+        "summary": "限定亲历段摘要；来源与原创边界见provenance。"
+      },
+      "detail": "沿阶梯上行后俯看花田，淡蓝天空、白云，沿途花香。",
+      "mechanisms": [
+        "观看方式与感受变化"
+      ],
+      "conditions": [
+        "本类自然景观为主",
+        "安全平缓的观看位置"
+      ],
+      "incompatibleConditions": [
+        "具体景点在已读文字中未明，不能补成罗平/婺源；2020出行与2023发布分开；歌词不导入。"
+      ],
+      "carryovers": [
+        "可辨认的观察或兴趣"
+      ],
+      "adaptation": "仅保留具体观看关系；虚构地点、大肥鱼动作与情绪措辞另创并标为原创。不移植危险路线，不承诺相同天气，不强加商店或人物。",
+      "requirementId": "D1-P5-06",
+      "activity": "P5",
+      "applicability": {
+        "environments": [
+          "flowers"
+        ],
+        "prerequisites": [
+          "本类自然景观为主",
+          "安全平缓的观看位置"
+        ]
+      },
+      "sourceEvidence": {
+        "situation": "作者第二次到访，和朋友穿过花地至有阶梯处。",
+        "action": "和朋友穿过花地，顺阶梯上行后向下俯看。",
+        "result": "沿阶梯上行后俯看花田，淡蓝天空、白云，沿途花香。",
+        "feeling": "明确喜欢春意、想继续停留，出行心情愉快。"
+      }
+    },
+    {
+      "id": "d2-life-market",
+      "version": "d2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "七牛行路",
+        "title": "信奉“极简生活”的我们，依然在景德镇带走了几样瓷器",
+        "url": "https://gs.ctrip.com/html5/you/travels/405/4077662.html",
+        "recordedAt": "2026-11-01",
+        "summary": "限定亲历段摘要；来源与原创边界见provenance。"
+      },
+      "detail": "买了马克杯等少量实用品，其余留在照片里。",
+      "mechanisms": [
+        "有限选择",
+        "实际行动结果"
+      ],
+      "conditions": [
+        "附近确有普通市集",
+        "只在单趟旅程内处理物件"
+      ],
+      "incompatibleConditions": [
+        "不搬原杯文字、古董历史、价格、摊主私生活猜测；不建立永久道具。"
+      ],
+      "carryovers": [
+        "本次选择的记忆"
+      ],
+      "adaptation": "角色可因携带空间只选一件普通物品；具体物件、购买对白、角色感受为原创。",
+      "requirementId": "D1-P1-01",
+      "activity": "P1",
+      "applicability": {
+        "environments": [
+          "waterside",
+          "coast",
+          "lake",
+          "valley",
+          "forest",
+          "flowers"
+        ],
+        "prerequisites": [
+          "附近确有普通市集",
+          "只在单趟旅程内处理物件"
+        ]
+      },
+      "sourceEvidence": {
+        "situation": "房车储物受限，走访陶艺市集。",
+        "action": "放弃不便带走的物件，选择日常能使用的杯碗。",
+        "result": "买了马克杯等少量实用品，其余留在照片里。",
+        "feeling": "作者认可只留下实用物件的选择。"
+      }
+    },
+    {
+      "id": "d2-life-rest",
+      "version": "d2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "许安平 SpermWhale",
+        "title": "河南：南太行徒步之旅",
+        "url": "https://anpingwhale.com/south-taihang/",
+        "recordedAt": "2026-11-01",
+        "summary": "限定亲历段摘要；来源与原创边界见provenance。"
+      },
+      "detail": "十点开始步行。",
+      "mechanisms": [
+        "有限选择",
+        "实际行动结果"
+      ],
+      "conditions": [
+        "附近有允许歇脚的小摊座位",
+        "普通休息而非疾病处置"
+      ],
+      "incompatibleConditions": [
+        "不把休息写成治疗，人物劝说与后续危险路段不导入。"
+      ],
+      "carryovers": [
+        "本次选择的记忆"
+      ],
+      "adaptation": "角色普通走累后选择桌边休息再继续，为原创原因改编；不能称原作者也是步行累了。",
+      "requirementId": "D1-P2-01",
+      "activity": "P2",
+      "applicability": {
+        "environments": [
+          "waterside",
+          "coast",
+          "lake",
+          "valley",
+          "forest",
+          "flowers"
+        ],
+        "prerequisites": [
+          "附近有允许歇脚的小摊座位",
+          "普通休息而非疾病处置"
+        ]
+      },
+      "sourceEvidence": {
+        "situation": "乘车后不适，抵达路边摊。",
+        "action": "趴在小摊桌旁休息片刻，状态调整后再出发。",
+        "result": "十点开始步行。",
+        "feeling": "原文未单列休息后的情绪，角色感受须原创。"
+      }
+    },
+    {
+      "id": "d2-life-weather",
+      "version": "d2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "七末",
+        "title": "夏练三伏于衡山",
+        "url": "https://www.8264.com/youji/5711167.html",
+        "recordedAt": "2026-11-01",
+        "summary": "限定亲历段摘要；来源与原创边界见provenance。"
+      },
+      "detail": "雨没有按预期立刻停，作者作出继续走的选择。",
+      "mechanisms": [
+        "有限选择",
+        "实际行动结果"
+      ],
+      "conditions": [
+        "确有安全有顶的公共避雨处",
+        "仅普通短时小雨的角色适配"
+      ],
+      "incompatibleConditions": [
+        "原行程雷暴与暴雨预警不移植；不教角色在雷暴中前行，不保证晴天或彩虹。"
+      ],
+      "carryovers": [
+        "本次选择的记忆"
+      ],
+      "adaptation": "改为平缓公共路径旁的小雨停留；雨强、安全处、角色情绪若新增均为原创，不跨轮冻结同一场雨。",
+      "requirementId": "D1-P2-02",
+      "activity": "P2",
+      "applicability": {
+        "environments": [
+          "waterside",
+          "coast",
+          "lake",
+          "valley",
+          "forest",
+          "flowers"
+        ],
+        "prerequisites": [
+          "确有安全有顶的公共避雨处",
+          "仅普通短时小雨的角色适配"
+        ]
+      },
+      "sourceEvidence": {
+        "situation": "实际遇雨，先经过已有避雨者的遮阳伞。",
+        "action": "因位置拥挤道谢离开，改在凉亭等候；后来仍下小雨，穿雨衣继续。",
+        "result": "雨没有按预期立刻停，作者作出继续走的选择。",
+        "feeling": "原文未明确说遗憾，不能补给作者。"
+      }
+    },
+    {
+      "id": "d2-life-print",
+      "version": "d2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "bxt",
+        "title": "福多多-朱拓藏福（体验拓印福字）",
+        "url": "https://hive.blog/hive-105017/@bxt/73289e614ba4b",
+        "recordedAt": "2026-11-01",
+        "summary": "限定亲历段摘要；来源与原创边界见provenance。"
+      },
+      "detail": "完成一张作品，放到安全区域晾干。",
+      "mechanisms": [
+        "有限选择",
+        "实际行动结果"
+      ],
+      "conditions": [
+        "附近确有有人指导的低风险印制体验台",
+        "使用安全颜料与练习版"
+      ],
+      "incompatibleConditions": [
+        "覆纸喷水由工作人员完成，不能说作者包办全流程；朱砂材料不移植，不拓真文物，不补失败。"
+      ],
+      "carryovers": [
+        "本次选择的记忆"
+      ],
+      "adaptation": "使用普通图形、安全颜料与练习版，均标原创；只保留轻拍与有限浓淡取舍，不宣称学会工艺。",
+      "requirementId": "D1-P3-01",
+      "activity": "P3",
+      "applicability": {
+        "environments": [
+          "waterside",
+          "coast",
+          "lake",
+          "valley",
+          "forest",
+          "flowers"
+        ],
+        "prerequisites": [
+          "附近确有有人指导的低风险印制体验台",
+          "使用安全颜料与练习版"
+        ]
+      },
+      "sourceEvidence": {
+        "situation": "参观后参加馆内首次拓印体验。",
+        "action": "选择字样，按指导用刷子敲纸和拓包轻拍；决定不再加深颜色。",
+        "result": "完成一张作品，放到安全区域晾干。",
+        "feeling": "作者写到好奇与完成后的成就感。"
+      }
+    },
+    {
+      "id": "d2-life-ride",
+      "version": "d2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "Kai Wu",
+        "title": "拉萨之旅：游记篇",
+        "url": "https://imkaywu.github.io/blog/2018/10/%E8%A5%BF%E8%97%8F%E6%94%BB%E7%95%A5/",
+        "recordedAt": "2026-11-01",
+        "summary": "限定亲历段摘要；来源与原创边界见provenance。"
+      },
+      "detail": "实际换座，随后与同车人交谈。",
+      "mechanisms": [
+        "有限选择",
+        "实际行动结果"
+      ],
+      "conditions": [
+        "附近有正常运营的公共交通",
+        "按意愿协商座位，拒绝也合理"
+      ],
+      "incompatibleConditions": [
+        "不搬高反、用药、极长硬座、站台跑动、私下卧铺说法；不把应允当义务。"
+      ],
+      "carryovers": [
+        "本次选择的记忆"
+      ],
+      "adaptation": "改为短途正常班车的有限座位协商，具体乘客与对白为原创；不保证总有好友或奖励。",
+      "requirementId": "D1-P4-01",
+      "activity": "P4",
+      "applicability": {
+        "environments": [
+          "waterside",
+          "coast",
+          "lake",
+          "valley"
+        ],
+        "prerequisites": [
+          "附近有正常运营的公共交通",
+          "按意愿协商座位，拒绝也合理"
+        ]
+      },
+      "sourceEvidence": {
+        "situation": "在国内正常列车上，原座位在过道旁。",
+        "action": "邻座提出与朋友换座；作者虽不情愿，仍同意换到三人排中间。",
+        "result": "实际换座，随后与同车人交谈。",
+        "feeling": "不情愿与后来结识旅伴并存。"
+      }
+    },
+    {
+      "id": "d2-life-arrival",
+      "version": "d2-v1",
+      "origin": {
+        "kind": "travelogue_extract",
+        "author": "李灶生（博客昵称自己改名）",
+        "title": "广东省韶关市翁源县东华禅寺游记",
+        "url": "https://blog.sina.com.cn/s/blog_6d1be0340102ysfm.html",
+        "recordedAt": "2026-11-01",
+        "summary": "限定亲历段摘要；来源与原创边界见provenance。"
+      },
+      "detail": "实际到旅店放好行李，再前往旧址。",
+      "mechanisms": [
+        "有限选择",
+        "实际行动结果"
+      ],
+      "conditions": [
+        "附近确有客运站和正规接续交通",
+        "仅短途接续安排"
+      ],
+      "incompatibleConditions": [
+        "不搬原摩托载客、姓名电话、价格、宗教历史与诈骗传闻；不把未核知识当事实。"
+      ],
+      "carryovers": [
+        "本次选择的记忆"
+      ],
+      "adaptation": "改为在正规交通问询处确认接续停靠地点，角色车辆、路牌和先放包理由均标原创；保留抵达后确认再行动关系。",
+      "requirementId": "D1-P4-02",
+      "activity": "P4",
+      "applicability": {
+        "environments": [
+          "waterside",
+          "coast",
+          "lake",
+          "valley"
+        ],
+        "prerequisites": [
+          "附近确有客运站和正规接续交通",
+          "仅短途接续安排"
+        ]
+      },
+      "sourceEvidence": {
+        "situation": "长途客车已实际抵达陌生客运站。",
+        "action": "出站问司机目的地，确认先到旅店放行李再去参观，并途中核对旧址。",
+        "result": "实际到旅店放好行李，再前往旧址。",
+        "feeling": "原文未明确给出安心等情绪，角色感受须原创。"
+      }
     }
   ],
-  "version": "s2-v2",
+  "version": "d2-materials-v1",
   "sources": [
     {
       "id": "alps",
@@ -1204,6 +1764,171 @@
       "destination": "中国·江苏·扬州",
       "language": "zh",
       "batch": "s2-domestic-v1"
+    },
+    {
+      "id": "d2-source-nature-coast",
+      "author": "许安平 SpermWhale",
+      "title": "烟台、海、蓝色多巴胺",
+      "url": "https://anpingwhale.com/dopamine/",
+      "accessedAt": "2026-11-01",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "first_person_travel_or_local_visit",
+      "readingScope": "正文“海岛单车”“黄昏海岸”“醒来吧，年轻人”（提取行15—63、98—123）",
+      "limitations": "歌词；岛名传说；地质和多巴胺解释；抓动物、投喂行为不导入。",
+      "evidenceKind": "author_first_person_report_not_independently_verified",
+      "batch": "d2-v1",
+      "language": "zh"
+    },
+    {
+      "id": "d2-source-nature-valley",
+      "author": "许安平 SpermWhale",
+      "title": "河南：南太行徒步之旅",
+      "url": "https://anpingwhale.com/south-taihang/",
+      "accessedAt": "2026-11-01",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "first_person_travel_or_local_visit",
+      "readingScope": "正文2025年7月10日至12日（提取行43—125）",
+      "limitations": "临崖危险通行不作角色行动范本；山洪转述、地理介绍及未证实植物名称不导入。",
+      "evidenceKind": "author_first_person_report_not_independently_verified",
+      "batch": "d2-v1",
+      "language": "zh"
+    },
+    {
+      "id": "d2-source-nature-forest",
+      "author": "色影驴途",
+      "title": "《黑竹沟611林场穿越特克马鞍山》2024.04.15",
+      "url": "https://www.8264.com/youji/5728996.html",
+      "accessedAt": "2026-11-01",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "first_person_travel_or_local_visit",
+      "readingScope": "第一页正文至行198及作者回复行239；第二页未成功打开，未声称全文读完",
+      "limitations": "作者回复作为回复证据单列，不能冒充第二页正文；人名电话、向导宣传、危险路线不导入。",
+      "evidenceKind": "author_first_person_report_not_independently_verified",
+      "batch": "d2-v1",
+      "language": "zh"
+    },
+    {
+      "id": "d2-source-nature-lake",
+      "author": "半匹疯马",
+      "title": "在那遥远的地方-----环青海湖记",
+      "url": "https://www.8264.com/youji/5727802.html",
+      "accessedAt": "2026-11-01",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "first_person_travel_or_local_visit",
+      "readingScope": "第一页署名、回忆说明及day1/day2部分（提取行54—128）",
+      "limitations": "开头歌词、沙化成因、鸟种识别及现行价格不导入；2018旅行与2024发表分开。",
+      "evidenceKind": "author_first_person_report_not_independently_verified",
+      "batch": "d2-v1",
+      "language": "zh"
+    },
+    {
+      "id": "d2-source-nature-dunes",
+      "author": "阿唐老哥",
+      "title": "记5.1腾格里沙漠重装徒步",
+      "url": "https://www.8264.com/youji/5730485.html",
+      "accessedAt": "2026-11-01",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "first_person_travel_or_local_visit",
+      "readingScope": "第一页署名和正文至结束（提取行54—139）",
+      "limitations": "雨量频率、湖水通则、药效采挖、族群概括不导入；诗词不是额外观景证据。",
+      "evidenceKind": "author_first_person_report_not_independently_verified",
+      "batch": "d2-v1",
+      "language": "zh"
+    },
+    {
+      "id": "d2-source-nature-flowers",
+      "author": "秦岭一笑",
+      "title": "醉美——油菜花",
+      "url": "https://www.8264.com/wenzhang/5696808.html",
+      "accessedAt": "2026-11-01",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "first_person_travel_or_local_visit",
+      "readingScope": "正文至结尾（提取行54—150），没有读取照片",
+      "limitations": "具体景点在已读文字中未明，不能补成罗平/婺源；2020出行与2023发布分开；歌词不导入。",
+      "evidenceKind": "author_first_person_report_not_independently_verified",
+      "batch": "d2-v1",
+      "language": "zh"
+    },
+    {
+      "id": "d2-source-life-market",
+      "author": "七牛行路",
+      "title": "信奉“极简生活”的我们，依然在景德镇带走了几样瓷器",
+      "url": "https://gs.ctrip.com/html5/you/travels/405/4077662.html",
+      "accessedAt": "2026-11-01",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "first_person_travel_or_local_visit",
+      "readingScope": "署名、章节1储物限制、章节3/4购买取舍（提取行6—10、43—46、80—124）；发表2022-09-29，页面天数与正文有差异。",
+      "limitations": "不搬原杯文字、古董历史、价格、摊主私生活猜测；不建立永久道具。",
+      "evidenceKind": "author_first_person_report_not_independently_verified",
+      "batch": "d2-v1",
+      "language": "zh"
+    },
+    {
+      "id": "d2-source-life-weather",
+      "author": "七末",
+      "title": "夏练三伏于衡山",
+      "url": "https://www.8264.com/youji/5711167.html",
+      "accessedAt": "2026-11-01",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "first_person_travel_or_local_visit",
+      "readingScope": "署名及避雨段（提取行54—61、87—92）；发表2023-08-22。",
+      "limitations": "原行程雷暴与暴雨预警不移植；不教角色在雷暴中前行，不保证晴天或彩虹。",
+      "evidenceKind": "author_first_person_report_not_independently_verified",
+      "batch": "d2-v1",
+      "language": "zh"
+    },
+    {
+      "id": "d2-source-life-print",
+      "author": "bxt",
+      "title": "福多多-朱拓藏福（体验拓印福字）",
+      "url": "https://hive.blog/hive-105017/@bxt/73289e614ba4b",
+      "accessedAt": "2026-11-01",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "first_person_travel_or_local_visit",
+      "readingScope": "正文行30—60及署名；页面只给相对日期，精确发表日、博物馆地点未核，不填国内具体城市。",
+      "limitations": "覆纸喷水由工作人员完成，不能说作者包办全流程；朱砂材料不移植，不拓真文物，不补失败。",
+      "evidenceKind": "author_first_person_report_not_independently_verified",
+      "batch": "d2-v1",
+      "language": "zh"
+    },
+    {
+      "id": "d2-source-life-ride",
+      "author": "Kai Wu",
+      "title": "拉萨之旅：游记篇",
+      "url": "https://imkaywu.github.io/blog/2018/10/%E8%A5%BF%E8%97%8F%E6%94%BB%E7%95%A5/",
+      "accessedAt": "2026-11-01",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "first_person_travel_or_local_visit",
+      "readingScope": "“四十小时四十分钟”署名、实际登车及换座段（提取行0—5、19—29）；发表2018-10-13。",
+      "limitations": "不搬高反、用药、极长硬座、站台跑动、私下卧铺说法；不把应允当义务。",
+      "evidenceKind": "author_first_person_report_not_independently_verified",
+      "batch": "d2-v1",
+      "language": "zh"
+    },
+    {
+      "id": "d2-source-life-arrival",
+      "author": "李灶生（博客昵称自己改名）",
+      "title": "广东省韶关市翁源县东华禅寺游记",
+      "url": "https://blog.sina.com.cn/s/blog_6d1be0340102ysfm.html",
+      "accessedAt": "2026-11-01",
+      "status": "included",
+      "readingStatus": "relevant_body_sections_read",
+      "genre": "first_person_travel_or_local_visit",
+      "readingScope": "署名、长途客车抵达及出站确认接续安排（提取行46—66）；发表2019-10-31。",
+      "limitations": "不搬原摩托载客、姓名电话、价格、宗教历史与诈骗传闻；不把未核知识当事实。",
+      "evidenceKind": "author_first_person_report_not_independently_verified",
+      "batch": "d2-v1",
+      "language": "zh"
     }
   ],
   "provenance": [
@@ -1978,6 +2703,294 @@
       "disposition": "ready_for_s3_trial_not_user_validated",
       "batch": "s2-domestic-v1",
       "destination": "中国·江苏·扬州"
+    },
+    {
+      "motifId": "d2-nature-coast",
+      "sourceId": "d2-source-nature-coast",
+      "title": "烟台、海、蓝色多巴胺",
+      "locator": "“海岛单车”末段；“醒来吧，年轻人”栈道段",
+      "anchor": "只记得海风把我吹得很舒服",
+      "readingScope": "正文“海岛单车”“黄昏海岸”“醒来吧，年轻人”（提取行15—63、98—123）",
+      "sourceObservationField": "motifs.sourceEvidence",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation",
+        "applicability"
+      ],
+      "category": "自然观景",
+      "visualScene": "海面蓝色层次、岩壁反光与远处船的白色航迹。",
+      "adaptationCaution": "歌词；岛名传说；地质和多巴胺解释；抓动物、投喂行为不导入。；仅保留具体观看关系；虚构地点、大肥鱼动作与情绪措辞另创并标为原创。不移植危险路线，不承诺相同天气，不强加商店或人物。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_d3_offline_trial_not_host_validated"
+    },
+    {
+      "motifId": "d2-nature-valley",
+      "sourceId": "d2-source-nature-valley",
+      "title": "河南：南太行徒步之旅",
+      "locator": "2025年7月10日“在抱犊村休整了一会”及下一段",
+      "anchor": "回音传得好远好远",
+      "readingScope": "正文2025年7月10日至12日（提取行43—125）",
+      "sourceObservationField": "motifs.sourceEvidence",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation",
+        "applicability"
+      ],
+      "category": "自然观景",
+      "visualScene": "跨谷看层叠山崖和云雾，向山下呼喊有回声。",
+      "adaptationCaution": "临崖危险通行不作角色行动范本；山洪转述、地理介绍及未证实植物名称不导入。；仅保留具体观看关系；虚构地点、大肥鱼动作与情绪措辞另创并标为原创。不移植危险路线，不承诺相同天气，不强加商店或人物。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_d3_offline_trial_not_host_validated"
+    },
+    {
+      "motifId": "d2-nature-forest",
+      "sourceId": "d2-source-nature-forest",
+      "title": "《黑竹沟611林场穿越特克马鞍山》2024.04.15",
+      "locator": "正文“喜欢走在队伍后面”；树缝观山段；作者回复zhb001的林间光影段",
+      "anchor": "用近2小时的时间慢慢去感受",
+      "readingScope": "第一页正文至行198及作者回复行239；第二页未成功打开，未声称全文读完",
+      "sourceObservationField": "motifs.sourceEvidence",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation",
+        "applicability"
+      ],
+      "category": "自然观景",
+      "visualScene": "笔直树干、树隙远山；作者回复补充苔藓、斜光、微风和鸟声。",
+      "adaptationCaution": "作者回复作为回复证据单列，不能冒充第二页正文；人名电话、向导宣传、危险路线不导入。；仅保留具体观看关系；虚构地点、大肥鱼动作与情绪措辞另创并标为原创。不移植危险路线，不承诺相同天气，不强加商店或人物。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_d3_offline_trial_not_host_validated"
+    },
+    {
+      "motifId": "d2-nature-lake",
+      "sourceId": "d2-source-nature-lake",
+      "title": "在那遥远的地方-----环青海湖记",
+      "locator": "day1“湖水晶莹透彻”段；day2“自己在湖边坐了很久”段",
+      "anchor": "风声浪声相呼应和",
+      "readingScope": "第一页署名、回忆说明及day1/day2部分（提取行54—128）",
+      "sourceObservationField": "motifs.sourceEvidence",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation",
+        "applicability"
+      ],
+      "category": "自然观景",
+      "visualScene": "湖边微风与层浪，有风声、水声。",
+      "adaptationCaution": "开头歌词、沙化成因、鸟种识别及现行价格不导入；2018旅行与2024发表分开。；仅保留具体观看关系；虚构地点、大肥鱼动作与情绪措辞另创并标为原创。不移植危险路线，不承诺相同天气，不强加商店或人物。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_d3_offline_trial_not_host_validated"
+    },
+    {
+      "motifId": "d2-nature-dunes",
+      "sourceId": "d2-source-nature-dunes",
+      "title": "记5.1腾格里沙漠重装徒步",
+      "locator": "第二天“起来一看”段；第三天“出了营地”段",
+      "anchor": "没有太阳暴晒",
+      "readingScope": "第一页署名和正文至结束（提取行54—139）",
+      "sourceObservationField": "motifs.sourceEvidence",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation",
+        "applicability"
+      ],
+      "category": "自然观景",
+      "visualScene": "雨后风沙停止；沙丘侧面呈金字塔形，从丘上远观湖面。",
+      "adaptationCaution": "雨量频率、湖水通则、药效采挖、族群概括不导入；诗词不是额外观景证据。；仅保留具体观看关系；虚构地点、大肥鱼动作与情绪措辞另创并标为原创。不移植危险路线，不承诺相同天气，不强加商店或人物。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_d3_offline_trial_not_host_validated"
+    },
+    {
+      "motifId": "d2-nature-flowers",
+      "sourceId": "d2-source-nature-flowers",
+      "title": "醉美——油菜花",
+      "locator": "“我们穿过很长的油菜花地”及紧接的感受段",
+      "anchor": "此时此刻，只想徜徉于此",
+      "readingScope": "正文至结尾（提取行54—150），没有读取照片",
+      "sourceObservationField": "motifs.sourceEvidence",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation",
+        "applicability"
+      ],
+      "category": "自然观景",
+      "visualScene": "沿阶梯上行后俯看花田，淡蓝天空、白云，沿途花香。",
+      "adaptationCaution": "具体景点在已读文字中未明，不能补成罗平/婺源；2020出行与2023发布分开；歌词不导入。；仅保留具体观看关系；虚构地点、大肥鱼动作与情绪措辞另创并标为原创。不移植危险路线，不承诺相同天气，不强加商店或人物。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_d3_offline_trial_not_host_validated"
+    },
+    {
+      "motifId": "d2-life-market",
+      "sourceId": "d2-source-life-market",
+      "title": "信奉“极简生活”的我们，依然在景德镇带走了几样瓷器",
+      "locator": "章节3“看着想买，但是管住了手”；章节4购买总结",
+      "anchor": "我们更偏好于日用瓷",
+      "readingScope": "署名、章节1储物限制、章节3/4购买取舍（提取行6—10、43—46、80—124）；发表2022-09-29，页面天数与正文有差异。",
+      "sourceObservationField": "motifs.sourceEvidence",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation",
+        "applicability"
+      ],
+      "category": "生活与出行",
+      "visualScene": "买了马克杯等少量实用品，其余留在照片里。",
+      "adaptationCaution": "不搬原杯文字、古董历史、价格、摊主私生活猜测；不建立永久道具。；角色可因携带空间只选一件普通物品；具体物件、购买对白、角色感受为原创。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_d3_offline_trial_not_host_validated"
+    },
+    {
+      "motifId": "d2-life-rest",
+      "sourceId": "d2-source-nature-valley",
+      "title": "河南：南太行徒步之旅",
+      "locator": "7月10日9:30休息至10:00出发段",
+      "anchor": "稍微眯一会",
+      "readingScope": "2025年7月10日开头（提取行43—51）；发表2025-08-02。",
+      "sourceObservationField": "motifs.sourceEvidence",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation",
+        "applicability"
+      ],
+      "category": "生活与出行",
+      "visualScene": "十点开始步行。",
+      "adaptationCaution": "不把休息写成治疗，人物劝说与后续危险路段不导入。；角色普通走累后选择桌边休息再继续，为原创原因改编；不能称原作者也是步行累了。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_d3_offline_trial_not_host_validated"
+    },
+    {
+      "motifId": "d2-life-weather",
+      "sourceId": "d2-source-life-weather",
+      "title": "夏练三伏于衡山",
+      "locator": "雨衣、拥挤遮阳伞、凉亭等待三段",
+      "anchor": "我不确定小雨短时间内会不会停",
+      "readingScope": "署名及避雨段（提取行54—61、87—92）；发表2023-08-22。",
+      "sourceObservationField": "motifs.sourceEvidence",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation",
+        "applicability"
+      ],
+      "category": "生活与出行",
+      "visualScene": "雨没有按预期立刻停，作者作出继续走的选择。",
+      "adaptationCaution": "原行程雷暴与暴雨预警不移植；不教角色在雷暴中前行，不保证晴天或彩虹。；改为平缓公共路径旁的小雨停留；雨强、安全处、角色情绪若新增均为原创，不跨轮冻结同一场雨。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_d3_offline_trial_not_host_validated"
+    },
+    {
+      "motifId": "d2-life-print",
+      "sourceId": "d2-source-life-print",
+      "title": "福多多-朱拓藏福（体验拓印福字）",
+      "locator": "本人轻敲上色、“我觉得这样就挺好了”、晾干段",
+      "anchor": "我觉得这样就挺好了",
+      "readingScope": "正文行30—60及署名；页面只给相对日期，精确发表日、博物馆地点未核，不填国内具体城市。",
+      "sourceObservationField": "motifs.sourceEvidence",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation",
+        "applicability"
+      ],
+      "category": "生活与出行",
+      "visualScene": "完成一张作品，放到安全区域晾干。",
+      "adaptationCaution": "覆纸喷水由工作人员完成，不能说作者包办全流程；朱砂材料不移植，不拓真文物，不补失败。；使用普通图形、安全颜料与练习版，均标原创；只保留轻拍与有限浓淡取舍，不宣称学会工艺。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_d3_offline_trial_not_host_validated"
+    },
+    {
+      "motifId": "d2-life-ride",
+      "sourceId": "d2-source-life-ride",
+      "title": "拉萨之旅：游记篇",
+      "locator": "“我上车顺利地找到了我的座位”段",
+      "anchor": "我虽然不想换",
+      "readingScope": "“四十小时四十分钟”署名、实际登车及换座段（提取行0—5、19—29）；发表2018-10-13。",
+      "sourceObservationField": "motifs.sourceEvidence",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation",
+        "applicability"
+      ],
+      "category": "生活与出行",
+      "visualScene": "实际换座，随后与同车人交谈。",
+      "adaptationCaution": "不搬高反、用药、极长硬座、站台跑动、私下卧铺说法；不把应允当义务。；改为短途正常班车的有限座位协商，具体乘客与对白为原创；不保证总有好友或奖励。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_d3_offline_trial_not_host_validated"
+    },
+    {
+      "motifId": "d2-life-arrival",
+      "sourceId": "d2-source-life-arrival",
+      "title": "广东省韶关市翁源县东华禅寺游记",
+      "locator": "“下车出站后”段及途中确认新旧址段",
+      "anchor": "等我开好房再去",
+      "readingScope": "署名、长途客车抵达及出站确认接续安排（提取行46—66）；发表2019-10-31。",
+      "sourceObservationField": "motifs.sourceEvidence",
+      "inferenceFields": [
+        "mechanisms"
+      ],
+      "originalDesignFields": [
+        "conditions",
+        "incompatibleConditions",
+        "carryovers",
+        "adaptation",
+        "applicability"
+      ],
+      "category": "生活与出行",
+      "visualScene": "实际到旅店放好行李，再前往旧址。",
+      "adaptationCaution": "不搬原摩托载客、姓名电话、价格、宗教历史与诈骗传闻；不把未核知识当事实。；改为在正规交通问询处确认接续停靠地点，角色车辆、路牌和先放包理由均标原创；保留抵达后确认再行动关系。",
+      "curatorKind": "assistant_design",
+      "disposition": "ready_for_d3_offline_trial_not_host_validated"
     }
   ]
 }
