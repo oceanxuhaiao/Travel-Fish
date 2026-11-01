@@ -18,13 +18,13 @@ const card=(id,scene)=>({tripId:id,scene,title:'一封安静的来信',note:'像
 const flush=()=>new Promise(r=>setImmediate(r));
 it('开发5分钟的初始和续行文案都取服务时长，不残留固定2小时',async()=>{
  const f=fixture();f.setState({trip:null,cards:[],minutes:5,generatorConnected:true});await mountAlbum(f.ctx);await flush();expect(f.ctx.root.textContent).toContain('开发测试等待5分钟');expect(f.ctx.root.textContent).not.toContain('2 小时');
- f.setState({trip:null,cards:[],minutes:5,generatorConnected:true,journey:{id:'dev',mark:'测试',phase:'waiting_continue',completed:1,nextNode:2}});f.timers.forEach(fn=>fn());await flush();expect(f.ctx.root.textContent).toContain('再出发5分钟');expect(f.ctx.root.textContent).not.toContain('仍等2小时');
+ f.setState({trip:null,cards:[],minutes:5,generatorConnected:true,journey:{id:'dev',mark:'测试',phase:'waiting_continue',completed:1,nextNode:2}});f.timers.forEach(fn=>fn());await flush();expect(f.ctx.root.textContent).toContain('继续长途 · 第2/3张 · 5分钟');expect(f.ctx.root.textContent).not.toContain('仍等2小时');
 });
 it('系列仍时间平铺，共同标识可见；等待继续必须点新一轮按钮',async()=>{
  const a={...card('a','forest'),series:{id:'journey-a',mark:'旅迹·abcd',nodeIndex:1,total:3}},f=fixture([a]);
  f.setState({trip:null,cards:[a],minutes:120,generatorConnected:true,journey:{id:'journey-a',mark:'旅迹·abcd',phase:'waiting_continue',completed:1,nextNode:2}});
  await mountAlbum(f.ctx);await flush();expect(f.ctx.root.querySelectorAll('.pc-grid')).toHaveLength(1);expect(f.ctx.root.querySelector('.pc-series-mark').textContent).toContain('旅迹·abcd · 1/3');
- expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='start')).toBe(false);const next=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='再出发2小时 · 第2/3张');expect(next).toBeDefined();next.click();await flush();expect(f.ctx.invoke).toHaveBeenCalledWith('start',[]);
+ expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='start')).toBe(false);const next=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='继续长途 · 第2/3张');expect(next).toBeDefined();next.click();await flush();expect(f.ctx.invoke).toHaveBeenCalledWith('start',[]);
 });
 it('第三张总结入口只读本系列，不出发、不取信、不重生图',async()=>{
  vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:test');vi.spyOn(URL,'revokeObjectURL').mockImplementation(()=>{});
@@ -46,7 +46,7 @@ it('收到图片数据不提前清未读，实际显示图片或翻面读信才�
 afterEach(()=>{fixtures.forEach(f=>f.dispose());fixtures=[];vi.restoreAllMocks();});
 it('空态、出发、等待和取消通过标准invoke调用',async()=>{
   const f=fixture();await mountAlbum(f.ctx);expect(f.ctx.root.textContent).toContain('第一封来信');
-  const b=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='带一封来信回来');b.click();await flush();
+  const b=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='长途 · 3×2小时');b.click();await flush();
   expect(f.ctx.invoke).toHaveBeenCalledWith('start',[]);expect(f.ctx.root.textContent).toContain('正在远方旅行');
   [...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='先回家').click();await flush();expect(f.ctx.invoke).toHaveBeenCalledWith('cancel',['test-trip']);
 });
@@ -122,7 +122,7 @@ it('配置引导说明复制来源，按服务切换帮助，推荐预填不自�
 
 it('禁用出发显示原因，前往验证定位第5步，不自动启动付费验证',async()=>{
  const f=fixture();f.setState({trip:null,cards:[],minutes:120,generatorConnected:true,readyForTravel:false});await mountAlbum(f.ctx);
- const start=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='带一封来信回来');expect(start.disabled).toBe(true);expect(f.ctx.root.textContent).toContain('配置已更改，请先验证明信片制作');expect(start.getAttribute('aria-describedby')).toBe('pc-start-disabled-reason');
+ const start=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='长途 · 3×2小时');expect(start.disabled).toBe(true);expect(f.ctx.root.textContent).toContain('配置已更改，请先验证明信片制作');expect(start.getAttribute('aria-describedby')).toBe('pc-start-disabled-reason');
  const link=f.ctx.root.querySelector('.pc-start-blocked a');expect(link.getAttribute('href')).toBe('#/provider/world%3Apostcard/setup');link.click();expect(f.dom.window.sessionStorage.getItem('postcard:focus-verification')).toBe('1');
  f.ctx.root.replaceChildren();f.ctx.invoke.mockImplementation(async method=>method==='verification'?{phase:'required'}:{keys:{ark:false},presets:[]});const scroll=vi.spyOn(f.dom.window.HTMLElement.prototype,'scrollIntoView');await mountSetup(f.ctx);expect(scroll).toHaveBeenCalled();expect(f.dom.window.document.activeElement.id).toBe('pc-setup-step-5');expect(f.dom.window.sessionStorage.getItem('postcard:focus-verification')).toBeNull();expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='verify'||c[0]==='start')).toBe(false);
 });

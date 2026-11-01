@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, openSync, closeSync, fsyncSync, unlinkSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import type {Journey,SeriesRef} from './journey-types.ts';
+import type {Journey,SeriesRef,StoryPlan} from './journey-types.ts';
 
 import {SCENES,chooseScene,freezeScene,type Scene,type Destination,type SceneSnapshot,type VisualVariation} from './scenes.ts';
 export {SCENES,type Scene} from './scenes.ts';
 export type Status = 'traveling' | 'awaiting_service' | 'generating' | 'failed' | 'cancelled' | 'completed';
-export interface Trip { id: string; scene: Scene; series?:SeriesRef;contentId?:string;prepareDuringTravel?:boolean; sceneSnapshot?: SceneSnapshot; startedAt: number; dueAt: number; status: Status; error?: string; completedAt?: number; phase?: string; generation?: Record<string,unknown>; }
+export interface Trip { id: string; scene: Scene; series?:SeriesRef;mode?:'short';shortPlan?:StoryPlan;contentId?:string;prepareDuringTravel?:boolean; sceneSnapshot?: SceneSnapshot; startedAt: number; dueAt: number; status: Status; error?: string; completedAt?: number; phase?: string; generation?: Record<string,unknown>; }
 export interface Card { tripId: string; scene: Scene; series?:SeriesRef;sceneLabel?: string; title: string; note: string; sha256: string; completedAt: number; generation?: Record<string,unknown>; }
 interface Snapshot { schema: 1; trips: Trip[]; notified: string[]; journeys?:Journey[]; }
 /** Adapter must return an approved complete artifact, never a temporary URL. */
@@ -165,6 +165,7 @@ export class TravelService {
     }
     return {id:j.id,mark:j.mark,completed:cards.length,total:3,phase:j.endedAt?'ended':running?'traveling':cards.length===3?'completed':'waiting_continue',nextNode:cards.length<3?cards.length+1:null,summary};
   }
+  setShortPlan(id:string,plan:StoryPlan):void {const state=this.store.snapshot(),trip=state.trips.find(t=>t.id===id);if(!trip||trip.series||trip.mode!=='short')throw Error('没有这趟短途旅行');trip.shortPlan=plan;this.store.save(state);}
   startSeries():Trip {return this.start('surprise',this.roundMinutes,true);}
   endJourney(id:string){
     const j=this.store.snapshot().journeys?.find(j=>j.id===id);if(!j)throw Error('没有这个系列');
@@ -172,7 +173,9 @@ export class TravelService {
     if(this.journeyCards(id).length===3)throw Error('系列已经完成');
     this.store.updateJourney(id,j=>{j.endedAt??=this.now();});return this.journeyStatus(id);
   }
-  start(destination: Destination, minutes: number, seriesMode=false): Trip {
+  startShort():Trip {return this.start('surprise',this.roundMinutes,false,true);}
+  start(destination: Destination, minutes: number, seriesMode=false, shortMode=false): Trip {
+    if(seriesMode&&shortMode)throw new Error('旅行类型只能选一种');
     if (this.stopped) throw new Error('旅行服务未启动');
     if (!(destination==='surprise'||SCENES.includes(destination)) || !Number.isFinite(minutes) || minutes <= 0 || minutes > 10080) throw new Error('目的地或旅行时长无效');
     const state = this.store.snapshot();
@@ -195,6 +198,7 @@ export class TravelService {
     const recentVariants=recent.filter(t=>t.scene===scene).map(t=>t.sceneSnapshot?.id??t.generation?.sceneVariant).filter((v):v is string=>typeof v==='string');
     const trip: Trip = { id, scene,...(this.earlyPreparation?{prepareDuringTravel:true}:{}), sceneSnapshot:freezeScene(id,scene,recentScenes,recentVariants,recent.filter(t=>t.status==='completed').map(t=>t.sceneSnapshot?.visualVariation).filter((v):v is VisualVariation=>!!v).slice(0,6)), startedAt: this.now(), dueAt: this.now()+minutes*60000, status: 'traveling' };
     if(series){trip.series=series;if(previous){trip.contentId=previous.contentId??previous.id;trip.sceneSnapshot=previous.sceneSnapshot;trip.generation=previous.generation;}}
+    if(shortMode)trip.mode='short';
     if (this.generator?.prepare&&!previous) trip.generation = this.generator.prepare(trip);
     if(previous){const cached=this.store.stagedArtifact(previous.id);if(cached)this.store.stageArtifact(trip,cached);}
     state.trips.push(trip); this.store.save(state); return structuredClone(trip);

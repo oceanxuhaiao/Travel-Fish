@@ -7,7 +7,7 @@ import { PNG } from 'pngjs';
 import { zipSync,strToU8 } from 'fflate';
 import {collectionSceneLabel,type Card,type Scene,type TravelService,type Trip} from './travel.ts';
 
-export type PublicTrip=Omit<Trip,'generation'|'sceneSnapshot'>;
+export type PublicTrip=Omit<Trip,'generation'|'sceneSnapshot'|'shortPlan'>;
 export type PublicCard=Pick<Card,'tripId'|'scene'|'title'|'note'|'completedAt'|'sceneLabel'|'series'>;
 export interface PanelSnapshot { journey?:ReturnType<TravelService['journeyStatus']>;trip:PublicTrip|null; cards:Array<PublicCard&{unread?:boolean}>; mailbox?:MailboxSnapshot; mailboxWindow?:MailboxWindowState; minutes:number; generatorConnected:boolean; }
 function tripView(trip:Trip|null):PublicTrip|null {if(!trip)return null;const {generation,sceneSnapshot,...view}=trip;return view;}
@@ -27,6 +27,7 @@ export class PostcardPanel {
       case 'openMailbox':if(!this.mail)throw Error('邮箱未接入');await this.mail.open();return this.snapshot();
       case 'closeMailbox':if(!this.mail)throw Error('邮箱未接入');await this.mail.close();return this.snapshot();
       case 'start': this.beforeStart?.();this.service.startSeries();return this.snapshot();
+      case 'startShort': this.beforeStart?.();this.service.startShort();return this.snapshot();
       case 'journey':return this.service.journeyStatus(String(args[0]));
       case 'endJourney':this.service.endJourney(String(args[0]));return this.snapshot();
       case 'retrySummary':if(!this.retrySummary)throw Error('总结服务未接入');this.retrySummary(String(args[0]));return this.snapshot();

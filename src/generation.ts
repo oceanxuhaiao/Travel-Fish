@@ -119,13 +119,13 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     const refs=['character.png','style.png'].map(file=>readFileSync(join(folder,'input',file)));
     if(hash(refs[0])!==spec.characterSha||hash(refs[1])!==spec.styleSha)throw new PipelineError('旅行参考图校验失败，禁止使用变化的输入');
     const cp=getCp(trip);
-    const story=trip.series?await options.storyContext?.(trip,signal):undefined;
-    if(trip.series&&!story)throw new PipelineError('系列叙事尚未接入，未发起生图');
+    const story=(trip.series||trip.mode==='short')?await options.storyContext?.(trip,signal):undefined;
+    if((trip.series||trip.mode==='short')&&!story)throw new PipelineError('系列叙事尚未接入，未发起生图');
     const expressive=spec.visualPolicy==='expressive-v1'&&!!story;
     const stateReview=expressive&&!!spec.visibleStatePolicy;
     const observationReview=stateReview&&(spec.visibleStatePolicy==='v2'||spec.visibleStatePolicy==='v3');
     const detailReview=expressive&&spec.visibleStatePolicy==='v3';
-    const imagePrompt=story?(expressive?EXPRESSIVE_COMMON:COMMON)+' 本轮为连续旅行中的第'+story.nodeIndex+'张，但画面只画这一个时刻，不拼图。'+story.node.visibleScene+'；构图：'+story.node.composition+'。虚构生活环境，不画文字；角色保持参考图身份。'+(expressive?' 本张角色表现：'+JSON.stringify(story.node.visualBeat??{orientation:trip.sceneSnapshot?.visualVariation?.orientation,action:story.node.action,expression:'由当前事件引起的自然神态'})+'；按当前事件重新安排身体、视线与神态。故事节点composition决定镜头距离，近景、中景或远景均可；不套用场景目录的通用景别或人物占比，不能照搬参考图站姿。':''):spec.prompt;
+    const imagePrompt=story?(expressive?EXPRESSIVE_COMMON:COMMON)+(trip.mode==='short'?' 本轮为独立短途旅行，只画这一个时刻，不拼图。':' 本轮为连续旅行中的第'+story.nodeIndex+'张，但画面只画这一个时刻，不拼图。')+story.node.visibleScene+'；构图：'+story.node.composition+'。虚构生活环境，不画文字；角色保持参考图身份。'+(expressive?' 本张角色表现：'+JSON.stringify(story.node.visualBeat??{orientation:trip.sceneSnapshot?.visualVariation?.orientation,action:story.node.action,expression:'由当前事件引起的自然神态'})+'；按当前事件重新安排身体、视线与神态。故事节点composition决定镜头距离，近景、中景或远景均可；不套用场景目录的通用景别或人物占比，不能照搬参考图站姿。':''):spec.prompt;
     const invalidSchema=(label:string,message:string):never=>{
       const file=join(folder,label+'.json');
       if(existsSync(file))renameSync(file,join(folder,label+'.invalid-'+(cp.textRequests[label]??0)+'.json'));
