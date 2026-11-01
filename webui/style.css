@@ -47,3 +47,4 @@
 
 .pc-series-mark{display:block;font-size:12px;color:var(--muted,#756e62);margin-top:6px}.pc-summary{padding:18px;border-top:1px solid #ded8cb}.pc-summary .pc-note{white-space:pre-wrap}
 .pc-mode[aria-pressed="true"]{outline:2px solid #688f7d;background:#e6eee5;color:#345e50}
+.pc-mode-help{position:relative;display:inline-flex}.pc-mode-tooltip{position:absolute;z-index:10;bottom:calc(100% + 9px);right:0;width:min(280px,70vw);padding:11px 14px;border:1px solid #d4ddcf;border-radius:9px;background:#fffef8;color:#38504a;box-shadow:0 5px 18px #263b2920;font-size:12px;line-height:1.7;white-space:normal;text-align:left;visibility:hidden;opacity:0;pointer-events:none}.pc-mode-help:hover .pc-mode-tooltip,.pc-mode-help:focus-within .pc-mode-tooltip{visibility:visible;opacity:1}

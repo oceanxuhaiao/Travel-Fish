@@ -122,7 +122,7 @@ it('配置引导说明复制来源，按服务切换帮助，推荐预填不自�
 
 it('禁用出发显示原因，前往验证定位第5步，不自动启动付费验证',async()=>{
  const f=fixture();f.setState({trip:null,cards:[],minutes:120,generatorConnected:true,readyForTravel:false});await mountAlbum(f.ctx);
- const start=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='长途 · 3×2小时');expect(start.disabled).toBe(true);expect(f.ctx.root.textContent).toContain('配置已更改，请先验证明信片制作');expect(start.getAttribute('aria-describedby')).toBe('pc-start-disabled-reason');
+ const start=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='长途 · 3×2小时');expect(start.disabled).toBe(true);expect(f.ctx.root.textContent).toContain('配置已更改，请先验证明信片制作');expect(start.getAttribute('aria-describedby').split(' ')).toContain('pc-start-disabled-reason');
  const link=f.ctx.root.querySelector('.pc-start-blocked a');expect(link.getAttribute('href')).toBe('#/provider/world%3Apostcard/setup');link.click();expect(f.dom.window.sessionStorage.getItem('postcard:focus-verification')).toBe('1');
  f.ctx.root.replaceChildren();f.ctx.invoke.mockImplementation(async method=>method==='verification'?{phase:'required'}:{keys:{ark:false},presets:[]});const scroll=vi.spyOn(f.dom.window.HTMLElement.prototype,'scrollIntoView');await mountSetup(f.ctx);expect(scroll).toHaveBeenCalled();expect(f.dom.window.document.activeElement.id).toBe('pc-setup-step-5');expect(f.dom.window.sessionStorage.getItem('postcard:focus-verification')).toBeNull();expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='verify'||c[0]==='start')).toBe(false);
 });
@@ -155,4 +155,5 @@ it('trip mode buttons only select; only the separate start button dispatches the
  button('短途 · 2小时 · 一张卡').click();await flush();expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='start'||c[0]==='startShort')).toBe(false);
  button('开始旅行').click();await flush();expect(f.ctx.invoke).toHaveBeenCalledWith('startShort',[]);expect(f.ctx.invoke.mock.calls.filter(c=>c[0]==='startShort')).toHaveLength(1);
 });
+
 

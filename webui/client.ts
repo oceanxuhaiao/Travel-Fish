@@ -52,9 +52,6 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
       title.textContent=continuation?'继续这段小旅程':'让它去远方走走';
       sub.textContent=data.generatorConnected?'每趟'+(data.minutes===5?'开发测试等待5分钟':'旅行固定2小时')+'。明信片在旅途中制作，到时交付；云端生成按服务计费。':'先在扩展配置中连接图片与视觉服务，再让它出发。已收到的来信随时可以翻看。';
       const duration=data.minutes===5?'5分钟（开发测试）':'2小时';
-      const modes=el('div','pc-mode-guide');modes.setAttribute('aria-label','短途与长途说明');
-      modes.append(el('p','','短途：出发一次，等待'+duration+'，收到一张独立故事的明信片；没有系列或总结。'),el('p','','长途：同一段连续故事分三次出发，每次等待'+duration+'、收到一张明信片，集齐三张后附上旅程总结。每一段都要你再次确认出发，不会自动连跑；中途可以停留，进度会保留。'),el('p','pc-muted','长途未完成时也可以穿插一次短途，不影响长途进度。先选择模式，再点击「开始旅行」。'));
-      text.append(modes);
       if(data.cost)text.append(el('p','pc-cost',data.cost.normalImageCost===null?'下一趟图片费用按所选模型费率，另加宿主模型用量。':'下一趟图片通常约 ¥'+data.cost.normalImageCost.toFixed(2)+'，两张候选约 ¥'+data.cost.maxImageCost!.toFixed(2)+'；另加宿主模型用量。'));
       if(continuation){sub.textContent=data.journey!.mark+' · 已收到 '+data.journey!.completed+'/3 张。下次出发仍等'+(data.minutes===5?'5分钟（开发测试）':'2小时')+'；隔几天再来、没读上一张都不影响进度。';controls.append(button('结束这段旅程',async()=>{if(await ctx.ui.confirm({title:'结束这段旅程？',body:'已收到的明信片保留，不再补齐剩余节点，也不额外制作总结。'}))await action('endJourney',[data!.journey!.id]);}));}
       const choose=(mode:'long'|'short')=>{travelMode=mode;renderJourney();};
@@ -64,9 +61,10 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
       const start=button('开始旅行',()=>{if(travelMode)void action(travelMode==='short'?'startShort':'start');},'pc-button pc-primary');
       long.disabled=short.disabled=!data.generatorConnected||data.readyForTravel===false||busy;start.disabled=long.disabled||travelMode===null;
       text.append(el('p','pc-muted',travelMode===null?'先选择短途或长途，再点击「开始旅行」。选择类型不会开始制作。':travelMode==='short'?'已选短途：点击「开始旅行」后出发，收到一张明信片。':continuation?'已选继续长途：点击「开始旅行」后续行下一段。':'已选长途：点击「开始旅行」后开启第一段，后续每段另行出发。'));
-      controls.append(long,short,start);
+      const explain=(b:HTMLButtonElement,id:string,description:string)=>{const wrap=el('span','pc-mode-help'),tip=el('span','pc-mode-tooltip',description);tip.id=id;tip.setAttribute('role','tooltip');b.setAttribute('aria-describedby',id);if(b.disabled)wrap.tabIndex=0;wrap.append(b,tip);return wrap;};
+      controls.append(explain(long,'pc-long-tip','一段连续故事，分三次出发。每次'+duration+'、一张明信片，集齐三张后附旅程总结。每段需再次确认，可随时停留，也可穿插短途。'),explain(short,'pc-short-tip','出发一次，等待'+duration+'，收到一张独立故事的明信片；不含系列或总结，不影响未完成的长途。'),start);
       if(!data.generatorConnected||data.readyForTravel===false){
-        const notice=el('div','pc-start-blocked'),reason=el('p','',data.generatorConnected?'配置已更改，请先验证明信片制作':'请先完成生图配置，并验证明信片制作');reason.id='pc-start-disabled-reason';for(const b of [long,short,start]){b.setAttribute('aria-describedby',reason.id);b.title=reason.textContent??'';}
+        const notice=el('div','pc-start-blocked'),reason=el('p','',data.generatorConnected?'配置已更改，请先验证明信片制作':'请先完成生图配置，并验证明信片制作');reason.id='pc-start-disabled-reason';for(const b of [long,short,start]){b.setAttribute('aria-describedby',[b.getAttribute('aria-describedby'),reason.id].filter(Boolean).join(' '));b.title=reason.textContent??'';}
         const link=el('a','pc-button','前往验证');link.href='#/provider/world%3Apostcard/setup';link.addEventListener('click',()=>{try{doc.defaultView?.sessionStorage.setItem('postcard:focus-verification','1');}catch{}});notice.append(reason,link);controls.append(notice);
       }
 
