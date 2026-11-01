@@ -30,7 +30,7 @@ it('系列仍时间平铺，旅程印章标出共同标识与序号；等待继�
 it('每趟长途的印章按旅程 id 区分，第二章后明确提示最后一张附总结',async()=>{
  const a={...card('a','forest'),completedAt:1000,series:{id:'journey-a',mark:'旅迹·aaaa',nodeIndex:1,total:3}},b={...card('b','coast'),completedAt:2000,series:{id:'journey-b',mark:'旅迹·bbbb',nodeIndex:2,total:3}},f=fixture([a,b]);
  f.setState({trip:null,cards:[a,b],minutes:120,generatorConnected:true,journey:{id:'journey-b',mark:'旅迹·bbbb',phase:'waiting_continue',completed:2,nextNode:3}});
- await mountAlbum(f.ctx);await flush();const seals=[...f.ctx.root.querySelectorAll('.pc-seal')];expect(seals).toHaveLength(2);const styles=seals.map(s=>[s.style.getPropertyValue('--pc-seal-color'),s.style.getPropertyValue('--pc-seal-rotate')]);expect(styles[0].join('|')).not.toBe(styles[1].join('|'));expect(f.ctx.root.textContent).toContain('下一张是三张里的最后一张');
+ await mountAlbum(f.ctx);await flush();const seals=[...f.ctx.root.querySelectorAll('.pc-seal')];expect(seals).toHaveLength(2);const styles=seals.map(s=>[s.style.getPropertyValue('--pc-seal-hue'),s.style.getPropertyValue('--pc-seal-rotate')]);expect(styles[0].join('|')).not.toBe(styles[1].join('|'));expect(f.ctx.root.textContent).toContain('下一张是三张里的最后一张');
 });
 it('第三张卡面标注含总结，收藏册给出总结入口，打开即见总结且不触发生成',async()=>{
  vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:test');vi.spyOn(URL,'revokeObjectURL').mockImplementation(()=>{});

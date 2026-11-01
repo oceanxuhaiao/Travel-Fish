@@ -1,4 +1,5 @@
 import {mountSetup} from './setup.ts';
+import {STAMP_ART} from './stamp-art.ts';
 import type {WebUiPanelContext} from 'cortico/web/shared/client-panel.ts';
 
 interface Card {tripId:string;scene:string;title:string;note:string;completedAt:number;unread?:boolean;series?:{id:string;mark:string;nodeIndex:number;total:3};}
@@ -6,8 +7,7 @@ interface Trip {id:string;scene:string;status:string;startedAt:number;dueAt:numb
 interface Snapshot {journey?:{id:string;mark:string;phase:string;completed:number;nextNode:number|null;summary?:{status:string;error?:string;text?:string}}|null;cost?:{normalImageCost:number|null;maxImageCost:number|null;hostCost:string};readyForTravel?:boolean;trip:Trip|null;cards:Card[];minutes:number;generatorConnected:boolean;mailbox?:{unreadCount:number};mailboxWindow?:{phase:string;detail:string};}
 const date=(n:number)=>new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:'long',day:'numeric'}).format(new Date(n));
 const active=(t:Trip|null)=>!!t&&['traveling','generating','awaiting_service','failed'].includes(t.status);
-const SEAL_COLORS=['#2456a0','#1f5a9e','#1d4f8f','#2b5fa8','#1d5f96','#23549b','#2a5f8f','#2c4f8a'];
-function sealTheme(id:string){let h=2166136261;for(let i=0;i<id.length;i++){h^=id.charCodeAt(i);h=Math.imul(h,16777619);}const n=h>>>0;return {color:SEAL_COLORS[n%SEAL_COLORS.length],rotate:(-9+(n>>>9)%6)+'deg',code:id.replace(/[^a-z0-9]/gi,'').slice(-4).toUpperCase(),seed:n%997};}
+function sealTheme(id:string){let h=2166136261;for(let i=0;i<id.length;i++){h^=id.charCodeAt(i);h=Math.imul(h,16777619);}const n=h>>>0;return {hue:(-6+(n>>>9)%13)+'deg',rotate:(-9+(n>>>10)%6)+'deg'};}
 
 export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
   const doc=ctx.root.ownerDocument;
@@ -29,49 +29,14 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
   const grid=el('div','pc-grid');const detail=el('section','pc-detail');detail.hidden=true;detail.setAttribute('aria-label','明信片详情');
   collection.append(heading,summaryBar,grid,detail);shell.append(hero,message,journey,collection);ctx.root.replaceChildren(shell);
   function tell(text:string,error=false){message.textContent=text;message.classList.toggle('pc-error',error);}
-  let sealSeq=0;
-  const SVGNS='http://www.w3.org/2000/svg';
   function sealFor(card:Card,large=false){
     const series=card.series!;const theme=sealTheme(series.id);
     const wrap=el('span',large?'pc-seal pc-seal-large':'pc-seal');
     wrap.setAttribute('aria-hidden','true');wrap.title=series.mark+' · 第'+series.nodeIndex+'/'+series.total+'张';
-    wrap.style.setProperty('--pc-seal-color',theme.color);wrap.style.setProperty('--pc-seal-rotate',theme.rotate);
-    const svg=doc.createElementNS(SVGNS,'svg');svg.setAttribute('viewBox','0 0 100 100');svg.setAttribute('focusable','false');
-    const make=(tag:string,attrs:Record<string,string|number>)=>{const n=doc.createElementNS(SVGNS,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));return n;};
-    const uid=++sealSeq,arcId='pc-seal-arc-'+uid,filterId='pc-seal-rough-'+uid;
-    const defs=make('defs',{});
-    const rough=make('filter',{id:filterId,x:'-8%',y:'-8%',width:'116%',height:'116%'});
-    rough.append(make('feTurbulence',{type:'fractalNoise',baseFrequency:'0.9',numOctaves:2,seed:theme.seed,result:'noise'}));
-    rough.append(make('feDisplacementMap',{in:'SourceGraphic',in2:'noise',scale:0.6,xChannelSelector:'R',yChannelSelector:'G'}));
-    defs.append(rough,make('path',{id:arcId,d:'M 10.5 50 A 39.5 39.5 0 0 1 89.5 50'}));
-    svg.append(defs,make('circle',{cx:50,cy:50,r:47,fill:'#fffdf7','fill-opacity':.45,stroke:'none'}));
-    const rings=make('g',{fill:'none',stroke:'currentColor',filter:'url(#'+filterId+')'});
-    rings.append(make('circle',{cx:50,cy:50,r:47,'stroke-width':2.4}));
-    rings.append(make('circle',{cx:50,cy:50,r:42.5,'stroke-width':.9,opacity:.9}));
-    rings.append(make('circle',{cx:50,cy:50,r:37.5,'stroke-width':.55,opacity:.45}));
-    svg.append(rings);
-    const arc=make('text',{fill:'currentColor','font-size':9.8,'letter-spacing':1.5,'font-family':'ui-serif, "Noto Serif SC", "SimSun", serif','font-weight':600});
-    const pathText=make('textPath',{href:'#'+arcId,startOffset:'50%','text-anchor':'middle'});pathText.textContent='POST MARK';arc.append(pathText);svg.append(arc);
-    const whale=make('g',{fill:'currentColor',filter:'url(#'+filterId+')',transform:'translate(50 53) scale(.94) translate(-50 -50)'});
-    whale.append(make('path',{d:'M20 54 C20 45 29 38 43 37 C57 36 67 42 71 49 C73 53 71 57 66 58 L36 61 C27 62 20 60 20 54 Z'}));
-    whale.append(make('path',{d:'M70 50 C74 47 78 44 82 41 C82 46 80 50 77 53 C80 55 83 58 84 62 C79 61 74 58 71 55 Z'}));
-    whale.append(make('path',{d:'M55 38 C57 34 61 34 63 38 Z'}));
-    whale.append(make('path',{d:'M46 57 C47 61 50 63 54 63 C52 60 51 58 50 56 Z'}));
-    whale.append(make('path',{d:'M23 56 C30 61 42 63 54 60 L52 64 C38 66 26 63 23 56 Z',fill:'#fffdf7',opacity:.92}));
-    for(const d of ['M37 37 C33 31 34 26 38 22','M40 36 C39 30 41 26 45 23','M43 37 C46 32 49 29 53 28'])whale.append(make('path',{d,fill:'none',stroke:'currentColor','stroke-width':1.5,'stroke-linecap':'round'}));
-    for(const [cx,cy] of [[37,21],[45,22],[53,27]])whale.append(make('circle',{cx,cy,r:1.25}));
-    svg.append(whale);
-    const light='#fffdf7';
-    svg.append(make('circle',{cx:30.5,cy:48.5,r:1.35,fill:light}));
-    svg.append(make('path',{d:'M24 55 q5 2 9 1',fill:'none',stroke:light,'stroke-width':1.1,'stroke-linecap':'round'}));
-    for(const d of ['M27 59 C34 62 42 62 49 60','M31 62 C37 64 44 63 49 61'])svg.append(make('path',{d,fill:'none',stroke:light,'stroke-width':.9,'stroke-linecap':'round',opacity:.85}));
-    for(const [d,w] of [['M17 66 q6 -3 12 0 t12 0 t12 0 t12 0 t12 0',1.5],['M23 70.5 q6 -3 12 0 t12 0 t12 0 t12 0',1]])svg.append(make('path',{d,fill:'none',stroke:'currentColor','stroke-width':w,'stroke-linecap':'round',opacity:.9}));
-    const star=(cx:number,cy:number,r:number)=>{let d='';for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rr=i%2?r*.45:r;d+=(i?'L':'M')+(cx+rr*Math.cos(a)).toFixed(2)+' '+(cy+rr*Math.sin(a)).toFixed(2);}return d+'Z';};
-    for(const [cx,cy] of [[16.5,60],[83.5,60]])svg.append(make('path',{d:star(cx,cy,2.6),fill:'currentColor'}));
-    svg.append(make('circle',{cx:50,cy:80.5,r:11,fill:'currentColor'}));
-    const num=make('text',{x:50,y:83.8,'text-anchor':'middle','font-size':13,'font-weight':700,fill:light,'font-family':'ui-serif, "Noto Serif SC", "SimSun", serif'});num.textContent=series.nodeIndex+'/'+series.total;svg.append(num);
-    const code=make('text',{x:50,y:89.4,'text-anchor':'middle','font-size':3.8,'letter-spacing':.7,fill:light,opacity:.9});code.textContent=theme.code;svg.append(code);
-    wrap.append(svg);return wrap;
+    wrap.style.setProperty('--pc-seal-hue',theme.hue);wrap.style.setProperty('--pc-seal-rotate',theme.rotate);
+    const art=el('img','pc-seal-art');art.src=STAMP_ART;art.alt='';art.draggable=false;
+    const num=el('span','pc-seal-number',series.nodeIndex+'/'+series.total);
+    wrap.append(art,num);return wrap;
   }
   function releaseDetail(){if(detailUrl){URL.revokeObjectURL(detailUrl);detailUrl=undefined;}}
   ctx.own({dispose(){imageEpoch++;releaseDetail();for(const url of thumbnailUrls.values())URL.revokeObjectURL(url);thumbnailUrls.clear();}});
@@ -146,7 +111,7 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
     const j=data?.journey,sm=j?.summary;
     if(!j||j.completed<3||!sm||sm.status==='failed')return;
     summaryBar.hidden=false;
-    const theme=sealTheme(j.id),emblem=el('span','pc-summary-emblem','✦');emblem.style.setProperty('--pc-seal-color',theme.color);emblem.setAttribute('aria-hidden','true');
+    const theme=sealTheme(j.id),emblem=el('span','pc-summary-emblem','✦');emblem.style.setProperty('--pc-seal-color','#2456a0');emblem.setAttribute('aria-hidden','true');
     const copy=el('div','pc-summary-copy');
     copy.append(el('p','pc-eyebrow',j.mark+' · 三张已收齐'),el('h3','','这趟的总结笔记'));
     const excerpt=(sm.text??'').replace(/\s+/g,' ').trim();
