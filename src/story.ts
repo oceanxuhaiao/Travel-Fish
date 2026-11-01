@@ -8,6 +8,7 @@ import {GROUNDING_GUIDANCE,validateGroundedPlan,EMOTIONAL_GUIDANCE,VISUAL_GUIDAN
 import type {StoryNode,StoryPlan,StoryContext} from './journey-types.ts';
 import {objectContract,decisionContract,outputFeedback,feedbackPrompt,type OutputContract} from './model-feedback.ts';
 import {selectMaterialPool,MATERIAL_GUIDANCE} from './materials.ts';
+import {checkpointPrompt,StoryCheckpointError} from './story-checkpoint.ts';
 
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const textHash=(value:string)=>createHash('sha256').update(value).digest('hex');
@@ -73,7 +74,7 @@ export class StoryEngine {
   const folder=join(this.service.store.root,'journey-tasks',id);mkdirSync(folder,{recursive:true});
   const file=join(folder,label+'.json'),requestHash=hash(prompt);
   let cp=existsSync(file)?JSON.parse(readFileSync(file,'utf8')):{requestHash,prompt,attempts:0};
-  if(cp.requestHash!==requestHash)throw Error('故事任务输入变化，禁止混用旧结果');
+  prompt=checkpointPrompt(label,cp,prompt);
   if(cp.response){contract.validate(cp.response);return cp.response;}
   if(!Number.isInteger(cp.attempts)||cp.attempts<0||cp.attempts>=2)throw Error('本阶段宿主任务已达两次尝试上限');
   cp.attempts++;atomicJson(file,cp);
@@ -123,7 +124,7 @@ export class StoryEngine {
     const score=(p:StoryPlan)=>review.reviews.find((r:any)=>r.candidateId===p.id).ratings.reduce((sum:number,r:any)=>sum+(r.score??0)*(['agency','detail','standalone_payoff','naturalness'].includes(r.dimension)?2:1),0);
     choices.sort((a,b)=>score(b)-score(a));
     const chosen=choices[0];this.service.store.updateJourney(id,j=>{j.plan=chosen;});return chosen;
-   }catch(error){if(signal.aborted)throw error;atomicJson(join(this.service.store.root,'journey-tasks',id,'plan-'+attempt+'-issues.json'),{error:error instanceof Error?error.message:'候选失败'});}
+   }catch(error){if(signal.aborted||error instanceof StoryCheckpointError)throw error;atomicJson(join(this.service.store.root,'journey-tasks',id,'plan-'+attempt+'-issues.json'),{error:error instanceof Error?error.message:'候选失败'});}
   }
   throw Error('两组故事候选未通过；未发起生图，请查看原因或结束本系列');
  }
@@ -164,7 +165,7 @@ export class StoryEngine {
     const score=(p:StoryPlan)=>review.reviews.find((r:any)=>r.candidateId===p.id).ratings.reduce((sum:number,r:any)=>sum+(r.score??0)*(['agency','detail','standalone_payoff','naturalness'].includes(r.dimension)?2:1),0);
     choices.sort((a,b)=>score(b)-score(a));
     const chosen=choices[0];this.service.setShortPlan(id,chosen);return chosen;
-   }catch(error){if(signal.aborted)throw error;atomicJson(join(materialDir,'short-plan-'+attempt+'-issues.json'),{error:error instanceof Error?error.message:'候选失败'});}
+   }catch(error){if(signal.aborted||error instanceof StoryCheckpointError)throw error;atomicJson(join(materialDir,'short-plan-'+attempt+'-issues.json'),{error:error instanceof Error?error.message:'候选失败'});}
   }
   throw Error('两组短途故事候选未通过；未发起生图，请查看原因或结束本趟');
  }
