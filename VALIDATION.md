@@ -1,5 +1,25 @@
 # 验证记录
 
+## 0.8.9（2026-11-01）
+
+Windows，Node 24.14.1；Cortico checkout `fa57ab1`（0.2.7 / World API 6）。
+
+| 项目 | 结果 |
+| --- | --- |
+| 包内测试 | 38 文件 / 301 项通过 |
+| 主进程类型检查 | 通过 |
+| WebUI 类型检查 | 通过 |
+| WebUI 构建 | 通过 |
+| 官方 describe | 15 工具 / 5 事件 / 1 提示文档 |
+| 官方 check | 通过（Extension check passed） |
+| 安装包 | 68 文件，与源码逐文件哈希 0 不符；无 node_modules / tests / 密钥 |
+| 日常安装 | 0.8.9，loaded=true；268 业务文件 0 差异，5 卡 / 7 旅程 / 就绪凭证保留 |
+| 隔离验收 | 三卡 3/3、总结 ready、鲸鱼印章正常 |
+
+未完成：真实 2 小时长途中时钟链路、#3 真实中转服务行为、#2 报告者机器复验。详见 `output/release-readiness-0.8.9.md` 与 `RELEASE_NOTES.md`。
+
+## 0.8.2-c1.6（历史记录）
+
 2026-10-26，Windows，Node24.14.1，pnpm11.28.6。
 
 选定Cortico checkout cb9ddbd685bcccba1f29905098648f46a79b3862，依赖及源码契约0.2.7/World API6；目标已安装Coopanion0.2.10，内置四份契约源码匹配。未宣称GitHub当前main已更新。
