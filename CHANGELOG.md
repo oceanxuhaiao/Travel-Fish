@@ -1,3 +1,14 @@
+## 0.8.3-d2.3
+
+- 评审提示补充：DATA.history 为空时 historyIds 必须为空数组、novelty 必须为 null；有历史时逐字复制。
+- 依据真实宿主首次干净运行：候选结构通过，评审因空历史的 historyIds/novelty 被拒。
+
+## 0.8.3-d2.2
+
+- 规划提示明确 `links` 词表：`observation` 只能出现在 `carryovers.kind`，不能填进 `signature.links`。
+- 故事评审要求 `historyIds` 逐字复制 `DATA.history` 的 id 且数量相同，`candidateId`/`candidateVersion` 也须逐字复制候选；素材 id 与旧系列 id 不得混入。
+- 依据 2026-11-01 真实宿主运行：候选结构通过，评审两次因 historyIds 引用不符被拒。
+
 ## 0.8.2-c1.6
 
 - 基于0.8.0-s7.5独立交付C-1：原文证据自然回忆、限频与开关，以及节点间带标题和短笺摘录的续程邀请。
