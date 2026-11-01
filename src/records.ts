@@ -12,14 +12,19 @@ export interface RecordsQuery {
 
 export const RECORD_EVIDENCE_BOUNDARY = '标题与短笺是已保存的虚拟旅行文字记录，不证明画面中的全部细节或真实到访。匹配只表示原文含有检索词，不是语义判断。生成提示词和内部场景类别不是成图事实；用户没有同行，点击和查询不证明喜欢、已读或共同回忆。';
 
+/** A development fixture is a limited label match, not a guarantee that every test card is marked. */
+export function isDevelopmentCard(card: Card): boolean {
+  return card.generation?.fixture === true || card.generation?.developmentFixture === true
+    || /^(?:开发验证|开发数据|隔离验证|演示卡|测试成品|测试样张)/u.test(card.title.trim())
+    || /^(?:开发验证|开发数据|隔离验证|演示卡|测试成品|测试样张)/u.test(card.note.trim());
+}
+
 /** Reads collection evidence without creating an index, marking mail read or changing trips. */
 export class PostcardRecords {
   constructor(private store: TravelStore) {}
 
   private development(card: Card): boolean {
-    return card.generation?.fixture === true || card.generation?.developmentFixture === true
-      || /^(?:开发验证|开发数据|隔离验证|演示卡|测试成品|测试样张)/u.test(card.title.trim())
-      || /^(?:开发验证|开发数据|隔离验证|演示卡|测试成品|测试样张)/u.test(card.note.trim());
+    return isDevelopmentCard(card);
   }
 
   private source(card: Card) {

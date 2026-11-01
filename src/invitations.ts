@@ -1,6 +1,28 @@
 import {existsSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {atomicJson} from './travel.ts';
+/** A recap is only for the first invitation after a new node arrived, so the same line does not repeat. */
+export function shouldRecap(lastInvitedAt:number|null, latestCompletedAt:number|undefined):boolean {
+  return typeof latestCompletedAt === 'number' && (lastInvitedAt === null || lastInvitedAt < latestCompletedAt);
+}
+
+export interface InvitationRecap {delivered:number;cards:ReadonlyArray<{title:string;note:string}>}
+
+const NOTE_EXCERPT_LIMIT = 120;
+
+/** The host gets the title and a bounded note excerpt; it picks what, if anything, to mention. */
+export function invitationText(minutes:number, recap?:InvitationRecap|null, continuing=false):string {
+  const head = `用户设置的旅行主动询问间隔已到，本次等待间隔已满${minutes}分钟。`;
+  if (!recap || !recap.cards.length) return head + (continuing?'当前系列尚未完成，目前没有进行中的一轮，明信片生成服务已连接。用户尚未同意继续旅行。':'目前没有未结束旅行，明信片生成服务已连接。用户尚未同意新的旅行。');
+  const cards = recap.cards.map(card => {
+    const title = card.title.replace(/[《》]/gu,'');
+    const flat = card.note.replace(/\s+/gu,' ').trim();
+    const note = flat.length > NOTE_EXCERPT_LIMIT ? flat.slice(0,NOTE_EXCERPT_LIMIT)+'…' : flat;
+    return `《${title}》：${note}`;
+  }).join('；');
+  return head + `这段三段旅程已寄回${recap.delivered}/3：\n${cards}\n旅程还差${3-recap.delivered}段；目前没有进行中的一轮，明信片生成服务已连接。用户尚未同意再出发。`;
+}
+
 interface Schedule {schema:1;enabled:boolean;minutes:number;eligible:boolean;nextAt:number|null;lastInvitedAt:number|null;}
 /** Owns only an external invitation schedule, never the pet's mood or permission. */
 export class InvitationSchedule {

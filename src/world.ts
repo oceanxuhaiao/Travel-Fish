@@ -13,15 +13,18 @@ import type { World, WorldHost, ToolDef, WorldWebUiDecl, RunPhase } from 'cortic
 import type { PostcardConfigSection } from './config.ts';
 import { TRAVEL_MINUTES, POSTCARD_CONFIG_GROUP } from './config.ts';
 import { TravelService, TravelStore, type Generator, type Scene } from './travel.ts';
-import {InvitationSchedule} from './invitations.ts';
+import {InvitationSchedule, invitationText, shouldRecap} from './invitations.ts';
 import { PostcardPanel } from './panel.ts';
-import { PostcardRecords, type RecordsQuery } from './records.ts';
+import { PostcardRecords, isDevelopmentCard, type RecordsQuery } from './records.ts';
+import {Reminiscence} from './reminiscence.ts';
 import {StoryEngine} from './story.ts';
 
 const ENV_PROMPT_FILE = fileURLToPath(new URL('./ENV_PROMPT.md', import.meta.url));
 const pickupParam={type:'object',additionalProperties:false,properties:{requestId:{type:'string'},step:{type:'string',enum:['approach','arrived','defer']}},required:['requestId','step']};
 const idParam = { type: 'object', additionalProperties: false, properties: { tripId: { type: 'string', description: 'Trip id from postcard_status.' } }, required: ['tripId'] };
 const journeyParam={type:'object',additionalProperties:false,properties:{journeyId:{type:'string'}},required:['journeyId']};
+const recallParam={type:'object',additionalProperties:false,properties:{query:{type:'string',minLength:1,maxLength:60},limit:{type:'integer',minimum:1,maximum:2}},required:['query']};
+const recallFeedbackParam={type:'object',additionalProperties:false,properties:{tripId:{type:'string',description:'Trip id from postcard_recall.'},kind:{type:'string',enum:['mentioned','dismissed']}},required:['tripId','kind']};
 export const POSTCARD_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
   {name:'postcard_pickup',description:'Manage a saved postcard pickup performance only for postcard.pickup_due requestId. First approach obtains target, then use pet_move_to on the primary display ONLY when idle and await its real arrival receipt; then arrived starts the mailbox animation. Defer on busy, missing tool, interrupted/failed movement, wrong screen or user interaction. Never infer arrival from chat. Expired requests fail. This does not save cards, prove physical position, or mark a letter read.',tags:['write'],parameters:pickupParam},
   { name: 'postcard_start', description: 'Start only the current independently approved two-hour round. Continue an unfinished three-card journey, otherwise start a new journey; one approval never authorizes later rounds. The third card triggers a text-only summary, not a fourth trip. The pet chooses the scenery internally; do not ask the user to choose a destination. Duration is fixed at two hours of real waiting time and cannot be changed by user configuration; the postcard is prepared during this wait and delivered at return if ready; service failures may delay delivery. Only one unfinished trip is allowed. Start only for an explicit user request or affirmative reply to a travel invitation. An invitation event, silence or a refusal is never consent.', tags: ['write'], parameters: { type: 'object', additionalProperties: false, properties: {} } },
@@ -31,6 +34,8 @@ export const POSTCARD_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
   {name:'postcard_summary_retry',description:'Retry a failed journey summary only on user request. Text model usage may be charged; no image or new trip. Bounded by the saved two-attempt summary budget.',tags:['write'],parameters:journeyParam},
   { name: 'postcard_list', description: 'List permanently saved postcards.', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'postcard_records', description: 'Find saved travel records by literal words in their title or note, newest first. Optional query: at most 120 characters; whitespace-separated terms must all match. Omit query for recent records. Returns bounded original excerpts and source hashes; no semantic matching or image interpretation. Development-labelled records are excluded unless requested. Does not mark read, open windows, generate images or change a trip. Use postcard_read for the full original note.', tags:['read'], parameters:{type:'object',additionalProperties:false,properties:{query:{type:'string',maxLength:120},limit:{type:'integer',minimum:1,maximum:10},offset:{type:'integer',minimum:0},includeDevelopment:{type:'boolean'}}} },
+  { name: 'postcard_recall', description: 'Look for an old saved trip that may relate to the current conversation topic, for an optional one-sentence recollection. Call only when the topic itself touches weather, streets, food, objects or people a saved trip might echo; explicit requests to find a card use postcard_records instead. Matches literal words plus a small fixed set of related words; a related match is not original wording. Returns eligible=false with a reason when disabled, out of budget or cooling down, and an empty candidate list when nothing matches. At most one recollection per day, two candidates per call; a call that returns candidates records an offer. Read the evidence quote before speaking and do not narrate limits.', tags:['read'], parameters:recallParam },
+  { name: 'postcard_recall_feedback', description: 'Record whether a postcard_recall candidate was actually mentioned, so the same trip is not suggested again for seven days. Call only after the message was actually shown; use dismissed when nothing was said. Does not mark mail read, write host memory, prove the user liked it, or change any trip.', tags:['write'], parameters:recallFeedbackParam },
   { name: 'postcard_read', description: 'Read your own travel postcard, written by you to the user, by trip id. Retell it in first person as your travel keepsake, not as an incoming letter from someone else. Respect explicitly labelled development fixtures.', tags: ['read'], parameters: idParam },
   { name: 'postcard_cancel', description: 'Cancel a trip on user request. A remote request already sent may still incur a charge.', tags: ['write'], parameters: idParam },
   { name: 'postcard_retry', description: 'Manually retry a failed trip only after the user requests it. For an uncertain image outcome, set confirmUnknownOutcome only after the user has explicitly confirmed checking the previous result and possible charge.', tags: ['write'], parameters: { ...idParam,properties:{...idParam.properties,confirmUnknownOutcome:{type:'boolean',description:'True only after the user explicitly confirms the uncertain previous request and possible charge.'}} } },
@@ -40,6 +45,7 @@ export class PostcardWorld implements World {
   readonly id = 'postcard';
   readonly service: TravelService;
   readonly records: PostcardRecords;
+  readonly reminiscence:Reminiscence;
   readonly story?:StoryEngine;
   private verification:ReadinessCheck;private developmentValidation?:DevelopmentValidation;
   private timer?: ReturnType<typeof setInterval>;
@@ -62,6 +68,7 @@ export class PostcardWorld implements World {
     if(opts.bridge&&opts.cfg.developmentValidation===true)this.developmentValidation=new DevelopmentValidation(join(opts.dataDir,'postcard/development-validation'),this.service.store,opts.bridge.transport);
     if(opts.bridge)this.story=new StoryEngine(this.service,opts.bridge.transport,undefined,opts.cfg.developmentStoryReview===true);
     this.records = new PostcardRecords(this.service.store);
+    this.reminiscence=new Reminiscence(join(opts.dataDir,'postcard'),this.service.store,this.records,opts.now,()=>this.opts.cfg.recallEnabled!==false);
     this.invitations=new InvitationSchedule(join(opts.dataDir,'postcard'),opts.now);
     this.mailbox=new MailboxStore(this.service,opts.now);
     this.mailboxHeight=Math.max(80,Math.min(180,Number(opts.cfg.mailboxHeight)||120));
@@ -82,6 +89,8 @@ export class PostcardWorld implements World {
         case 'postcard_status': result = {readyForTravel:!this.opts.setup?!!this.opts.generator:(this.setup.invoke('check') as {readyForTravel:boolean}).readyForTravel,cost:costEstimate(this.opts.cfg),journey:this.service.journeyStatus(), trip: this.service.status(), generatorConnected: !!this.opts.generator, invitation:{enabled:this.opts.cfg.proactiveEnabled??true,intervalMinutes:this.opts.cfg.proactiveIntervalMinutes??360,nextAt:this.invitations.snapshot()?.nextAt??null,...(!this.invitationsHealthy?{error:'主动询问日程损坏，已暂停'}:{})} }; break;
         case 'postcard_list': result = this.service.store.cards(); break;
         case 'postcard_records': result = this.records.search(args as RecordsQuery); break;
+        case 'postcard_recall': result = this.reminiscence.recall(String(args.query),typeof args.limit==='number'?args.limit:undefined); break;
+        case 'postcard_recall_feedback': result = this.reminiscence.feedback(String(args.tripId),args.kind as 'mentioned'|'dismissed'); break;
         case 'postcard_read': { result={...this.records.read(String(args.tripId)),narrativeContext:'这是你（当前桌宠）旅行时写给用户、寄回家的明信片。你是旅行者和寄信人，用户是收信人。以第一人称陪用户重温自己的旅途，不称为别人寄给你的信，不猜测陌生寄信人。只依据这封信的内容，不编造用户同行或真实地名；明确标注为开发验证的卡片仍须如实称为演示，不能伪称真实旅行。'}; break; }
         case 'postcard_cancel': result = this.service.cancel(String(args.tripId)); break;
         case 'postcard_retry': result = this.service.retry(String(args.tripId),args.confirmUnknownOutcome===true); break;
@@ -112,6 +121,7 @@ export class PostcardWorld implements World {
   async openMailbox(){if(!this.mailboxHealthy)throw Error('邮箱已读记录损坏，请恢复备份，收藏未改动');if(this.opts.cfg.mailboxEnabled===false)throw Error('桌面邮箱已在配置中关闭');return this.mailboxWindow.open();}
   async start(host: WorldHost): Promise<void> {
     this.host = host; this.opts.bridge?.attach(host); this.service.open();
+    if(!this.reminiscence.open())host.log.error('自然回忆记录损坏，已暂停主动回忆；收藏和查卡不受影响');
     try{this.mailbox.open();}catch{this.mailboxHealthy=false;host.log.error('邮箱已读记录损坏，请恢复备份；旅行收藏未改动');}
     if(this.mailboxHealthy){try{this.pickup.open();}catch{this.pickupHealthy=false;host.log.error('取信展示记录损坏，演出暂停，收藏仍可阅读');}}else this.pickupHealthy=false;
     if(this.mailboxHealthy&&this.opts.cfg.mailboxEnabled!==false)await this.mailboxWindow.open();
@@ -141,7 +151,13 @@ export class PostcardWorld implements World {
     if(!this.invitationsHealthy)return;
     await this.invitations.tick(this.opts.cfg.proactiveEnabled??true,this.opts.cfg.proactiveIntervalMinutes??360,!!this.opts.generator&&!busy&&(!this.opts.setup||(this.setup.invoke('check') as {readyForTravel:boolean}).readyForTravel),async()=>{
       const host=this.host;if(!host)return;
-      await host.pushEvent({type:'postcard.invitation_due',ts:new Date((this.opts.now??Date.now)()).toISOString(),source:this.id,origin:'internal',senderKey:this.id,text:'用户设置的旅行主动询问间隔已到，本次等待间隔已满'+(this.opts.cfg.proactiveIntervalMinutes??360)+'分钟。目前没有未结束旅行，明信片生成服务已连接。用户尚未同意新的旅行。',meta:{intervalMinutes:this.opts.cfg.proactiveIntervalMinutes??360,userApproved:false}},{trigger:'debounce'});
+      const minutes=this.opts.cfg.proactiveIntervalMinutes??360;
+      const journey=this.service.journeyStatus();
+      const delivered=journey?this.service.journeyCards(journey.id).filter(card=>!isDevelopmentCard(card)):[];
+      const latest=delivered.at(-1);
+      const recap=journey?.phase==='waiting_continue'&&latest&&shouldRecap(this.invitations.snapshot()?.lastInvitedAt??null,latest.completedAt)
+        ? {delivered:delivered.length,cards:delivered.map(card=>({title:card.title,note:card.note}))} : null;
+      await host.pushEvent({type:'postcard.invitation_due',ts:new Date((this.opts.now??Date.now)()).toISOString(),source:this.id,origin:'internal',senderKey:this.id,text:invitationText(minutes,recap,journey?.phase==='waiting_continue'),meta:{intervalMinutes:minutes,userApproved:false,...(recap?{delivered:recap.delivered}:{})}},{trigger:'debounce'});
     });
   }
   async stop(): Promise<void> {

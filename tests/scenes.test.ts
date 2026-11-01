@@ -22,7 +22,7 @@ it('取消也记入近期；快照重启后不变，不依赖生成服务在线'
 });
 it('旧版三场景收藏按原始字节读取，不自动迁移或改写',()=>{
  // Existing E evidence provides real old records; only read from original data.
- const root=join(process.cwd(),'../../../../output/stage-e-quality/runs/coast/data/postcard');
+ const root=process.env.POSTCARD_LEGACY_FIXTURE??join(process.cwd(),'../../../../output/stage-e-quality/runs/coast/data/postcard');
  const store=new TravelStore(root);const cards=store.cards();expect(cards.length).toBeGreaterThan(0);
  const card=cards[0],file=join(root,'collection',card.tripId,'record.json');const before=readFileSync(file);expect(store.card(card.tripId)?.sha256).toBe(card.sha256);expect(readFileSync(file).equals(before)).toBe(true);
 });
