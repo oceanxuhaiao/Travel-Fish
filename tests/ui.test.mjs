@@ -24,7 +24,7 @@ it('系列仍时间平铺，共同标识可见；等待继续必须点新一轮�
  const a={...card('a','forest'),series:{id:'journey-a',mark:'旅迹·abcd',nodeIndex:1,total:3}},f=fixture([a]);
  f.setState({trip:null,cards:[a],minutes:120,generatorConnected:true,journey:{id:'journey-a',mark:'旅迹·abcd',phase:'waiting_continue',completed:1,nextNode:2}});
  await mountAlbum(f.ctx);await flush();expect(f.ctx.root.querySelectorAll('.pc-grid')).toHaveLength(1);expect(f.ctx.root.querySelector('.pc-series-mark').textContent).toContain('旅迹·abcd · 1/3');
- expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='start')).toBe(false);const next=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='继续长途 · 第2/3张');expect(next).toBeDefined();next.click();await flush();expect(f.ctx.invoke).toHaveBeenCalledWith('start',[]);
+ expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='start')).toBe(false);const next=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='继续长途 · 第2/3张');expect(next).toBeDefined();next.click();await flush();expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='start')).toBe(false);[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='开始旅行').click();await flush();expect(f.ctx.invoke).toHaveBeenCalledWith('start',[]);
 });
 it('第三张总结入口只读本系列，不出发、不取信、不重生图',async()=>{
  vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:test');vi.spyOn(URL,'revokeObjectURL').mockImplementation(()=>{});
@@ -46,7 +46,7 @@ it('收到图片数据不提前清未读，实际显示图片或翻面读信才�
 afterEach(()=>{fixtures.forEach(f=>f.dispose());fixtures=[];vi.restoreAllMocks();});
 it('空态、出发、等待和取消通过标准invoke调用',async()=>{
   const f=fixture();await mountAlbum(f.ctx);expect(f.ctx.root.textContent).toContain('第一封来信');
-  const b=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='长途 · 3×2小时');b.click();await flush();
+  const b=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='长途 · 3×2小时');b.click();await flush();[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='开始旅行').click();await flush();
   expect(f.ctx.invoke).toHaveBeenCalledWith('start',[]);expect(f.ctx.root.textContent).toContain('正在远方旅行');
   [...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='先回家').click();await flush();expect(f.ctx.invoke).toHaveBeenCalledWith('cancel',['test-trip']);
 });
@@ -144,3 +144,15 @@ it('千问与Gemini预填原生配置，不自动保存、不调用付费验证'
  backend.value='qwen';backend.dispatchEvent(new f.dom.window.Event('change'));click('填入所选服务的推荐配置');await flush();expect(d.querySelector('[aria-label="服务商提供的模型名称或接入点 ID"]').value).toBe('qwen-image-2.0');expect(d.querySelector('[aria-label="兼容接口出图尺寸"]').value).toBe('1024*1536');
  backend.value='gemini';backend.dispatchEvent(new f.dom.window.Event('change'));click('填入所选服务的推荐配置');await flush();expect(d.querySelector('[aria-label="生图 API 请求地址"]').value).toBe('https://generativelanguage.googleapis.com/v1beta');expect(d.querySelector('[aria-label="兼容接口出图尺寸"]').value).toBe('2K');expect(f.ctx.setConfig).not.toHaveBeenCalled();expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='verify')).toBe(false);
 });
+
+
+it('trip mode buttons only select; only the separate start button dispatches the selected trip',async()=>{
+ const f=fixture();f.setState({trip:null,cards:[],minutes:120,generatorConnected:true,readyForTravel:true});await mountAlbum(f.ctx);
+ const button=text=>[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent===text);
+ expect(button('开始旅行').disabled).toBe(true);
+ button('短途 · 2小时 · 一张卡').click();await flush();expect(button('短途 · 2小时 · 一张卡').getAttribute('aria-pressed')).toBe('true');
+ button('长途 · 3×2小时').click();await flush();expect(button('长途 · 3×2小时').getAttribute('aria-pressed')).toBe('true');expect(button('短途 · 2小时 · 一张卡').getAttribute('aria-pressed')).toBe('false');
+ button('短途 · 2小时 · 一张卡').click();await flush();expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='start'||c[0]==='startShort')).toBe(false);
+ button('开始旅行').click();await flush();expect(f.ctx.invoke).toHaveBeenCalledWith('startShort',[]);expect(f.ctx.invoke.mock.calls.filter(c=>c[0]==='startShort')).toHaveLength(1);
+});
+

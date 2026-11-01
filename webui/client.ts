@@ -14,6 +14,7 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
   const button=(text:string,fn:()=>unknown,cls='pc-button')=>{const b=el('button',cls,text);b.type='button';handlers.set(b,fn);return b;};
   let data:Snapshot|null=null,busy=false,loading=false,selected=ctx.memo.get<string|null>('selected',null),flipped=ctx.memo.get('flipped',false),imageEpoch=0,detailUrl:string|undefined;
   const thumbnailUrls=new Map<string,string>();let lastCards='';
+  let travelMode:'long'|'short'|null=null;
   let revision=0;
   const shell=el('section','pc-app');shell.addEventListener('click',event=>{const target=event.target as Element;const b=target.closest('button');if(b&&shell.contains(b)&&!b.disabled){const handler=handlers.get(b);if(handler)void handler();}},{signal:ctx.signal});shell.setAttribute('aria-label','远方来信旅行与收藏');
   const hero=el('header','pc-hero');hero.append(el('p','pc-eyebrow','A LITTLE WAY FROM HOME'),el('h1','','远方来信'),el('p','pc-intro','让它去远方走走，把想念装进一张明信片。'));
@@ -30,7 +31,7 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
   function remember(){ctx.memo.set('selected',selected);ctx.memo.set('flipped',flipped);}
   async function action(method:string,args:unknown[]=[]){
     if(busy||ctx.signal.aborted)return;revision++;busy=true;renderJourney();
-    try {data=await ctx.invoke<Snapshot>(method,args);tell(method==='start'?'已经出发了，等它带一封来信回来。':method==='startShort'?'短途出发了，两小时后会带回一张明信片。':method==='cancel'?'这次先回家，下一段风景还在等它。':(method==='openMailbox'||method==='closeMailbox')?(data.mailboxWindow?.detail??'已请求打开桌面邮箱'):'已继续准备这封来信。');render();}
+    try {data=await ctx.invoke<Snapshot>(method,args);if(method==='start'||method==='startShort')travelMode=null;tell(method==='start'?'已经出发了，等它带一封来信回来。':method==='startShort'?'短途出发了，两小时后会带回一张明信片。':method==='cancel'?'这次先回家，下一段风景还在等它。':(method==='openMailbox'||method==='closeMailbox')?(data.mailboxWindow?.detail??'已请求打开桌面邮箱'):'已继续准备这封来信。');render();}
     catch(error){if(!ctx.signal.aborted)tell(error instanceof Error?error.message:'操作暂时没有完成，请稍后再试。',true);}
     finally {busy=false;if(!ctx.signal.aborted)renderJourney();}
   }
@@ -52,11 +53,16 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
       sub.textContent=data.generatorConnected?'每趟'+(data.minutes===5?'开发测试等待5分钟':'旅行固定2小时')+'。明信片在旅途中制作，到时交付；云端生成按服务计费。':'先在扩展配置中连接图片与视觉服务，再让它出发。已收到的来信随时可以翻看。';
       if(data.cost)text.append(el('p','pc-cost',data.cost.normalImageCost===null?'下一趟图片费用按所选模型费率，另加宿主模型用量。':'下一趟图片通常约 ¥'+data.cost.normalImageCost.toFixed(2)+'，两张候选约 ¥'+data.cost.maxImageCost!.toFixed(2)+'；另加宿主模型用量。'));
       if(continuation){sub.textContent=data.journey!.mark+' · 已收到 '+data.journey!.completed+'/3 张。下次出发仍等'+(data.minutes===5?'5分钟（开发测试）':'2小时')+'；隔几天再来、没读上一张都不影响进度。';controls.append(button('结束这段旅程',async()=>{if(await ctx.ui.confirm({title:'结束这段旅程？',body:'已收到的明信片保留，不再补齐剩余节点，也不额外制作总结。'}))await action('endJourney',[data!.journey!.id]);}));}
-      const long=button(continuation?'继续长途 · 第'+data.journey!.nextNode+'/3张'+(data.minutes===5?' · 5分钟':''):'长途 · 3×'+(data.minutes===5?'5分钟':'2小时'),()=>action('start'),'pc-button pc-primary');
-      const short=button('短途 · '+(data.minutes===5?'5分钟':'2小时')+' · 一张卡',()=>action('startShort'),'pc-button');
-      long.disabled=short.disabled=!data.generatorConnected||data.readyForTravel===false||busy;controls.append(long,short);
+      const choose=(mode:'long'|'short')=>{travelMode=mode;renderJourney();};
+      const long=button(continuation?'继续长途 · 第'+data.journey!.nextNode+'/3张'+(data.minutes===5?' · 5分钟':''):'长途 · 3×'+(data.minutes===5?'5分钟':'2小时'),()=>choose('long'),'pc-button pc-mode');
+      const short=button('短途 · '+(data.minutes===5?'5分钟':'2小时')+' · 一张卡',()=>choose('short'),'pc-button pc-mode');
+      long.setAttribute('aria-pressed',String(travelMode==='long'));short.setAttribute('aria-pressed',String(travelMode==='short'));
+      const start=button('开始旅行',()=>{if(travelMode)void action(travelMode==='short'?'startShort':'start');},'pc-button pc-primary');
+      long.disabled=short.disabled=!data.generatorConnected||data.readyForTravel===false||busy;start.disabled=long.disabled||travelMode===null;
+      text.append(el('p','pc-muted',travelMode===null?'先选择短途或长途，再点击「开始旅行」。选择类型不会开始制作。':travelMode==='short'?'已选短途：点击「开始旅行」后出发，收到一张明信片。':continuation?'已选继续长途：点击「开始旅行」后续行下一段。':'已选长途：点击「开始旅行」后开启第一段，后续每段另行出发。'));
+      controls.append(long,short,start);
       if(!data.generatorConnected||data.readyForTravel===false){
-        const notice=el('div','pc-start-blocked'),reason=el('p','',data.generatorConnected?'配置已更改，请先验证明信片制作':'请先完成生图配置，并验证明信片制作');reason.id='pc-start-disabled-reason';long.setAttribute('aria-describedby',reason.id);short.setAttribute('aria-describedby',reason.id);long.title=reason.textContent??'';short.title=reason.textContent??'';
+        const notice=el('div','pc-start-blocked'),reason=el('p','',data.generatorConnected?'配置已更改，请先验证明信片制作':'请先完成生图配置，并验证明信片制作');reason.id='pc-start-disabled-reason';for(const b of [long,short,start]){b.setAttribute('aria-describedby',reason.id);b.title=reason.textContent??'';}
         const link=el('a','pc-button','前往验证');link.href='#/provider/world%3Apostcard/setup';link.addEventListener('click',()=>{try{doc.defaultView?.sessionStorage.setItem('postcard:focus-verification','1');}catch{}});notice.append(reason,link);controls.append(notice);
       }
 
@@ -116,3 +122,4 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
   await refresh();ctx.interval(()=>{void refresh();},5000);ctx.interval(()=>{if(!ctx.signal.aborted&&data?.trip&&active(data.trip))renderJourney();},1000);
 }
 export default {panels:{album:{mount:mountAlbum},setup:{mount:mountSetup}}};
+
