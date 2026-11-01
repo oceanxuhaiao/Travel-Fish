@@ -51,6 +51,10 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
       const continuation=data.journey?.phase==='waiting_continue';
       title.textContent=continuation?'继续这段小旅程':'让它去远方走走';
       sub.textContent=data.generatorConnected?'每趟'+(data.minutes===5?'开发测试等待5分钟':'旅行固定2小时')+'。明信片在旅途中制作，到时交付；云端生成按服务计费。':'先在扩展配置中连接图片与视觉服务，再让它出发。已收到的来信随时可以翻看。';
+      const duration=data.minutes===5?'5分钟（开发测试）':'2小时';
+      const modes=el('div','pc-mode-guide');modes.setAttribute('aria-label','短途与长途说明');
+      modes.append(el('p','','短途：出发一次，等待'+duration+'，收到一张独立故事的明信片；没有系列或总结。'),el('p','','长途：同一段连续故事分三次出发，每次等待'+duration+'、收到一张明信片，集齐三张后附上旅程总结。每一段都要你再次确认出发，不会自动连跑；中途可以停留，进度会保留。'),el('p','pc-muted','长途未完成时也可以穿插一次短途，不影响长途进度。先选择模式，再点击「开始旅行」。'));
+      text.append(modes);
       if(data.cost)text.append(el('p','pc-cost',data.cost.normalImageCost===null?'下一趟图片费用按所选模型费率，另加宿主模型用量。':'下一趟图片通常约 ¥'+data.cost.normalImageCost.toFixed(2)+'，两张候选约 ¥'+data.cost.maxImageCost!.toFixed(2)+'；另加宿主模型用量。'));
       if(continuation){sub.textContent=data.journey!.mark+' · 已收到 '+data.journey!.completed+'/3 张。下次出发仍等'+(data.minutes===5?'5分钟（开发测试）':'2小时')+'；隔几天再来、没读上一张都不影响进度。';controls.append(button('结束这段旅程',async()=>{if(await ctx.ui.confirm({title:'结束这段旅程？',body:'已收到的明信片保留，不再补齐剩余节点，也不额外制作总结。'}))await action('endJourney',[data!.journey!.id]);}));}
       const choose=(mode:'long'|'short')=>{travelMode=mode;renderJourney();};
