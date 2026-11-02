@@ -59,7 +59,7 @@ it('审核截断时保留前三步，显式再次调用只补审核，不自动�
 });
 it('非法素材方向在首步即拒绝，不展开、不评审、不生图',async()=>{
  const service=open(),trip=service.startSeries(),t=transport({badDirection:true}),engine=new StoryEngine(service,t);
- await expect(engine.context(trip,new AbortController().signal)).rejects.toThrow('方向字段无效');expect(t).toHaveBeenCalledTimes(1);
+ await expect(engine.context(trip,new AbortController().signal)).rejects.toThrow('素材ID不在输入中或重复');expect(t).toHaveBeenCalledTimes(1);
 });
 it('已有未标版本旅程在启用新流程后仍冻结旧协议，不迁移或自动请求',async()=>{
  s=new TravelService(new TravelStore(root),undefined,()=>1000,true);s.open();const legacy=s.startSeries();s.cancel(legacy.id);await s.close();
@@ -82,4 +82,45 @@ it('素材库后续变化不重算已冻结输入，篡改快照则在请求前�
 it('用户在规划中取消后不继续下阶段，也不写入完整plan',async()=>{
  const service=open(),trip=service.startSeries(),base=transport(),t:Transport=async(...args)=>{const result=await base(...args);service.cancel(trip.id);return result;};
  await expect(new StoryEngine(service,t).context(trip,new AbortController().signal)).rejects.toThrow('取消');expect(base).toHaveBeenCalledTimes(1);expect(service.store.snapshot().journeys![0].plan).toBeUndefined();
+});
+import {stagedPlanning} from '../src/staged-planning.ts';
+import {outputFeedback,type OutputFeedback} from '../src/model-feedback.ts';
+async function inspectStage(stage:string,mutate:(v:any)=>void){
+ let feedback:OutputFeedback|undefined;
+ const directions=Array.from({length:3},(_,i)=>({id:'d'+i,motive:'动机',chain:['因果'+i],motifIds:['m'],development:'dev',ending:'end'}));
+ const assessments=directions.map(d=>({directionId:d.id,accepted:true,issues:[],reason:'可用'}));
+ try{await stagedPlanning({owner:'probe',nodeCount:1,scene:'lake',materials:[{id:'m'}],history:[],schema:{},policy:'',vocabulary:{development:['dev'],ending:['end']},assertActive(){},phase(){},validatePlan(){},reviewValid(){},accepted:()=>true,call:async(label,prompt,contract)=>{
+   const value=label==='v2-directions'?{directions:structuredClone(directions)}:{assessments:structuredClone(assessments),rankedIds:['d0']};
+   if(label===stage){mutate(value);feedback=outputFeedback(label,contract,value);if(stage==='v2-selection')expect(prompt).toContain('不得为了过审清空issues');throw Error('probe-complete');}
+   contract.validate(value);return value;
+ }});}catch(e){if(!(e instanceof Error)||e.message!=='probe-complete')throw e;}
+ return feedback!;
+}
+it.each([
+ ['通过且有问题',(v:any)=>{v.assessments[1].issues=['真实问题'];},'assessments[1].issues'],
+ ['拒绝无原因',(v:any)=>{v.assessments[1].accepted=false;},'assessments[1].issues'],
+ ['重复方向',(v:any)=>{v.assessments[1].directionId='d0';},'assessments[1].directionId'],
+ ['未知方向',(v:any)=>{v.assessments[1].directionId='unknown';},'assessments[1].directionId'],
+ ['缺少评估',(v:any)=>{v.assessments.pop();},'assessments'],
+ ['空项',(v:any)=>{v.assessments[1]=null;},'assessments[1]'],
+ ['非布尔值',(v:any)=>{v.assessments[1].accepted='true';},'assessments[1].accepted'],
+ ['原因超长',(v:any)=>{v.assessments[1].reason='字'.repeat(221);},'assessments[1].reason'],
+ ['问题非数组',(v:any)=>{v.assessments[1].issues='问题';},'assessments[1].issues'],
+ ['问题为空',(v:any)=>{v.assessments[1].issues=[''];},'assessments[1].issues[0]'],
+ ['排序重复',(v:any)=>{v.rankedIds=['d0','d0'];},'rankedIds[1]'],
+ ['排序拒绝项',(v:any)=>{v.assessments[0].accepted=false;v.assessments[0].issues=['阻断'];},'rankedIds[0]'],
+] as const)('筛选反馈定位：%s',async(_,mutate,path)=>{
+ const f=await inspectStage('v2-selection',mutate);expect(f.valid).toBe(false);expect(f.errors[0].path).toBe(path);expect(f.errors[0].expected).not.toBe('story-direction-selection-v2');
+ if(f.errors[0].message.includes('冲突'))expect(f.errors[0].message).toContain('不得为通过而删除真实问题');
+});
+it.each([
+ [(v:any)=>{v.directions[1].chain=['字'.repeat(181)];},'directions[1].chain[0]'],
+ [(v:any)=>{v.directions[1].development='invented';},'directions[1].development'],
+ [(v:any)=>{v.directions[1].motifIds=['unknown'];},'directions[1].motifIds[0]'],
+ [(v:any)=>{v.directions[1].id='d0';},'directions[1].id'],
+ [(v:any)=>{v.directions[1]=null;},'directions[1]'],
+] as const)('方向反馈定位 %s',async(mutate,path)=>{const f=await inspectStage('v2-directions',mutate);expect(f.valid).toBe(false);expect(f.errors[0].path).toBe(path);});
+it('保留真实拒绝问题允许不选方向，非阻断观察放reason',async()=>{
+ const f=await inspectStage('v2-selection',v=>{v.rankedIds=[];for(const a of v.assessments){a.accepted=false;a.issues=['来源前提不满足'];}});expect(f.valid).toBe(true);
+ expect((await inspectStage('v2-selection',v=>{v.assessments[0].reason='可用；完整展开需遵守来源前提';})).valid).toBe(true);
 });
