@@ -2,15 +2,38 @@ import {PNG} from 'pngjs';
 import {mkdirSync,readFileSync,existsSync} from 'node:fs';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
-import type {WorldHost,ToolDef} from 'cortico/core/types.ts';
+import type {WorldHost,ToolDef,RunPhase,EventEnvelope} from 'cortico/core/types.ts';
+import {HostTaskObserver,type TaskTerminal} from './host-task-observer.ts';
 import {atomicJson} from './travel.ts';
 import {PipelineError,type Transport} from './generation.ts';
 import {objectContract,outputFeedback,type OutputContract,type OutputFeedback} from './model-feedback.ts';
 import {recoverOutput,parseBoundedOutput,RECOVERY_VERSION} from './delivery-recovery.ts';
-type Task={id:string;digest:string;tripId:string;label:string;payload:any;createdAt:number;result?:Record<string,unknown>;submissions?:Array<{resultJson:string;feedback:OutputFeedback}>;feedback?:OutputFeedback;recovery?:{version:string;sourceSubmission:number;repairs:string[]}};
+type Task={id:string;digest:string;tripId:string;label:string;payload:any;createdAt:number;result?:Record<string,unknown>;submissions?:Array<{resultJson:string;feedback:OutputFeedback}>;feedback?:OutputFeedback;recovery?:{version:string;sourceSubmission:number;repairs:string[]};lifecycle?:{activation:number;deliveries:number;reads:number;queuedAt?:number;deliveredAt?:number;readAt?:number;lastProgressAt:number;state:string;responseId?:string;terminalReason?:string;terminals?:TaskTerminal[]}};
 export class HostModelBridge {
  private host?:WorldHost;private active=new Map<string,AbortSignal>();private closed=false;
  private contracts=new Map<string,OutputContract>();
+ private generations=new Map<string,number>();
+ private observer=new HostTaskObserver(event=>queueMicrotask(()=>{
+  if(this.generations.get(event.taskId)!==event.activation||!this.active.has(event.taskId))return;
+  try{const task=this.load(event.taskId);if(task.result||task.lifecycle?.activation!==event.activation)return;
+   task.lifecycle.state=event.reason;task.lifecycle.terminalReason=event.reason;task.lifecycle.responseId=event.responseId;task.lifecycle.lastProgressAt=event.at;
+   task.lifecycle.terminals=[...(task.lifecycle.terminals??[]),event].slice(-16);atomicJson(this.file(task.id),task);
+  }catch{this.host?.log.error('旅行待办终态记录失败；保留超时兜底');}
+ }));
+ outputTap(){return this.observer.tap;}
+ onRunPhase(phase:RunPhase){this.observer.onRunPhase(phase);}
+ onEventsSettled(events:readonly EventEnvelope[],outcome:'delivered'|'discarded'){
+  for(const event of events){
+   if(event.type!=='postcard.host_task'||event.source!=='postcard')continue;
+   const id=String(event.text).match(/taskId=([a-f0-9]{64})/)?.[1],activation=id?this.generations.get(id):undefined;
+   if(!id||activation===undefined)continue;
+   queueMicrotask(()=>{if(this.generations.get(id)!==activation)return;try{const t=this.load(id);if(!t.lifecycle||t.result)return;
+    if(outcome==='delivered')t.lifecycle.deliveredAt=Date.now();
+    else{t.lifecycle.state='event_discarded';t.lifecycle.terminalReason='event_discarded';}
+    t.lifecycle.lastProgressAt=Date.now();atomicJson(this.file(id),t);
+   }catch{this.host?.log.error('旅行待办投递状态记录失败');}});
+  }
+ }
  constructor(private root:string,private timeoutMs=600000){mkdirSync(root,{recursive:true});}
  ready(){return !!this.host?.modelFacts.accepts('image/png');}
  attach(host:WorldHost){this.host=host;this.closed=false;}
@@ -44,15 +67,26 @@ export class HostModelBridge {
   if((task.submissions?.length??0)>=2)throw new PipelineError('本阶段两次结构提交已耗尽；继续准备不会增加次数，请先检查已保存反馈或决定结束原旅程，不会自动重新收费');
   if(this.active.has(id))throw new PipelineError('同一宿主待办正在处理，请等待');
   this.active.set(id,signal);
+  const old=task.lifecycle;task.lifecycle={activation:(old?.activation??0)+1,deliveries:(old?.deliveries??0)+1,reads:old?.reads??0,lastProgressAt:Date.now(),state:'queued',terminals:old?.terminals};
+  this.generations.set(id,task.lifecycle.activation);atomicJson(file,task);
   if(route?.outputContract)this.contracts.set(id,route.outputContract);
   try{
    const content=(payload.messages as any[])[0].content as any[];
    const blobs=content.filter(x=>x.type==='image_url').map((x:any,i:number)=>({bytes:this.preview(x.image_url.url),mime:'image/png',name:'postcard-task-'+i+'.png',fallbackText:'明信片任务图片；无法看图时不要猜测'}));
    await this.host.pushEvent({type:'postcard.host_task',source:'postcard',senderKey:'postcard',origin:'internal',ts:new Date().toISOString(),text:'已获用户明确同意的明信片制作任务（旅行或配置验证）正在处理，请执行本World待办，不要另开旅行或生图。配置验证不产生收藏或旅行；只有postcard_status/read确认后才可说已收到来信。先调用postcard_host_read，taskId='+id+'，按返回任务要求分析附件，再用postcard_host_submit提交JSON。只在工具中提交结果。此事件不是新旅行许可。',blobs},{trigger:'debounce'});
-   const end=Date.now()+this.timeoutMs;
-   while(Date.now()<end){signal.throwIfAborted();if(this.closed)throw new PipelineError('宿主任务已中断，候选已保存，可手动继续');task=this.load(id);if(task.result)return response(task.result);if((task.submissions?.length??0)>=2)throw new PipelineError('本阶段两次结构提交未通过：'+task.feedback?.errors.map(e=>e.message).join('；'));await new Promise<void>(resolve=>setTimeout(resolve,100));}
+   task=this.load(id);if(task.lifecycle){task.lifecycle.queuedAt=Date.now();task.lifecycle.lastProgressAt=Date.now();atomicJson(file,task);}
+   const started=Date.now(),hardEnd=started+this.timeoutMs*2;
+   while(Date.now()<hardEnd){signal.throwIfAborted();if(this.closed)throw new PipelineError('宿主任务已中断，候选已保存，可手动继续');task=this.load(id);if(task.result)return response(task.result);
+    if(task.lifecycle?.terminalReason==='output_truncated')throw new PipelineError((/plan|directions|selection|expand/.test(task.label)?'故事规划':'明信片文字任务')+'输出被截断（输出额度已用尽）；进度已保存，请手动继续，不会自动重画图片');
+    if(task.lifecycle?.terminalReason==='output_filtered')throw new PipelineError('宿主模型未完成当前任务（内容过滤）；进度已保存，不自动重试');
+    if(task.lifecycle?.terminalReason==='model_failed')throw new PipelineError('宿主模型本轮调用失败；进度已保存，请检查服务后手动继续');
+    if(task.lifecycle?.terminalReason==='event_discarded')throw new PipelineError('旅行待办已从宿主队列清除；进度已保存，不自动重投');
+    if((task.submissions?.length??0)>=2)throw new PipelineError('本阶段两次结构提交未通过：'+task.feedback?.errors.map(e=>e.message).join('；'));
+    if(Date.now()>=(task.lifecycle?.lastProgressAt??started)+this.timeoutMs)break;
+    await new Promise<void>(resolve=>setTimeout(resolve,100));}
+   task=this.load(id);if(task.lifecycle){task.lifecycle.state='no_result_timeout';task.lifecycle.terminalReason='no_result_timeout';task.lifecycle.lastProgressAt=Date.now();atomicJson(file,task);}
    throw new PipelineError('宿主模型等待超时；候选和待办已保存，请空闲后手动继续，不会自动重生图片');
-  }finally{this.active.delete(id);this.contracts.delete(id);}
+  }finally{this.active.delete(id);this.contracts.delete(id);this.generations.delete(id);this.observer.forget(id);}
  };
  submit(id:string,digest:string,resultJson:string){
   if(!/^[a-f0-9]{64}$/.test(id))throw new Error('INVALID_TASK_ID：taskId必须是64位小写十六进制原文，当前长度='+id.length+'。请逐字复制本任务postcard_host_read或原事件返回的taskId，不要拼接或改写；这不表示原任务已超时，不要另开旅行或生图。');
@@ -68,7 +102,7 @@ export class HostModelBridge {
    const recovered=!parseError?recoverOutput(t.label,value,contract,t.payload.messages[0].content.filter((x:any)=>x.type==='text').map((x:any)=>x.text).join('\n')):null;
    const feedback=recovered?.feedback??rawFeedback;
    t.submissions??=[];t.submissions.push({resultJson:typeof resultJson==='string'?resultJson.slice(0,20000):'',feedback:rawFeedback});t.feedback=feedback;
-   if(feedback.valid)t.result=(recovered?.value??value) as Record<string,unknown>;
+   if(feedback.valid){t.result=(recovered?.value??value) as Record<string,unknown>;if(t.lifecycle){t.lifecycle.state='submitted';delete t.lifecycle.terminalReason;t.lifecycle.lastProgressAt=Date.now();}}
    if(recovered?.repairs.length)t.recovery={version:RECOVERY_VERSION,sourceSubmission:t.submissions.length,repairs:recovered.repairs};
    atomicJson(this.file(id),t);
    return {accepted:feedback.valid,feedback,remainingSubmissions:2-t.submissions.length,nextAction:feedback.valid?'等待后续业务评审与交付回执':t.submissions.length<2?'按反馈修正后向同一任务重新提交':'停止提交，保留结果待用户处理'};
@@ -76,9 +110,9 @@ export class HostModelBridge {
   if(typeof resultJson!=='string'||resultJson.length>20000)throw new Error('结果过大或类型无效');let result:any;try{result=JSON.parse(resultJson);}catch{throw new Error('结果必须为JSON对象');}
   if(!result||typeof result!=='object'||Array.isArray(result))throw new Error('结果必须为JSON对象');
   if(t.result){if(JSON.stringify(t.result)!==JSON.stringify(result))throw new Error('已提交不同结果，不可覆盖');return {accepted:true,duplicate:true,feedback:t.feedback??outputFeedback(t.label,objectContract('json-object-v1'),result)};}
-  t.result=result;t.feedback=outputFeedback(t.label,objectContract('json-object-v1'),result);atomicJson(this.file(id),t);return {accepted:true,feedback:t.feedback};
+  t.result=result;t.feedback=outputFeedback(t.label,objectContract('json-object-v1'),result);if(t.lifecycle){t.lifecycle.state='submitted';delete t.lifecycle.terminalReason;t.lifecycle.lastProgressAt=Date.now();}atomicJson(this.file(id),t);return {accepted:true,feedback:t.feedback};
  }
  tools():ToolDef[]{const params={type:'object',additionalProperties:false,properties:{taskId:{type:'string'}},required:['taskId']};return [
- {name:'postcard_host_read',description:'读取旅行宿主模型待办及候选图片。只有收到postcard.host_task才处理；不开始旅行或生图。',tags:['read'],parameters:params,handler:async a=>{if(!this.active.has(String(a.taskId)))throw new Error('待办当前未激活，请用户继续准备');const t=this.load(String(a.taskId)),content=t.payload.messages[0].content;return {text:JSON.stringify({taskId:t.id,digest:t.digest,feedback:t.feedback??null,remainingSubmissions:2-(t.submissions?.length??0),instructions:content.filter((x:any)=>x.type==='text').map((x:any)=>x.text).join('\n'),response:'按instructions要求生成JSON对象，调用postcard_host_submit的resultJson提交。不要只在聊天里回答。submit的accepted仅表示结构校验；若返回accepted=false，依反馈在remainingSubmissions范围内向同一任务修正提交，耗尽即停。'}),blobs:content.filter((x:any)=>x.type==='image_url').map((x:any,i:number)=>({bytes:this.preview(x.image_url.url),mime:'image/png',name:'candidate-'+i+'.png',fallbackText:'看不见图片则不得猜测'}))};}},
+ {name:'postcard_host_read',description:'读取旅行宿主模型待办及候选图片。只有收到postcard.host_task才处理；不开始旅行或生图。',tags:['read'],parameters:params,handler:async a=>{if(!this.active.has(String(a.taskId)))throw new Error('待办当前未激活，请用户继续准备');const t=this.load(String(a.taskId)),content=t.payload.messages[0].content;if(t.lifecycle){t.lifecycle.reads++;t.lifecycle.readAt=Date.now();t.lifecycle.lastProgressAt=Date.now();t.lifecycle.state='read';atomicJson(this.file(t.id),t);this.observer.read(t.id,t.lifecycle.activation);}return {text:JSON.stringify({taskId:t.id,digest:t.digest,feedback:t.feedback??null,remainingSubmissions:2-(t.submissions?.length??0),instructions:content.filter((x:any)=>x.type==='text').map((x:any)=>x.text).join('\n'),response:'按instructions要求生成JSON对象，调用postcard_host_submit的resultJson提交。不要只在聊天里回答。submit的accepted仅表示结构校验；若返回accepted=false，依反馈在remainingSubmissions范围内向同一任务修正提交，耗尽即停。'}),blobs:content.filter((x:any)=>x.type==='image_url').map((x:any,i:number)=>({bytes:this.preview(x.image_url.url),mime:'image/png',name:'candidate-'+i+'.png',fallbackText:'看不见图片则不得猜测'}))};}},
  {name:'postcard_host_submit',description:'提交当前旅行宿主模型任务的JSON结果；非最终收藏回执。编号与digest必须来自read。',tags:['write'],parameters:{...params,properties:{...params.properties,digest:{type:'string'},resultJson:{type:'string'}},required:['taskId','digest','resultJson']},handler:async a=>JSON.stringify(this.submit(String(a.taskId),String(a.digest),a.resultJson as string))}];}
 }

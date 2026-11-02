@@ -64,7 +64,7 @@ export class PostcardWorld implements World {
     const signature=()=>JSON.stringify([opts.cfg.cloudEnabled,opts.cfg.useHostModel,opts.cfg.imageBackend,opts.cfg.imageModel,opts.cfg.imageBaseUrl,opts.cfg.imageSize,opts.cfg.requestPngOutput,opts.cfg.characterPreset,opts.cfg.characterReference,opts.cfg.styleReference,opts.cfg.imageProxyUrl,opts.cfg.visionProxyUrl]);const applied=signature(),appliedModel=opts.cfg.imageModel??'';
     this.verification=new ReadinessCheck(join(opts.dataDir,'postcard'),opts.cfg,n=>opts.setup?.secret(n)??'',()=>this.host?.modelFacts.model()??'',opts.generator,opts.now);
     this.setup=new SetupPanel(opts.cfg,opts.setup,join(opts.dataDir,'postcard/character-imports'),()=>!!this.host?.modelFacts.accepts('image/png'),opts.setup?{state:()=>this.verification.state(),start:()=>{if(this.service.status()&&['traveling','generating','failed','awaiting_service'].includes(this.service.status()!.status))throw Error('请先结束已有旅行，再验证配置');return this.verification.start();}}:undefined,opts.restart?{required:()=>signature()!==applied,appliedModel:()=>appliedModel,restart:async()=>{if(this.verification.state().phase==='checking'||this.service.status()&&['traveling','generating','awaiting_service','failed'].includes(this.service.status()!.status))throw Error('旅行或制作验证尚未结束，暂不能重启；请先完成或处理当前任务');await opts.restart!();}}:undefined);
-    this.service = new TravelService(new TravelStore(join(opts.dataDir,'postcard')), opts.generator, opts.now,true,opts.cfg.developmentTestMode===true?5:TRAVEL_MINUTES);
+    this.service = new TravelService(new TravelStore(join(opts.dataDir,'postcard')), opts.generator, opts.now,true,opts.cfg.developmentTestMode===true?5:TRAVEL_MINUTES,opts.bridge?'staged-v2':undefined);
     if(opts.bridge&&opts.cfg.developmentValidation===true)this.developmentValidation=new DevelopmentValidation(join(opts.dataDir,'postcard/development-validation'),this.service.store,opts.bridge.transport);
     if(opts.bridge)this.story=new StoryEngine(this.service,opts.bridge.transport,undefined,opts.cfg.developmentStoryReview===true);
     this.records = new PostcardRecords(this.service.store);
@@ -117,7 +117,9 @@ export class PostcardWorld implements World {
       {label:'旅行与来信',state:trip?.status==='failed'?'error':trip&&['traveling','generating','awaiting_service'].includes(trip.status)?'loading':'online',hint:trip?.status==='failed'?'本次旅行未完成，已有收藏仍可阅读':unread?unread+'封未读来信':trip?.status==='traveling'&&trip?.phase==='ready_for_return'?'明信片已备妥，等待旅行结束':trip&&['traveling','generating'].includes(trip.status)?'正在旅行':'等待下一次出发'}];
   }
   mailboxView(){return {...this.mailbox.snapshot(),height:this.mailboxHeight,...(this.pickupHealthy?{pickup:this.pickup.snapshot()}:{})};}
-  onRunPhase(phase:RunPhase):void{this.coreIdle=phase.state==='idle';}
+  outputTap(){return this.opts.bridge?.outputTap();}
+  onEventsSettled(events:readonly import('cortico/core/types.ts').EventEnvelope[],outcome:'delivered'|'discarded'){this.opts.bridge?.onEventsSettled(events,outcome);}
+  onRunPhase(phase:RunPhase):void{this.coreIdle=phase.state==='idle';this.opts.bridge?.onRunPhase(phase);}
   pickupPulse():Promise<void>{if(this.pickupFlight)return this.pickupFlight;this.pickupFlight=this.advancePickup().finally(()=>{this.pickupFlight=undefined;});return this.pickupFlight;}
   private async advancePickup(){
     const host=this.host;if(!host||!this.pickupHealthy||!this.mailboxHealthy||!this.coreIdle)return;

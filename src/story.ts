@@ -11,6 +11,7 @@ import {PipelineError} from './generation.ts';
 import {recoverOutput,parseBoundedOutput,RECOVERY_VERSION} from './delivery-recovery.ts';
 import {selectMaterialPool,MATERIAL_GUIDANCE} from './materials.ts';
 import {checkpointPrompt,StoryCheckpointError} from './story-checkpoint.ts';
+import {stagedPlanning,planningMaterials} from './staged-planning.ts';
 
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const textHash=(value:string)=>createHash('sha256').update(value).digest('hex');
@@ -98,8 +99,8 @@ export class StoryEngine {
  }
  private async plan(trip:Readonly<Trip>,signal:AbortSignal):Promise<StoryPlan>{
   const id=trip.series!.id,j=this.journey(id);if(j.plan){validatePlan(j.plan,j.plan.motifIds);return j.plan;}
-  const library=JSON.parse(readFileSync(this.materialFile,'utf8'));
   if(this.requireStoryApproval){
+   const library=JSON.parse(readFileSync(this.materialFile,'utf8'));
    const file=join(this.service.store.root,'development-story-review','approved-plan.json');
    if(!existsSync(file))throw Error('等待用户预审故事走向：未批准，不调用模型规划或生图');
    const reviewed=JSON.parse(readFileSync(file,'utf8'));
@@ -110,6 +111,9 @@ export class StoryEngine {
    atomicJson(join(this.service.store.root,'journey-tasks',id,'human-story-review.json'),reviewed);
    this.service.store.updateJourney(id,j=>{j.plan=reviewed.plan;});return reviewed.plan;
   }
+  if(j.plannerVersion==='staged-v2'){const plan=await this.planV2(trip,signal,3);this.assertTrip(trip,signal);this.service.store.updateJourney(id,j=>{j.plan=plan;});return plan;}
+  if(j.plannerVersion)throw new PipelineError('未知故事规划版本；保留原记录，不混用缓存');
+  const library=JSON.parse(readFileSync(this.materialFile,'utf8'));
   let pool=selectMaterialPool(library,id,trip.scene);
   let history=(this.service.store.snapshot().journeys??[]).filter(h=>h.id!==id&&h.plan).slice(-8).map(h=>({id:h.id,stage:'selected_plan',signature:h.plan!.signature}));
   const materialDir=join(this.service.store.root,'journey-tasks',id);mkdirSync(materialDir,{recursive:true});const materialFile=join(materialDir,'materials.json');
@@ -139,6 +143,30 @@ export class StoryEngine {
   }
   throw Error('两组故事候选未通过；未发起生图，请查看原因或结束本系列');
  }
+ private async planV2(trip:Readonly<Trip>,signal:AbortSignal,nodeCount:number):Promise<StoryPlan>{
+  const owner=trip.series?.id??trip.id,folder=join(this.service.store.root,'journey-tasks',owner);mkdirSync(folder,{recursive:true});
+  const file=join(folder,'v2-materials.json');let frozen:any;
+  if(existsSync(file)){
+   frozen=JSON.parse(readFileSync(file,'utf8'));
+   const {inputHash,...business}=frozen;
+   if(inputHash!==hash(business)||frozen.owner!==owner||frozen.version!=='staged-v2'||frozen.nodeCount!==nodeCount||frozen.scene!==trip.scene||!Array.isArray(frozen.pool)||!Array.isArray(frozen.history)||!frozen.schema)throw new StoryCheckpointError('分阶段规划快照不完整或输入变化；保留旧进度，不重新收费');
+  }else{
+   const library=JSON.parse(readFileSync(this.materialFile,'utf8'));
+   const pool=planningMaterials(selectMaterialPool(library,owner,trip.scene)).map((m:any)=>{
+    const provenance=library.provenance.find((p:any)=>p.motifId===m.id),source=library.sources.find((s:any)=>s.id===provenance?.sourceId);
+    return {...m,...(provenance?{caution:provenance.adaptationCaution,sourceReference:{author:source?.author,url:source?.url,readingScope:source?.readingScope,locator:provenance.locator,anchor:provenance.anchor}}:{})};
+   });
+   frozen={version:'staged-v2',owner,nodeCount,scene:trip.scene,pool,history:(this.service.store.snapshot().journeys??[]).filter(h=>h.id!==owner&&h.plan).slice(-8).map(h=>({id:h.id,signature:h.plan!.signature})),schema:planningSchema(JSON.parse(readFileSync(fileURLToPath(new URL('./story-schema.json',import.meta.url)),'utf8')),nodeCount)};
+   frozen={...frozen,inputHash:hash(frozen)};atomicJson(file,frozen);
+  }
+  const assertActive=()=>nodeCount===1?this.assertShortTrip(trip,signal):this.assertTrip(trip,signal);
+  return stagedPlanning({owner,nodeCount,scene:trip.scene,materials:frozen.pool,history:frozen.history,schema:frozen.schema,policy:POLICY,vocabulary:VOCAB,
+   call:(label,prompt,contract)=>this.call(owner,label,prompt,signal,contract),assertActive,phase:phase=>this.service.preparationPhase(trip.id,phase),
+   validatePlan:(plan,ids,count)=>{validatePlan(plan,ids,count);validateExpressivePlan(plan,count);validateGroundedPlan(plan,count);},
+   reviewValid:(review,plan,history)=>{validateStoryReview(review,[plan],history.map(h=>h.id));},
+   accepted:(review,plan,history)=>validateStoryReview(review,[plan],history.map(h=>h.id)).includes(plan.id)&&history.every(h=>structureSimilarity(plan.signature,h.signature)<.8),
+  });
+ }
  private assertShortTrip(trip:Readonly<Trip>,signal:AbortSignal){
   signal.throwIfAborted();
   const current=this.service.store.snapshot().trips.find(t=>t.id===trip.id);
@@ -149,6 +177,8 @@ export class StoryEngine {
   const id=trip.id;
   const saved=this.service.store.snapshot().trips.find(t=>t.id===id)?.shortPlan;
   if(saved){validatePlan(saved,saved.motifIds,1);return saved;}
+  if(trip.plannerVersion==='staged-v2'){const plan=await this.planV2(trip,signal,1);this.assertShortTrip(trip,signal);this.service.setShortPlan(id,plan);return plan;}
+  if(trip.plannerVersion)throw new PipelineError('未知短途规划版本；保留原记录，不混用缓存');
   const library=JSON.parse(readFileSync(this.materialFile,'utf8'));
   let pool=selectMaterialPool(library,id,trip.scene);
   let history=(this.service.store.snapshot().journeys??[]).filter(h=>h.id!==id&&h.plan).slice(-8).map(h=>({id:h.id,stage:'selected_plan',signature:h.plan!.signature}));

@@ -6,7 +6,7 @@ import type {Journey,SeriesRef,StoryPlan} from './journey-types.ts';
 import {SCENES,chooseScene,freezeScene,type Scene,type Destination,type SceneSnapshot,type VisualVariation} from './scenes.ts';
 export {SCENES,type Scene} from './scenes.ts';
 export type Status = 'traveling' | 'awaiting_service' | 'generating' | 'failed' | 'cancelled' | 'completed';
-export interface Trip { id: string; scene: Scene; series?:SeriesRef;mode?:'short';shortPlan?:StoryPlan;contentId?:string;prepareDuringTravel?:boolean; sceneSnapshot?: SceneSnapshot; startedAt: number; dueAt: number; status: Status; error?: string; completedAt?: number; phase?: string; generation?: Record<string,unknown>; }
+export interface Trip { plannerVersion?:'staged-v2';id: string; scene: Scene; series?:SeriesRef;mode?:'short';shortPlan?:StoryPlan;contentId?:string;prepareDuringTravel?:boolean; sceneSnapshot?: SceneSnapshot; startedAt: number; dueAt: number; status: Status; error?: string; completedAt?: number; phase?: string; generation?: Record<string,unknown>; }
 export interface Card { tripId: string; scene: Scene; series?:SeriesRef;sceneLabel?: string; title: string; note: string; sha256: string; completedAt: number; generation?: Record<string,unknown>; }
 interface Snapshot { schema: 1; trips: Trip[]; notified: string[]; journeys?:Journey[]; }
 /** Adapter must return an approved complete artifact, never a temporary URL. */
@@ -149,7 +149,7 @@ export class TravelService {
   private flight?: Promise<void>;
   private controller?: AbortController;
   private stopped = true;
-  constructor(readonly store: TravelStore, private generator: Generator | undefined, private now: () => number = Date.now,private earlyPreparation=false,readonly roundMinutes=120) {if(roundMinutes!==120&&roundMinutes!==5)throw Error('仅支持正式2小时或开发5分钟');}
+  constructor(readonly store: TravelStore, private generator: Generator | undefined, private now: () => number = Date.now,private earlyPreparation=false,readonly roundMinutes=120,private plannerVersion?:'staged-v2') {if(roundMinutes!==120&&roundMinutes!==5)throw Error('仅支持正式2小时或开发5分钟');}
   open(): void { this.store.open(); this.stopped = false; }
   async close(): Promise<void> { this.stopped = true; this.controller?.abort(); try {await this.flight;} finally {this.store.close();} }
   status(): Trip | null { const trips = this.store.snapshot().trips; return trips.find(t => active.has(t.status)) ?? trips.at(-1) ?? null; }
@@ -166,6 +166,7 @@ export class TravelService {
     return {id:j.id,mark:j.mark,completed:cards.length,total:3,phase:j.endedAt?'ended':running?'traveling':cards.length===3?'completed':'waiting_continue',nextNode:cards.length<3?cards.length+1:null,summary};
   }
   setShortPlan(id:string,plan:StoryPlan):void {const state=this.store.snapshot(),trip=state.trips.find(t=>t.id===id);if(!trip||trip.series||trip.mode!=='short')throw Error('没有这趟短途旅行');trip.shortPlan=plan;this.store.save(state);}
+  preparationPhase(id:string,phase:string):void {const state=this.store.snapshot(),trip=state.trips.find(t=>t.id===id);if(trip&&['traveling','generating'].includes(trip.status)&&trip.phase!==phase){trip.phase=phase;this.store.save(state);}}
   startSeries():Trip {return this.start('surprise',this.roundMinutes,true);}
   endJourney(id:string){
     const j=this.store.snapshot().journeys?.find(j=>j.id===id);if(!j)throw Error('没有这个系列');
@@ -185,7 +186,7 @@ export class TravelService {
     if(seriesMode){
       state.journeys??=[];
       journey=[...state.journeys].reverse().find(j=>!j.endedAt&&this.journeyCards(j.id).length<3);
-      if(!journey){const jid=randomUUID();journey={id:jid,mark:'旅迹·'+jid.slice(0,8),scene:chooseScene(jid,state.trips.map(t=>t.scene)),createdAt:this.now()};state.journeys.push(journey);}
+      if(!journey){const jid=randomUUID();journey={id:jid,mark:'旅迹·'+jid.slice(0,8),scene:chooseScene(jid,state.trips.map(t=>t.scene)),createdAt:this.now(),...(this.plannerVersion?{plannerVersion:this.plannerVersion}:{})};state.journeys.push(journey);}
       const nodeIndex=this.journeyCards(journey.id).length+1;
       series={id:journey.id,mark:journey.mark,nodeIndex,total:3};
       previous=[...state.trips].reverse().find(t=>t.series?.id===journey!.id&&t.series.nodeIndex===nodeIndex&&t.status==='cancelled');
@@ -198,7 +199,8 @@ export class TravelService {
     const recentVariants=recent.filter(t=>t.scene===scene).map(t=>t.sceneSnapshot?.id??t.generation?.sceneVariant).filter((v):v is string=>typeof v==='string');
     const trip: Trip = { id, scene,...(this.earlyPreparation?{prepareDuringTravel:true}:{}), sceneSnapshot:freezeScene(id,scene,recentScenes,recentVariants,recent.filter(t=>t.status==='completed').map(t=>t.sceneSnapshot?.visualVariation).filter((v):v is VisualVariation=>!!v).slice(0,6)), startedAt: this.now(), dueAt: this.now()+minutes*60000, status: 'traveling' };
     if(series){trip.series=series;if(previous){trip.contentId=previous.contentId??previous.id;trip.sceneSnapshot=previous.sceneSnapshot;trip.generation=previous.generation;}}
-    if(shortMode)trip.mode='short';
+    if(journey?.plannerVersion)trip.plannerVersion=journey.plannerVersion;
+    if(shortMode){trip.mode='short';if(this.plannerVersion)trip.plannerVersion=this.plannerVersion;}
     if (this.generator?.prepare&&!previous) trip.generation = this.generator.prepare(trip);
     if(previous){const cached=this.store.stagedArtifact(previous.id);if(cached)this.store.stageArtifact(trip,cached);}
     state.trips.push(trip); this.store.save(state); return structuredClone(trip);

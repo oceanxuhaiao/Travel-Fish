@@ -1,3 +1,5 @@
+> 开发候选 **0.8.11-r12.1**：R1/R2 离线修复与验证版本，未公开发布或安装日常实例。已发布版本说明保留如下。
+
 <p align="center"><img src="https://raw.githubusercontent.com/oceanxuhaiao/Travel-Fish/main/assets/branding/logo.png" width="180" alt="旅行大肥鱼 Logo"></p>
 
 # 旅行大肥鱼

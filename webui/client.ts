@@ -3,7 +3,7 @@ import {STAMP_ART} from './stamp-art.ts';
 import type {WebUiPanelContext} from 'cortico/web/shared/client-panel.ts';
 
 interface Card {tripId:string;scene:string;title:string;note:string;completedAt:number;unread?:boolean;series?:{id:string;mark:string;nodeIndex:number;total:3};}
-interface Trip {id:string;scene:string;status:string;startedAt:number;dueAt:number;error?:string;}
+interface Trip {id:string;scene:string;status:string;startedAt:number;dueAt:number;error?:string;phase?:string;}
 interface Snapshot {journey?:{id:string;mark:string;phase:string;completed:number;nextNode:number|null;summary?:{status:string;error?:string;text?:string}}|null;cost?:{normalImageCost:number|null;maxImageCost:number|null;hostCost:string};readyForTravel?:boolean;trip:Trip|null;cards:Card[];minutes:number;generatorConnected:boolean;mailbox?:{unreadCount:number};mailboxWindow?:{phase:string;detail:string};}
 const date=(n:number)=>new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:'long',day:'numeric'}).format(new Date(n));
 const active=(t:Trip|null)=>!!t&&['traveling','generating','awaiting_service','failed'].includes(t.status);
@@ -56,6 +56,9 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
     if(active(t)){
       title.textContent=inTravel&&t!.status!=='failed'?'正在远方旅行':t!.status==='failed'?'这封来信还在整理中':t!.status==='awaiting_service'?'旅途到了，等来信启程':'正在把旅途装进信里';
       sub.textContent=inTravel&&t!.status!=='failed'?'预计 '+new Date(t!.dueAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})+' 归来，明信片将在旅途中准备。':t!.status==='failed'?'已有成果与旅程进度已保留；会优先复用已有成果，问题未解决时暂缓交付。':t!.status==='awaiting_service'?'请先在扩展配置中连接云端生成服务。':'明信片和短笺准备好后，会自动收进下面的收藏册。';
+      const preparation:Record<string,string>={story_directions:'正在整理旅途方向',story_selection:'正在核对方向与素材',story_expand:'正在展开旅途故事',story_review:'正在核对故事内容'};
+      if(t!.status!=='failed'&&t!.phase&&preparation[t!.phase])sub.textContent+=' '+preparation[t!.phase]+'。';
+      if(t!.status==='failed'&&t!.error?.includes('输出被截断'))sub.textContent='本次文字任务输出被截断，进度已保存；不会自动重试或重画图片。';
       if(t!.status==='failed')controls.append(button('继续准备',retry,'pc-button pc-primary'));
       controls.append(button('先回家',cancel));
       if(t!.error){const info=el('details','pc-error-details');info.append(el('summary','','查看原因'),el('p','',t!.error));text.append(info);}
