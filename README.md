@@ -1,16 +1,16 @@
-> 开发候选 **0.8.11-r12.1**：R1/R2 离线修复与验证版本，未公开发布或安装日常实例。已发布版本说明保留如下。
+> 当前发布版 **0.8.11**：新旅程规划、更具体的结构反馈与宿主输出终态识别，短途 grounding 形状修复；每趟仍等待 2 小时。上一版 0.8.10 说明保留在发布记录中。
 
 <p align="center"><img src="https://raw.githubusercontent.com/oceanxuhaiao/Travel-Fish/main/assets/branding/logo.png" width="180" alt="旅行大肥鱼 Logo"></p>
 
 # 旅行大肥鱼
 
-> 当前发布版 **0.8.10**（Windows / Coopanion）。用户在「远方来信」面板选择：短途 2 小时、一张带完整短叙事的明信片；长途 3×2 小时、三节点连续故事与第三张后的总结。自然回忆、带已交付见闻的续程邀请、46 条真实游记素材、分级恢复与降级交付、Issue #2/#3 修复，以及长途鲸鱼邮戳与总结引导均包含在本版。
+> 当前发布版 **0.8.11**（Windows / Coopanion）。用户在「远方来信」面板选择：短途 2 小时、一张带完整短叙事的明信片；长途 3×2 小时、三节点连续故事与第三张后的总结。本版加入新的分段旅程规划、更具体的结构反馈与宿主输出终态识别；自然回忆、带已交付见闻的续程邀请、46 条真实游记素材、分级恢复与降级交付、Issue #2/#3 修复，以及长途鲸鱼邮戳与总结引导均保留。
 
 **让她去远方走走，把想念寄回家。**
 
 **扩展反馈 QQ 群：584685170** · [GitHub Issues](https://github.com/oceanxuhaiao/Travel-Fish/issues)
 
-0.8.10 仅更新反馈群信息、说明与宣传海报；旅行、收藏和回忆功能沿用 0.8.9。
+0.8.11 更新旅程规划、结构反馈与错误定位、宿主输出终态识别；旅行等待（每趟 2 小时）、收藏、邮箱和回忆行为不变。
 
 本版为公开稳定版，安装、升级与回滚见 [RELEASE_NOTES.md](RELEASE_NOTES.md) 与 [UPGRADING.md](UPGRADING.md)。要求 Node 22+ 与 Coopanion；生图服务需自备 API Key，费用按服务商账单。旧收藏保留；从 0.7.18 升级前请备份整个 postcard 数据目录。
 
@@ -22,7 +22,7 @@
 
 不用守着倒计时。等你方便时点一下邮箱，她会跑过去，打开小邮箱，取出那张寄给你的明信片。
 
-![旅行大肥鱼宣传海报](https://raw.githubusercontent.com/oceanxuhaiao/Travel-Fish/main/assets/branding/poster.jpg?v=0.8.10)
+![旅行大肥鱼宣传海报](https://raw.githubusercontent.com/oceanxuhaiao/Travel-Fish/main/assets/branding/poster.jpg?v=0.8.11)
 
 ## 一张风景，一段只属于这趟旅途的短笺
 
