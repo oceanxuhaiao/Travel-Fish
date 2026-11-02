@@ -319,7 +319,7 @@
     },
     {
       "name": "postcard_host_read",
-      "description": "读取旅行宿主模型待办及候选图片。只有收到postcard.host_task才处理；不开始旅行或生图。",
+      "description": "读取旅行宿主模型待办及候选图片。只有收到postcard.host_task才处理；编号错误时按回执activeTasks核对并重新read，不推断原任务超时，不开始旅行或生图。",
       "parameters": {
         "type": "object",
         "additionalProperties": false,
@@ -342,7 +342,7 @@
     },
     {
       "name": "postcard_host_submit",
-      "description": "提交当前旅行宿主模型任务的JSON结果；非最终收藏回执。编号与digest必须来自read。",
+      "description": "提交当前旅行宿主模型任务的JSON结果；非最终收藏回执。编号与digest必须逐字复制read；编号错误回执仅供找回引用，不能把旧结果改投其他任务。",
       "parameters": {
         "type": "object",
         "additionalProperties": false,

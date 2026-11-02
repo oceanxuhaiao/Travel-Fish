@@ -51,3 +51,24 @@ it('模型抄长任务编号得到精确反馈，不误报确定超时，不消�
  const saved=JSON.parse(readFileSync(join(root,id+'.json'),'utf8'));expect(saved.submissions).toBeUndefined();
  expect(b.submit(id,id,'{"accepted":true,"issues":[]}')).toMatchObject({accepted:true,remainingSubmissions:1});await vi.advanceTimersByTimeAsync(100);await p;
 });
+const referenceFeedback=(fn:()=>unknown)=>{try{fn();throw Error('expected reference error');}catch(e){const m=(e as Error).message;return JSON.parse(m.slice(m.indexOf('：')+1));}};
+it('62位/不存在64位及摘要错误提供有效引用，不改原状态预算和等待',async()=>{
+ vi.useFakeTimers();const b=new HostModelBridge(root,1000),h=attach(b),p=b.transport('text',payload,new AbortController().signal,{outputContract:decisionContract});await vi.advanceTimersByTimeAsync(1);const id=task(h),before=readFileSync(join(root,id+'.json'),'utf8');
+ for(const [bad,code]of [[id.slice(0,62),'INVALID_TASK_ID'],['f'.repeat(64),'UNKNOWN_TASK_ID']] as const){
+  const f=referenceFeedback(()=>b.submit(bad,id,'{}'));expect(f).toMatchObject({code,path:'taskId',activeTasks:[{taskId:id,stage:'review'}]});expect(f.nextAction).toContain('postcard_host_read');expect(f.nextAction).toContain('不把旧结果移交另一个任务');
+  await expect(b.tools()[0].handler({taskId:bad} as any,{} as any)).rejects.toThrow(code);
+ }
+ expect(referenceFeedback(()=>b.submit(id,'wrong','{}'))).toMatchObject({code:'TASK_DIGEST_MISMATCH',path:'digest',activeTasks:[{taskId:id}]});expect(readFileSync(join(root,id+'.json'),'utf8')).toBe(before);
+ const read=JSON.parse((await b.tools()[0].handler({taskId:id} as any,{} as any) as any).text);expect(read.remainingSubmissions).toBe(2);expect(b.submit(read.taskId,read.digest,'{"accepted":true,"issues":[]}')).toMatchObject({accepted:true,remainingSubmissions:1});await vi.advanceTimersByTimeAsync(100);await p;
+});
+it('多任务只列引用，不模糊改投，不泄露指令，完成项不再列出',async()=>{
+ vi.useFakeTimers();const b=new HostModelBridge(root,1000),h=attach(b),a=b.transport('text',payload,new AbortController().signal),c=b.transport('text',{...payload,__postcardTask:{tripId:'two',label:'second'},messages:[{content:[{type:'text',text:'private second instructions'}]}]},new AbortController().signal);await vi.advanceTimersByTimeAsync(1);
+ const ids=h.events.map(e=>String(e.text).match(/taskId=([a-f0-9]{64})/)![1]);const f=referenceFeedback(()=>b.submit('bad','bad','{}'));expect(f.activeTasks.map((x:any)=>x.taskId).sort()).toEqual([...ids].sort());expect(JSON.stringify(f)).not.toContain('private second instructions');
+ expect(()=>b.submit(ids[0],ids[1],'{}')).toThrow('TASK_DIGEST_MISMATCH');expect(JSON.parse(readFileSync(join(root,ids[0]+'.json'),'utf8')).result).toBeUndefined();b.submit(ids[0],ids[0],'{}');expect(referenceFeedback(()=>b.submit('bad','bad','{}')).activeTasks).toEqual([{taskId:ids[1],stage:'second'}]);b.submit(ids[1],ids[1],'{}');await vi.advanceTimersByTimeAsync(100);await Promise.all([a,c]);
+});
+it('取消、超时与停止不列有效引用，历史编号不误称未知',async()=>{
+ vi.useFakeTimers();const b=new HostModelBridge(root,100),h=attach(b),abort=new AbortController(),p=b.transport('text',payload,abort.signal);await vi.advanceTimersByTimeAsync(1);const id=task(h);abort.abort();expect(referenceFeedback(()=>b.submit(id,id,'{}'))).toMatchObject({code:'TASK_NOT_ACTIVE',activeTasks:[]});const failed=expect(p).rejects.toThrow();await vi.advanceTimersByTimeAsync(100);await failed;b.detach();expect(referenceFeedback(()=>b.submit(id,id,'{}'))).toMatchObject({code:'TASK_NOT_ACTIVE',activeTasks:[]});await expect(b.tools()[0].handler({taskId:id} as any,{} as any)).rejects.toThrow('TASK_NOT_ACTIVE');
+});
+it('编号错误不刷新无进展计时、不自动重投',async()=>{
+ vi.useFakeTimers();const b=new HostModelBridge(root,100),h=attach(b),p=b.transport('text',payload,new AbortController().signal);const failed=expect(p).rejects.toThrow('超时');await vi.advanceTimersByTimeAsync(90);referenceFeedback(()=>b.submit('bad','bad','{}'));await vi.advanceTimersByTimeAsync(20);await failed;expect(h.events).toHaveLength(1);expect(referenceFeedback(()=>b.submit('bad','bad','{}')).activeTasks).toEqual([]);
+});

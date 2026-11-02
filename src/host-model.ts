@@ -88,10 +88,28 @@ export class HostModelBridge {
    throw new PipelineError('宿主模型等待超时；候选和待办已保存，请空闲后手动继续，不会自动重生图片');
   }finally{this.active.delete(id);this.contracts.delete(id);this.generations.delete(id);this.observer.forget(id);}
  };
+ /** Recovery hints enumerate live references only; never guess or route a submitted result. */
+ private referenceError(code:string,path:string,message:string):never{
+  const activeTasks:Array<{taskId:string;stage:string}>=[];
+  if(!this.closed)for(const [id,signal] of this.active){
+   if(signal.aborted)continue;
+   try{const t=this.load(id);if(!t.result&&!t.lifecycle?.terminalReason)activeTasks.push({taskId:id,stage:t.label});}catch{/* Do not advertise unreadable tasks. */}
+  }
+  activeTasks.sort((a,b)=>a.taskId.localeCompare(b.taskId));
+  throw Error(code+'：'+JSON.stringify({code,path,message,activeTasks:activeTasks.slice(0,8),moreActiveTasks:activeTasks.length>8,
+   nextAction:activeTasks.length?'从activeTasks逐字复制taskId，先调用postcard_host_read核对该任务归属、instructions及digest，再向同一任务提交。多个任务时只处理原事件对应项；不能确定就停止，不把旧结果移交另一个任务。':'当前没有可处理的有效待办；不要自行激活或另开旅行。',
+   budget:'本次编号/摘要校验失败未接受结果、未消耗结构提交次数、未延长等待或自动重投。不能据此断言原任务超时；不调用postcard_retry，不开始旅行或生图。'}));
+ }
+ private assertTaskActive(id:string){
+  if(!/^[a-f0-9]{64}$/.test(id))this.referenceError('INVALID_TASK_ID','taskId','taskId必须是64位小写十六进制原文，当前长度='+id.length+'；可能是编号抄错，不要补写或猜测。');
+  if(!this.active.has(id)||this.active.get(id)!.aborted||this.closed){
+   if(!existsSync(this.file(id)))this.referenceError('UNKNOWN_TASK_ID','taskId','此编号不属于已保存待办，可能是编号抄错；这不说明原任务超时。');
+   this.referenceError('TASK_NOT_ACTIVE','taskId','此编号的待办已保存但当前未激活，可能已完成、取消、超时或中断。不能据此推断其他待办状态。');
+  }
+ }
  submit(id:string,digest:string,resultJson:string){
-  if(!/^[a-f0-9]{64}$/.test(id))throw new Error('INVALID_TASK_ID：taskId必须是64位小写十六进制原文，当前长度='+id.length+'。请逐字复制本任务postcard_host_read或原事件返回的taskId，不要拼接或改写；这不表示原任务已超时，不要另开旅行或生图。');
-  if(!this.active.has(id)||this.active.get(id)!.aborted||this.closed)throw new Error('TASK_NOT_ACTIVE：提交的taskId当前未激活，可能是编号抄错、超时、取消或中断；不能仅据此断言原任务已超时。先核对原事件/read中的完整编号；确实中断才请用户在旅行面板继续准备，不自行重试旅行或生图。');
-  const t=this.load(id);if(t.digest!==digest)throw new Error('任务摘要不匹配');
+  this.assertTaskActive(id);
+  const t=this.load(id);if(t.digest!==digest)this.referenceError('TASK_DIGEST_MISMATCH','digest','任务摘要不匹配；必须重新read同一taskId并逐字复制digest，不要复用其他任务摘要。');
   const contract=this.contracts.get(id);
   if(contract&&!t.result){
    if((t.submissions?.length??0)>=2)throw Error('本阶段提交次数已耗尽，请查看反馈');
@@ -113,6 +131,6 @@ export class HostModelBridge {
   t.result=result;t.feedback=outputFeedback(t.label,objectContract('json-object-v1'),result);if(t.lifecycle){t.lifecycle.state='submitted';delete t.lifecycle.terminalReason;t.lifecycle.lastProgressAt=Date.now();}atomicJson(this.file(id),t);return {accepted:true,feedback:t.feedback};
  }
  tools():ToolDef[]{const params={type:'object',additionalProperties:false,properties:{taskId:{type:'string'}},required:['taskId']};return [
- {name:'postcard_host_read',description:'读取旅行宿主模型待办及候选图片。只有收到postcard.host_task才处理；不开始旅行或生图。',tags:['read'],parameters:params,handler:async a=>{if(!this.active.has(String(a.taskId)))throw new Error('待办当前未激活，请用户继续准备');const t=this.load(String(a.taskId)),content=t.payload.messages[0].content;if(t.lifecycle){t.lifecycle.reads++;t.lifecycle.readAt=Date.now();t.lifecycle.lastProgressAt=Date.now();t.lifecycle.state='read';atomicJson(this.file(t.id),t);this.observer.read(t.id,t.lifecycle.activation);}return {text:JSON.stringify({taskId:t.id,digest:t.digest,feedback:t.feedback??null,remainingSubmissions:2-(t.submissions?.length??0),instructions:content.filter((x:any)=>x.type==='text').map((x:any)=>x.text).join('\n'),response:'按instructions要求生成JSON对象，调用postcard_host_submit的resultJson提交。不要只在聊天里回答。submit的accepted仅表示结构校验；若返回accepted=false，依反馈在remainingSubmissions范围内向同一任务修正提交，耗尽即停。'}),blobs:content.filter((x:any)=>x.type==='image_url').map((x:any,i:number)=>({bytes:this.preview(x.image_url.url),mime:'image/png',name:'candidate-'+i+'.png',fallbackText:'看不见图片则不得猜测'}))};}},
- {name:'postcard_host_submit',description:'提交当前旅行宿主模型任务的JSON结果；非最终收藏回执。编号与digest必须来自read。',tags:['write'],parameters:{...params,properties:{...params.properties,digest:{type:'string'},resultJson:{type:'string'}},required:['taskId','digest','resultJson']},handler:async a=>JSON.stringify(this.submit(String(a.taskId),String(a.digest),a.resultJson as string))}];}
+ {name:'postcard_host_read',description:'读取旅行宿主模型待办及候选图片。只有收到postcard.host_task才处理；编号错误时按回执activeTasks核对并重新read，不推断原任务超时，不开始旅行或生图。',tags:['read'],parameters:params,handler:async a=>{this.assertTaskActive(String(a.taskId));const t=this.load(String(a.taskId)),content=t.payload.messages[0].content;if(t.lifecycle){t.lifecycle.reads++;t.lifecycle.readAt=Date.now();t.lifecycle.lastProgressAt=Date.now();t.lifecycle.state='read';atomicJson(this.file(t.id),t);this.observer.read(t.id,t.lifecycle.activation);}return {text:JSON.stringify({taskId:t.id,digest:t.digest,feedback:t.feedback??null,remainingSubmissions:2-(t.submissions?.length??0),instructions:content.filter((x:any)=>x.type==='text').map((x:any)=>x.text).join('\n'),response:'按instructions要求生成JSON对象，调用postcard_host_submit的resultJson提交。不要只在聊天里回答。submit的accepted仅表示结构校验；若返回accepted=false，依反馈在remainingSubmissions范围内向同一任务修正提交，耗尽即停。'}),blobs:content.filter((x:any)=>x.type==='image_url').map((x:any,i:number)=>({bytes:this.preview(x.image_url.url),mime:'image/png',name:'candidate-'+i+'.png',fallbackText:'看不见图片则不得猜测'}))};}},
+ {name:'postcard_host_submit',description:'提交当前旅行宿主模型任务的JSON结果；非最终收藏回执。编号与digest必须逐字复制read；编号错误回执仅供找回引用，不能把旧结果改投其他任务。',tags:['write'],parameters:{...params,properties:{...params.properties,digest:{type:'string'},resultJson:{type:'string'}},required:['taskId','digest','resultJson']},handler:async a=>JSON.stringify(this.submit(String(a.taskId),String(a.digest),a.resultJson as string))}];}
 }
