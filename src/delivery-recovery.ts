@@ -1,12 +1,23 @@
 import {outputFeedback,type OutputContract} from './model-feedback.ts';
 
 export const RECOVERY_VERSION='local-output-repair-v1';
+/** One-node plans only: a bare grounding object is the single item, so wrapping it invents nothing. */
+function singleNodePlans(value:any):any[]{
+ const out:any[]=[],add=(v:any)=>{if(v&&typeof v==='object'&&!Array.isArray(v)&&Array.isArray(v.nodes)&&v.nodes.length===1)out.push(v)};
+ if(value&&typeof value==='object'&&!Array.isArray(value)){add(value.plan);if(Array.isArray(value.candidates))value.candidates.forEach(add);add(value);}
+ return out;
+}
 /** Only representation repairs: never invent facts, approval, identity or conflict judgments. */
 export function recoverOutput(stage:string,value:any,contract:OutputContract,prompt=''){
  const original=outputFeedback(stage,contract,value);
  if(original.valid)return {value,feedback:original,repairs:[] as string[]};
  const candidate=structuredClone(value),repairs:string[]=[];
  if(candidate&&typeof candidate==='object'&&!Array.isArray(candidate)){
+  for(const plan of singleNodePlans(candidate)){
+   if(plan.grounding&&typeof plan.grounding==='object'&&!Array.isArray(plan.grounding)){
+    plan.grounding=[plan.grounding];repairs.push('grounding:单个对象→[对象]（单节点计划，字段与内容不变，不凭空补造第二项）');
+   }
+  }
   if(/^image-[12]-review$/.test(stage)&&candidate.portrayal?.orientation==='three-quarter-back'){
    candidate.portrayal.orientation='three-quarter';repairs.push('portrayal.orientation:three-quarter-back→three-quarter（合并到斜向视角类别）');
   }

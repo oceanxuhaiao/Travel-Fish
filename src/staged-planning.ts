@@ -84,7 +84,7 @@ export async function stagedPlanning(o:StagedPlanningOptions):Promise<StoryPlan>
    if(v.plan.id!==direction.id)throw Error('完整方案id必须逐字复制所选方向id');
   });
   o.phase('story_expand');
-  const {plan}=await request('v2-expand-'+(index+1),'只展开所选direction，返回{plan:一个完整方案}。id必须复制direction.id。严格遵守schema，节点数为'+o.nodeCount+'，signature受控词表不可自造；dependencies必须引用前序节点carryover。保留具体动机、事件行动结果、emotionalBeat、visualBeat与grounding，明确来源和原创边界。不得写其他候选、评分或自选结论。'+MATERIAL_GUIDANCE,
+  const {plan}=await request('v2-expand-'+(index+1),'只展开所选direction，返回{plan:一个完整方案}。id必须复制direction.id。严格遵守schema，节点数为'+o.nodeCount+'，signature受控词表不可自造；dependencies必须引用前序节点carryover。grounding必须是数组且正好'+o.nodeCount+'项（短途1项；即使只有一项也写成grounding:[{...}]，不能把单个对象直接作为grounding），nodeIndex逐项对应。保留具体动机、事件行动结果、emotionalBeat、visualBeat与grounding，明确来源和原创边界。不得写其他候选、评分或自选结论。'+MATERIAL_GUIDANCE,
    {direction,nodeCount:o.nodeCount,materials:selected,history:o.history,schema:{type:'object',required:['plan'],properties:{plan:{$ref:'#/$defs/candidate'}},$defs:o.schema.$defs}},contract) as {plan:StoryPlan};
   o.phase('story_review');
   const review=await request('v2-review-'+(index+1),'独立完整七维评审，核对来源真实处境/行动/结果与适用前提、明确原创边界、节点连续性和历史差异。每个候选返回{candidateId,candidateVersion,historyIds,ruleIssues:字符串数组,decision:accept|revise|reject|pending,ratings:[{dimension,score,reason}]}，包在{reviews:数组}中。七维detail/agency/connection/standalone_payoff/visual/novelty/naturalness，score为0到3，2为具体自然可用；无历史novelty.score=null。有规则问题或任何适用维度低于2不得accept。historyIds逐字复制history的全部id，candidateId/candidateVersion逐字复制plan。平静观景无需强加人物互动；不得为过审虚构来源感受或经历。',

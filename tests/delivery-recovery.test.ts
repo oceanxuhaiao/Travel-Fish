@@ -1,7 +1,12 @@
 import {it,expect} from 'vitest';
 import {createHash} from 'node:crypto';import {mkdtempSync,writeFileSync,readFileSync,rmSync} from 'node:fs';import {tmpdir} from 'node:os';import {join} from 'node:path';
 import {recoverOutput,parseBoundedOutput} from '../src/delivery-recovery.ts';
-import {objectContract,generationContract} from '../src/model-feedback.ts';import {validatePortrayal} from '../src/story-quality.ts';
+import {objectContract,generationContract} from '../src/model-feedback.ts';import {validatePortrayal,validateGroundedPlan} from '../src/story-quality.ts';
+const plans=JSON.parse(readFileSync(new URL('./fixtures/story-candidates.json',import.meta.url),'utf8'));
+const shortPlan=()=>{const p=structuredClone(plans[0]);p.nodes=p.nodes.slice(0,1);p.grounding=[p.grounding[0]];return p;};
+const oneNodeContract=objectContract('single-node-grounding-v1',v=>{const plan=v.plan??v;if(!Array.isArray(plan.nodes)||plan.nodes.length!==1)throw Error('需要单节点');validateGroundedPlan(plan,1);});
+const oneNodeCandidatesContract=objectContract('short-candidates-grounding-v1',v=>{if(!Array.isArray(v.candidates))throw Error('需要候选数组');for(const p of v.candidates)validateGroundedPlan(p,1);});
+const longContract=objectContract('three-node-grounding-v1',v=>{const plan=v.plan??v;validateGroundedPlan(plan,3);});
 import {imageAccepted} from '../src/generation.ts';import {HostModelBridge} from '../src/host-model.ts';import {FakeHost} from './helpers/fake-host.ts';
 const value=()=>({scene_match:true,character_match:true,usable:true,background_conflicts:[],issues:[],facts:['可见背景一','可见背景二','可见角色'],portrayal:{orientation:'three-quarter-back',action:'bend',expression:'not-visible',subjectHeightRatio:.7}});
 const contract=objectContract('image-review-expressive-v1',v=>{generationContract('image-1-review',false).validate(v);validatePortrayal(v.portrayal);});
@@ -17,6 +22,24 @@ it('only explicit empty history permits not-applicable novelty; decision and oth
  const r=recoverOutput('plan-review-1',v,c,'资料：{"history":[]}');expect(r.value.reviews[0]).toMatchObject({decision:'reject',ratings:[{score:null},{score:1}]});
  expect(recoverOutput('plan-review-1',v,c,'资料：{"history":[{}]}').feedback.valid).toBe(false);expect(recoverOutput('plan-review-1',v,c).feedback.valid).toBe(false);
 });
+it('wraps a bare grounding object only for one-node plans, without inventing a second item',()=>{
+ const plan=shortPlan(),bare=structuredClone(plan);bare.grounding=bare.grounding[0];
+ const wrapped=recoverOutput('v2-expand-1',{plan:bare},oneNodeContract);
+ expect(wrapped.feedback.valid).toBe(true);expect(wrapped.repairs.join()).toContain('grounding');
+ expect(Array.isArray(wrapped.value.plan.grounding)).toBe(true);expect(wrapped.value.plan.grounding).toHaveLength(1);
+ expect(wrapped.value.plan.grounding[0].sourceSituation).toBe(plan.grounding[0].sourceSituation);
+ expect(Array.isArray((bare as any).grounding)).toBe(false);
+ const candidates=recoverOutput('short-plan-1',{candidates:[bare]},oneNodeCandidatesContract);
+ expect(candidates.feedback.valid).toBe(true);expect(Array.isArray(candidates.value.candidates[0].grounding)).toBe(true);
+ const two=structuredClone(shortPlan());two.grounding=[two.grounding[0],{...two.grounding[0],nodeIndex:1}];
+ const noGuess=recoverOutput('v2-expand-1',{plan:two},oneNodeContract);
+ expect(noGuess.feedback.valid).toBe(false);expect(noGuess.repairs).toHaveLength(0);
+ const long=structuredClone(plans[0]);long.grounding=long.grounding[0];
+ const rejected=recoverOutput('v2-expand-1',{plan:long},longContract);
+ expect(rejected.feedback.valid).toBe(false);expect(rejected.repairs).toHaveLength(0);
+ expect(rejected.feedback.errors[0].path).toBe('grounding');expect(rejected.feedback.errors[0].expected).toContain('数组');
+});
+
 it('bounded markdown JSON is accepted without guessing truncated or trailing content',()=>{
  expect(parseBoundedOutput('```json\n{"a":1}\n```')).toEqual({a:1});expect(()=>parseBoundedOutput('{"a":')).toThrow();expect(()=>parseBoundedOutput('{"a":1} explanation')).toThrow();expect(()=>parseBoundedOutput('x'.repeat(20001))).toThrow();
 });

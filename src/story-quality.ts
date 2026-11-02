@@ -25,12 +25,26 @@ export function portrayalIssues(current:Portrayal,previous?:Portrayal):string[]{
  return issues;
 }
 
-export const GROUNDING_GUIDANCE='真实游记改编必须保留可辨认的处境—行动—结果，不能只抽取观察/好奇机制后发明整段经历。每节点给grounding一项{nodeIndex,motifId,sourceSituation,sourceAction,sourceResult,retained,adaptation,originalDetails:字符串数组,knowledgeClaims:[{statement,basis:source|character_guess,evidence}]}。motifId须属于本故事素材。前三字段只写资料明确提供的内容，不从未读照片猜。retained说明保留的具体经历关系；adaptation说明虚构地点角色和跨轮调整；originalDetails标出原创物件/动作/情绪，不伪称原文。知识性因果结论只能有来源证据或明确保留为未证实猜想，禁止从鞋尖划沙等单次动作推导自然规律。三个节点应有不同的具体生活处境和行动结果，不将同一观察拆成三次伪行程；无需强塞衣食住行全套。';
+export const GROUNDING_GUIDANCE='真实游记改编必须保留可辨认的处境—行动—结果，不能只抽取观察/好奇机制后发明整段经历。grounding必须是数组：每个节点在数组中放一项（短途1项、长途3项），每项{nodeIndex,motifId,sourceSituation,sourceAction,sourceResult,retained,adaptation,originalDetails:字符串数组,knowledgeClaims:[{statement,basis:source|character_guess,evidence}]}；只有一项时也须写成grounding:[{...}]，不能把单个对象直接当作grounding。motifId须属于本故事素材，并逐字复制。前三字段只写资料明确提供的内容，不从未读照片猜。retained说明保留的具体经历关系；adaptation说明虚构地点角色和跨轮调整；originalDetails标出原创物件/动作/情绪，不伪称原文。知识性因果结论只能有来源证据或明确保留为未证实猜想，禁止从鞋尖划沙等单次动作推导自然规律。三个节点应有不同的具体生活处境和行动结果，不将同一观察拆成三次伪行程；无需强塞衣食住行全套。';
 export function validateGroundedPlan(p:StoryPlan,nodeCount=3){
- const g=p.grounding;
- if(!Array.isArray(g)||g.length!==nodeCount||new Set(g.map(a=>a.nodeIndex)).size!==nodeCount)throw Error('grounding须逐一覆盖'+(nodeCount===1?'短途节点':'三个节点')+'的真实处境、行动和结果');
- for(const a of g){
-  if(!Number.isInteger(a.nodeIndex)||a.nodeIndex<1||a.nodeIndex>nodeCount||!p.motifIds.includes(a.motifId)||!['sourceSituation','sourceAction','sourceResult','retained','adaptation'].every(k=>typeof (a as any)[k]==='string'&&(a as any)[k].trim())||!Array.isArray(a.originalDetails)||a.originalDetails.some(x=>typeof x!=='string'||!x.trim())||!Array.isArray(a.knowledgeClaims))throw Error('grounding来源映射不完整，不能只提供素材编号');
-  for(const c of a.knowledgeClaims)if(!c.statement?.trim()||!['source','character_guess'].includes(c.basis)||!c.evidence?.trim())throw Error('知识结论必须说明来源证据或明确未证实的猜想');
- }
+ const g=(p as any).grounding,nodeLabel=nodeCount===1?'短途节点':'三个节点';
+ if(!Array.isArray(g))throw new OutputValidationError('grounding',"数组，每节点一项：[{nodeIndex,motifId,sourceSituation,...}]；短途也必须写成[{...}]",'grounding必须是数组（现为'+(g===null?'null':Array.isArray(g)?'数组':typeof g)+'）；'+nodeLabel+'要写成grounding:[{...}]，不能把单个对象直接作为grounding');
+ if(g.length!==nodeCount)throw new OutputValidationError('grounding','恰好'+nodeCount+'项（'+nodeLabel+'各一项）','grounding现有'+g.length+'项，'+nodeLabel+'须逐一覆盖真实处境、行动和结果，每节点恰好一项');
+ const indices=g.map((a:any)=>a?.nodeIndex);
+ if(new Set(indices).size!==nodeCount)throw new OutputValidationError('grounding.nodeIndex','1至'+nodeCount+'各出现一次','grounding的nodeIndex须对应实际节点且不重复；当前='+JSON.stringify(indices));
+ g.forEach((a:any,i:number)=>{
+  const path='grounding['+i+']';
+  if(!a||typeof a!=='object'||Array.isArray(a))throw new OutputValidationError(path,'对象','grounding每项须为{...}对象，不能是字符串或数组');
+  if(!Number.isInteger(a.nodeIndex)||a.nodeIndex<1||a.nodeIndex>nodeCount)throw new OutputValidationError(path+'.nodeIndex','1至'+nodeCount+'的整数','nodeIndex须为对应节点的整数编号');
+  if(!p.motifIds.includes(a.motifId))throw new OutputValidationError(path+'.motifId',p.motifIds.join('/'),'motifId须逐字复制本故事的素材ID，不能只给编号或新造ID');
+  for(const key of ['sourceSituation','sourceAction','sourceResult','retained','adaptation'])if(typeof a[key]!=='string'||!a[key].trim())throw new OutputValidationError(path+'.'+key,'非空字符串','来源映射字段缺失或为空，不能只提供素材编号');
+  if(!Array.isArray(a.originalDetails)||a.originalDetails.some((x:any)=>typeof x!=='string'||!x.trim()))throw new OutputValidationError(path+'.originalDetails','字符串数组；无原创细节用[]','原创细节须为字符串数组，用于区分原文与虚构');
+  if(!Array.isArray(a.knowledgeClaims))throw new OutputValidationError(path+'.knowledgeClaims','数组；无结论用[]','知识结论须为数组');
+  a.knowledgeClaims.forEach((c:any,j:number)=>{
+   const cp=path+'.knowledgeClaims['+j+']';
+   if(!c||typeof c.statement!=='string'||!c.statement.trim())throw new OutputValidationError(cp+'.statement','非空字符串','知识结论须写明确陈述');
+   if(!['source','character_guess'].includes(c.basis))throw new OutputValidationError(cp+'.basis','source|character_guess','知识结论必须说明来源证据或明确未证实的猜想');
+   if(typeof c.evidence!=='string'||!c.evidence.trim())throw new OutputValidationError(cp+'.evidence','非空字符串','须给出证据，或明确说明这是原创猜想');
+  });
+ });
 }

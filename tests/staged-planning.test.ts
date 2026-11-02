@@ -124,3 +124,25 @@ it('保留真实拒绝问题允许不选方向，非阻断观察放reason',async
  const f=await inspectStage('v2-selection',v=>{v.rankedIds=[];for(const a of v.assessments){a.accepted=false;a.issues=['来源前提不满足'];}});expect(f.valid).toBe(true);
  expect((await inspectStage('v2-selection',v=>{v.assessments[0].reason='可用；完整展开需遵守来源前提';})).valid).toBe(true);
 });
+
+function bareGrounding(base:Transport){return vi.fn<Transport>(async(kind,p,sig,route)=>{
+ const r=await base(kind,p,sig,route);const label=(p.__postcardTask as any).label;
+ if(kind==='text'&&label.startsWith('v2-expand-')){const plan=JSON.parse((r as any).choices[0].message.content).plan;plan.grounding=plan.grounding[0];return respond({plan});}
+ return r;
+ });}
+it('短途展开发回单个grounding对象时按表现修复并记录，不增加模型提交',async()=>{
+ const service=open(),trip=service.startShort(),t=bareGrounding(transport());
+ const engine=new StoryEngine(service,t),ctx=await engine.context(trip,new AbortController().signal);
+ expect(ctx.nodeIndex).toBe(1);
+ expect(t.mock.calls.filter(c=>(c[1].__postcardTask as any).label.startsWith('v2-expand-')).length).toBe(1);
+ const rec=JSON.parse(readFileSync(join(root,'journey-tasks',trip.id,'v2-expand-1-local-recovery.json'),'utf8'));
+ expect(JSON.stringify(rec.repairs)).toContain('grounding');
+ expect(service.store.cards()).toHaveLength(0);
+});
+it('长途把grounding写成单个对象时拒绝并返回数组与具体路径，不进入生图',async()=>{
+ const service=open(),trip=service.startSeries(),t=bareGrounding(transport());
+ const engine=new StoryEngine(service,t);
+ await expect(engine.context(trip,new AbortController().signal)).rejects.toThrow('grounding必须是数组');
+ expect(t.mock.calls.every(c=>c[0]==='text')).toBe(true);
+ expect(service.store.cards()).toHaveLength(0);
+});

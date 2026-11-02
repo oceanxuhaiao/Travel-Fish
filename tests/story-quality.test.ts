@@ -4,6 +4,7 @@ import {it,expect,vi} from 'vitest';
 import {readFileSync,mkdtempSync,rmSync,mkdirSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';import {join} from 'node:path';
 import {validateGroundedPlan,validateExpressivePlan,validatePortrayal,portrayalIssues} from '../src/story-quality.ts';
+import {OutputValidationError} from '../src/model-feedback.ts';
 import {TravelService,TravelStore,collectionSceneLabel} from '../src/travel.ts';
 import {PostcardPanel} from '../src/panel.ts';
 const plans=JSON.parse(readFileSync(new URL('./fixtures/story-candidates.json',import.meta.url),'utf8'));
@@ -32,10 +33,21 @@ it('旧系列卡不把旧目录标签当成实际场景，新卡用故事地点�
  const card:any={series:{nodeIndex:1},sceneLabel:'树洞与溪流'};expect(collectionSceneLabel(card)).toBeUndefined();expect(card.sceneLabel).toBe('树洞与溪流');expect(collectionSceneLabel({...card,generation:{storyLocation:'村口晾衣绳旁'}})).toBe('村口晾衣绳旁');expect(collectionSceneLabel({sceneLabel:'旧单卡标签'} as any)).toBe('旧单卡标签');
 });
 
-it('grounding缺失和不受控知识依据会反馈失败',()=>{
+it('grounding必须是数组并逐节点覆盖；形状、数量与字段错误给出具体路径',()=>{
  const p=structuredClone(plans[0]);expect(()=>validateGroundedPlan(p)).not.toThrow();
- delete p.grounding;expect(()=>validateGroundedPlan(p)).toThrow('覆盖三个节点');
- p.grounding=structuredClone(plans[0].grounding);p.grounding[0].knowledgeClaims=[{statement:'越高风越狠',basis:'invented',evidence:'划沙'}];expect(()=>validateGroundedPlan(p)).toThrow('知识结论');
+ const object=structuredClone(plans[0]);object.grounding=object.grounding[0];
+ expect(()=>validateGroundedPlan(object)).toThrow('grounding必须是数组');
+ try{validateGroundedPlan(object);}catch(e){expect(e).toBeInstanceOf(OutputValidationError);expect((e as OutputValidationError).path).toBe('grounding');expect((e as OutputValidationError).expected).toContain('数组');}
+ const short:any={...structuredClone(plans[0]),grounding:structuredClone(plans[0].grounding[0])};
+ expect(()=>validateGroundedPlan(short,1)).toThrow('grounding必须是数组');
+ const pathOf=(fn:()=>void)=>{try{fn();}catch(e){return e instanceof OutputValidationError?e.path:'(not OutputValidationError)';}return '';};
+ expect(pathOf(()=>validateGroundedPlan(object))).toBe('grounding');
+ const two=structuredClone(plans[0]);two.grounding=[two.grounding[0],two.grounding[1]];expect(()=>validateGroundedPlan(two,1)).toThrow('现有2项');
+ expect(pathOf(()=>validateGroundedPlan(two,1))).toBe('grounding');
+ const dup=structuredClone(plans[0]);dup.grounding[1]={...dup.grounding[1],nodeIndex:1};expect(pathOf(()=>validateGroundedPlan(dup))).toBe('grounding.nodeIndex');
+ const missing=structuredClone(plans[0]);delete (missing.grounding[0] as any).sourceSituation;expect(pathOf(()=>validateGroundedPlan(missing))).toBe('grounding[0].sourceSituation');
+ const badBasis=structuredClone(plans[0]);(badBasis.grounding[0] as any).knowledgeClaims=[{statement:'越高风越狠',basis:'invented',evidence:'划沙'}];expect(pathOf(()=>validateGroundedPlan(badBasis))).toBe('grounding[0].knowledgeClaims[0].basis');
+ const missingGrounding=structuredClone(plans[0]);delete (missingGrounding as any).grounding;expect(()=>validateGroundedPlan(missingGrounding)).toThrow('grounding必须是数组');
 });
 it('开发预审阻止未批准或改动的方案；批准后精确复用方案且不调用模型规划',async()=>{
  const root=mkdtempSync(join(tmpdir(),'postcard-review-')),transport=vi.fn();
