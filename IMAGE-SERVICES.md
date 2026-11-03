@@ -26,7 +26,7 @@ Gemini采用官方仍有文档的generateContent协议（Google当前主图像�
 - Gemini generateContent：https://ai.google.dev/gemini-api/docs/generate-content/image-generation
 - Gemini现行主指南：https://ai.google.dev/gemini-api/docs/image-generation
 
-## Gemini 原生诊断与本地转码（0.8.12-issue4.2）
+## Gemini 原生诊断与本地转码（0.8.12）
 
 验证失败时，配置引导显示具体错误编号和本地诊断相对路径。以宿主实际数据目录 dataDir 为基准，摘要位于 `postcard/diagnostics/gemini-<UUID>/summary.json`；同目录 `part-<序号>-raw.bin` 是可解码的原始图片字节。按实际格式打开，不能因扩展名为 bin 就把它改称 PNG。验证样张不会加入收藏册。
 
