@@ -1,6 +1,6 @@
 {
   "name": "cortico-world-postcard",
-  "version": "0.8.12-issue4.1",
+  "version": "0.8.12-issue4.2",
   "type": "module",
   "description": "让大肥鱼去远方走走，把想念寄回家：两小时旅行、水彩明信片、桌面邮箱取信与永久收藏。适用于 Coopanion。 扩展反馈QQ群：584685170。",
   "license": "MIT",
@@ -73,6 +73,7 @@
     "fflate": "0.8.3",
     "koffi": "3.3.1",
     "pngjs": "7.0.0",
+    "sharp": "0.35.5",
     "undici": "7.29.1"
   },
   "repository": {

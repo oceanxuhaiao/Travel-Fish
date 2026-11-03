@@ -1,4 +1,5 @@
 import {imageWireRequest,normalizeImageResponse} from '../src/image-protocol.ts';
+import sharp from 'sharp';
 import { beforeEach,afterEach,it,expect,vi } from 'vitest';
 import { mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -198,8 +199,8 @@ it('old frozen compatible spec does not gain PNG output after update',async()=>{
 });
 it.each([['JPEG',Buffer.from([255,216,255,1])],['WebP',Buffer.from('RIFF0000WEBP')],['未知格式',Buffer.from('not an image')]])('saves %s bytes and reports exact failure without a second image request',async(format,raw)=>{
  const t=vi.fn<Transport>(async()=>({data:[{b64_json:raw.toString('base64')}]}));const g=make(t);prepare(g);
- await expect(g(trip,new AbortController().signal)).rejects.toThrow('返回了'+format);
- await expect(g(trip,new AbortController().signal)).rejects.toThrow('返回了'+format);expect(t).toHaveBeenCalledTimes(1);
+ await expect(g(trip,new AbortController().signal)).rejects.toThrow(format==='未知格式'?'返回了未知格式':'图片解码或转换失败');
+ await expect(g(trip,new AbortController().signal)).rejects.toThrow(format==='未知格式'?'返回了未知格式':'图片解码或转换失败');expect(t).toHaveBeenCalledTimes(1);
  expect(readFileSync(join(root,'trips',trip.id,'image-1-raw.bin'))).toEqual(raw);
  expect(()=>g.confirmRetry!(trip,false)).toThrow('确认');
 });
@@ -222,6 +223,28 @@ it('invalid base64 and non-single image report distinct reasons and are never re
   await expect(g(trip,new AbortController().signal)).rejects.toThrow(expected);expect(t).toHaveBeenCalledTimes(1);
  }
 });
+it.each(['ark','compatible','qwen','gemini'] as const)('%s stores original JPEG and resumes with the converted PNG without another image call',async backend=>{
+ const jpeg=await sharp(image).jpeg().toBuffer(),base=transport();let imageCalls=0,broken=true;
+ const t:Transport=async(k,p,s)=>{
+  if(k==='image'){imageCalls++;return {data:[{b64_json:jpeg.toString('base64')}]};}
+  if(broken){broken=false;throw new Error('text-only failure');}
+  return base(k,p,s);
+ };
+ const options={root,characterReference:ref,styleReference:ref,secret:()=> 'local-test-only',imageBackend:backend,imageBaseUrl:backend==='qwen'?'https://dashscope.aliyuncs.com/api/v1':backend==='gemini'?'https://generativelanguage.googleapis.com/v1beta':'http://127.0.0.1/v1',imageModel:'test-model',imageSize:backend==='qwen'?'1024*1536':backend==='gemini'?'2K':'1024x1536'};
+ const g=createCloudGenerator(options,t);prepare(g);
+ // An interruption after image creation does not force another paid generation.
+ const goodTransport:Transport=async(k,p,s,r)=>{
+  if(k==='text'&&broken){broken=false;throw new HttpError(403);}
+  return t(k,p,s,r);
+ };
+ broken=true;const interrupted=createCloudGenerator(options,goodTransport);
+ await expect(interrupted(trip,new AbortController().signal)).rejects.toBeInstanceOf(HttpError);
+ const conversionFile=join(root,'trips',trip.id,'image-1-conversion.json'),before=readFileSync(conversionFile);
+ const result=await createCloudGenerator(options,t)(trip,new AbortController().signal);
+ expect(result.image.subarray(0,8)).toEqual(Buffer.from('89504e470d0a1a0a','hex'));
+ expect(imageCalls).toBe(1);expect(readFileSync(conversionFile)).toEqual(before);expect(readFileSync(join(root,'trips',trip.id,'image-1-raw.bin'))).toEqual(jpeg);
+});
+
 it('bounded base64 accepts missing padding and rejects oversize bytes before decoding',()=>{
  expect(base64ImageBytes('TWFu')).toEqual(Buffer.from('Man'));expect(base64ImageBytes('TWE')).toEqual(Buffer.from('Ma'));
  expect(()=>base64ImageBytes('A'.repeat(16),8)).toThrow('超过40MB上限');

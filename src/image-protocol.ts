@@ -58,7 +58,7 @@ export async function normalizeImageResponse(backend:ImageBackend,value:Json,dow
   if(images.length===0)throw new ImageFailure('IMAGE_NO_OUTPUT');
   if(images.length!==1)throw new ImageFailure('IMAGE_STRUCTURE');const image=images[0].inlineData??images[0].inline_data;
   const bytes=nativeImageBytes(image?.data);
-  if((image.mimeType??image.mime_type)!=='image/png'||imageFormat(bytes)!=='PNG')throw new ImageFailure('IMAGE_FORMAT');
+  if(imageFormat(bytes)==='unknown')throw new ImageFailure('IMAGE_FORMAT');
   return {model:value.modelVersion,usage:value.usageMetadata,data:[{b64_json:image.data}]};
  }
  if(backend==='qwen'){

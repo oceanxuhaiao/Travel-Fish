@@ -2,7 +2,9 @@
 export const IMAGE_FAILURE_REASONS = {
  IMAGE_JSON:'生图服务响应不是有效JSON', IMAGE_STRUCTURE:'生图服务响应结构不符合所选协议',
  IMAGE_NO_OUTPUT:'生图服务未返回最终图片', IMAGE_BLOCKED:'生图服务拦截了本次输出',
- IMAGE_INCOMPLETE:'生图服务输出未正常完成', IMAGE_FORMAT:'收到的图片格式不受支持，需要PNG',
+ IMAGE_INCOMPLETE:'生图服务输出未正常完成', IMAGE_FORMAT:'收到的图片格式不受支持，仅接受PNG、JPEG或WebP',
+ IMAGE_DECODE:'图片解码或转换失败', IMAGE_CONVERTER:'本地图片转换组件未能加载',
+ IMAGE_ANIMATED:'不支持动画或多帧图片，请使用单帧图片', IMAGE_DIMENSIONS:'图片尺寸须每边512至4096像素，不会自动缩放或裁切',
  IMAGE_BASE64:'生图服务返回的图片base64无效', IMAGE_LIMIT:'生图服务响应或图片超过本地大小上限',
  IMAGE_SAVE:'本地保存生图响应或图片失败', TIMEOUT:'等待生图服务响应超时',
  NETWORK:'连接生图服务或读取响应失败', INTERRUPTED:'生图请求被取消或中断',

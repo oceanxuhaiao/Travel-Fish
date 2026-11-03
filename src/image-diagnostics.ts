@@ -1,7 +1,7 @@
-import {mkdirSync,writeFileSync,renameSync,unlinkSync} from 'node:fs';
+import {mkdirSync,readFileSync,writeFileSync,renameSync,unlinkSync} from 'node:fs';
 import {join} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
-import {ImageFailure} from './image-failure.ts';
+import {ImageFailure,type ImageFailureInfo} from './image-failure.ts';
 
 export const MAX_IMAGE_RESPONSE_BYTES=64*1024*1024;
 const MAX_IMAGE_BYTES=40*1024*1024;
@@ -20,6 +20,17 @@ export function nativeImageBytes(value:unknown):Buffer {
 }
 const finishValues=new Set(['STOP','MAX_TOKENS','SAFETY','RECITATION','LANGUAGE','OTHER','BLOCKLIST','PROHIBITED_CONTENT','SPII','MALFORMED_FUNCTION_CALL','IMAGE_SAFETY','IMAGE_PROHIBITED_CONTENT','IMAGE_OTHER','NO_IMAGE','FINISH_REASON_UNSPECIFIED']);
 export function safeFinish(value:unknown){return typeof value==='string'&&finishValues.has(value)?value:'unknown';}
+export function recordImageProcessing(root:string,id:string|undefined,result:{conversion?:Record<string,unknown>;failure?:ImageFailureInfo}){
+ if(!id)return;
+ if(!/^gemini-[a-f0-9-]{36}$/.test(id))throw new ImageFailure('IMAGE_SAVE','received');
+ const file=join(root,'diagnostics',id,'summary.json'),temp=file+'.'+randomUUID()+'.tmp';
+ try{
+  const raw=readFileSync(file);if(raw.length>64*1024)throw Error('summary limit');
+  const summary=JSON.parse(raw.toString('utf8'));
+  summary.processing={...summary.processing,...result,status:result.failure?'failed':'converted'};
+  writeFileSync(temp,JSON.stringify(summary,null,2),{flag:'wx'});renameSync(temp,file);
+ }catch{try{unlinkSync(temp);}catch{}throw new ImageFailure('IMAGE_SAVE','received',id);}
+}
 const mime=(v:unknown)=>['image/png','image/jpeg','image/webp'].includes(v as string)?String(v):'unknown';
 /** Only allowlisted metadata and image bytes are retained, never raw JSON/text/headers. */
 export class GeminiDiagnostics {

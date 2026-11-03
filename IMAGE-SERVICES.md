@@ -11,7 +11,7 @@
 
 千问目前官方文档推荐qwen-image-2.0，支持图像编辑；也可填写实际开通、使用相同多模态编辑协议的模型ID。旧Edit Plus/Max不能仅凭名称保证当前地域可调用。千问北京、新加坡密钥与请求地址须匹配；专属业务空间域名从控制台复制，保留/api/v1路径。参考图每张最大10MB、每边不超过3072像素。parameters.n固定1，prompt_extend关闭以保留角色/画风分工，成品从官方HTTPS aliyuncs.com存储地址下载并验证PNG后写入本地。临时URL与原始响应不存入收藏或日志；下载不携带API Key、不跟随重定向。第三方千问代理若返回其他域名暂不支持。
 
-Gemini采用官方仍有文档的generateContent协议（Google当前主图像指南转向Interactions；本版没有同时接入Interactions）。请求使用x-goog-api-key头，contents.parts中的两个inlineData传角色/画风，候选数1。双参考PNG合计不超过14MB，给base64及提示词保留请求空间；仅允许1K/2K，4K竖图可能超过现有4096像素收藏上限。只接受最终单张PNG，忽略thought图像；JPEG或文本-only不能入藏。支持完整:generateContent地址，地址模型须与模型ID一致。第三方服务必须明确提供相同协议与鉴权，不能把OpenAI /v1地址直接套用。未来API移除或模型变更需重新适配。
+Gemini采用官方仍有文档的generateContent协议（Google当前主图像指南转向Interactions；本版没有同时接入Interactions）。请求使用x-goog-api-key头，contents.parts中的两个inlineData传角色/画风，候选数1。双参考PNG合计不超过14MB，给base64及提示词保留请求空间；仅允许1K/2K，4K竖图可能超过现有4096像素收藏上限。只接受最终单张有效PNG、JPEG或静态WebP，后两者本地转PNG；忽略thought图像，文本-only不能入藏。支持完整:generateContent地址，地址模型须与模型ID一致。第三方服务必须明确提供相同协议与鉴权，不能把OpenAI /v1地址直接套用。未来API移除或模型变更需重新适配。
 
 推荐预填不会保存配置、调用API或产生费用。先确认模型开通，保存独立密钥及配置，应用设置并重启，再明确确认计费进行制作验证。每次最多两张候选，云端各模型费用按实际服务费率填写估价，宿主看图写信另计。除Flash既有估价外，不猜测新模型价格。
 
@@ -26,7 +26,7 @@ Gemini采用官方仍有文档的generateContent协议（Google当前主图像�
 - Gemini generateContent：https://ai.google.dev/gemini-api/docs/generate-content/image-generation
 - Gemini现行主指南：https://ai.google.dev/gemini-api/docs/image-generation
 
-## Gemini 原生诊断（0.8.12-issue4.1）
+## Gemini 原生诊断与本地转码（0.8.12-issue4.2）
 
 验证失败时，配置引导显示具体错误编号和本地诊断相对路径。以宿主实际数据目录 dataDir 为基准，摘要位于 `postcard/diagnostics/gemini-<UUID>/summary.json`；同目录 `part-<序号>-raw.bin` 是可解码的原始图片字节。按实际格式打开，不能因扩展名为 bin 就把它改称 PNG。验证样张不会加入收藏册。
 
@@ -34,5 +34,6 @@ Gemini采用官方仍有文档的generateContent协议（Google当前主图像�
 
 原生响应读取上限64MiB，每请求最多64个 part，原图保存合计上限40MiB，超过上限会拒绝或标记未保存。多次手动验证会生成不同诊断目录；这些文件仅在本地保留，包含候选图片，不应整目录公开上传。排查时优先分享 summary.json，不要分享宿主配置、密钥或请求原文。
 
-当前成品仍必须为 PNG；JPEG/WebP 会保留原图并报 `IMAGE_FORMAT`，不会自动转码、重试或改用别的模型。失败后先检查服务调用与账单，再决定是否手动验证；本次更新不自动恢复既有失败任务、不调整图片尝试上限。
+当前成品仍为 PNG；单张有效JPEG/静态WebP在保留原始字节后转为PNG，记录两者SHA256与尺寸。不裁切不缩放，透明度保留，按EXIF定向并去除元数据；动画/多帧、损坏和每边512—4096以外的图片拒绝处理，输入和输出各不超过40MiB。转换不会重新调用生图服务。失败后先检查服务调用与账单，再决定是否手动验证；本次更新不自动恢复既有失败任务、不调整图片尝试上限。
 
+转换记录位于对应 postcard/trips/<任务编号>/image-N-conversion.json；Gemini摘要也记录 processing.conversion 或 processing.failure。IMAGE_DECODE、IMAGE_ANIMATED、IMAGE_DIMENSIONS 和 IMAGE_CONVERTER 分别表示解码失败、动画、多帧/尺寸问题和组件加载问题；不会因此自动重发生图。转换使用sharp@0.35.5及其平台预编译依赖，安装时需完整保留可选平台包。

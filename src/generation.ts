@@ -14,7 +14,8 @@ import {generationContract,objectContract,outputFeedback,feedbackPrompt,type Out
 import {recoverOutput,RECOVERY_VERSION} from './delivery-recovery.ts';
 
 import {ImageFailure,imageNetworkFailure,imageCauseCode,validImageFailureInfo,type ImageFailureInfo} from './image-failure.ts';
-import {GeminiDiagnostics,MAX_IMAGE_RESPONSE_BYTES} from './image-diagnostics.ts';
+import {GeminiDiagnostics,MAX_IMAGE_RESPONSE_BYTES,recordImageProcessing} from './image-diagnostics.ts';
+import {imageToPng} from './image-conversion.ts';
 
 export const POLICY = 'non-contradiction-cloud-v3';
 export const IMAGE_MODEL = 'doubao-seedream-5-0-flash-260915';
@@ -245,16 +246,25 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
            bytes=base64ImageBytes(items[0].b64_json);binary(join(folder,'image-'+cp.imageAttempt+'-raw.bin'),bytes);
            const format=bytes.subarray(0,3).equals(Buffer.from([255,216,255]))?'JPEG':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP'?'WebP':bytes.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex'))?'PNG':'未知格式';
            atomicJson(join(folder,'image-'+cp.imageAttempt+'-raw.json'),{format,bytes:bytes.length,sha256:hash(bytes)});
-           if(format!=='PNG')throw new PipelineError('图片服务返回了'+format+'，需要PNG；原始图片已保存在本地，不会自动转码');
+           if(format!=='PNG'){
+            if(format==='未知格式')throw new PipelineError('图片服务返回了未知格式，支持PNG、JPEG或WebP；原始图片已保存在本地');
+            const normalized=await imageToPng(bytes,signal);bytes=normalized.bytes;
+            if(normalized.conversion){atomicJson(join(folder,'image-'+cp.imageAttempt+'-conversion.json'),normalized.conversion);recordImageProcessing(options.root,imageDiagnosticId,{conversion:normalized.conversion});}
+           }
            dims=decodePng(bytes);
           }catch(error){
+           if(error instanceof ImageFailure)throw new ImageFailure(error.code,error.outcome,imageDiagnosticId??error.diagnosticId);
            if(spec.imageBackend==='gemini')throw error instanceof ImageFailure?error:new ImageFailure(error instanceof PipelineError?(/base64/.test(error.message)?'IMAGE_BASE64':/超过|上限/.test(error.message)?'IMAGE_LIMIT':'IMAGE_FORMAT'):'IMAGE_SAVE','received',imageDiagnosticId);
            cp.receivedImageError=(error instanceof PipelineError?error.message:'图片返回数据保存或检查失败')+'；未自动重发，重试可能重复计费';atomicJson(cpFile(trip),cp);throw new PipelineError(cp.receivedImageError);}
           atomicJson(imagePath()+'.json',{sha256:hash(bytes),...dims});binary(imagePath(),bytes);
           cp.pendingImage=false;atomicJson(cpFile(trip),cp);
         }catch(error){
           if(spec.imageBackend==='gemini'&&imageDiagnosticId&&!(error instanceof ImageFailure)&&!(error instanceof HttpError))error=new ImageFailure('IMAGE_SAVE','received',imageDiagnosticId);
-          if(error instanceof ImageFailure){cp.imageFailure=error.info();atomicJson(cpFile(trip),cp);throw error;}
+          if(error instanceof ImageFailure){
+           let failure=error;
+           if(imageDiagnosticId){try{recordImageProcessing(options.root,imageDiagnosticId,{failure:error.info()});}catch{failure=new ImageFailure('IMAGE_SAVE',error.outcome,imageDiagnosticId);}}
+           cp.imageFailure=failure.info();atomicJson(cpFile(trip),cp);throw failure;
+          }
           if(cp.receivedImageError)throw new PipelineError(cp.receivedImageError);
           if(error instanceof HttpError&&error.status>=400&&error.status<500&&error.status!==408){
             cp.pendingImage=false;cp.imageAttempt--;atomicJson(cpFile(trip),cp);

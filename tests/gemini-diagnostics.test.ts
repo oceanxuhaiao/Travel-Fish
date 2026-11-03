@@ -5,6 +5,8 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {PNG} from 'pngjs';
+import sharp from 'sharp';
+import {createHash} from 'node:crypto';
 import {createCloudGenerator,cloudTransport,type CloudOptions} from '../src/generation.ts';
 import {ReadinessCheck,verificationFailure} from '../src/readiness.ts';
 import {POSTCARD_DEFAULTS} from '../src/config.ts';
@@ -29,8 +31,8 @@ const trip=():Trip=>({id:randomUUID(),scene:'forest',startedAt:0,dueAt:1,status:
 const send=(value:unknown)=>(res:ServerResponse)=>{res.writeHead(200,{'Content-Type':'application/json','x-secret-test':'secret-test-only'});res.end(JSON.stringify(value));};
 
 it.each([
- ['jpeg',response([final(Buffer.from([255,216,255,1]),'image/jpeg')]),'IMAGE_FORMAT'],
- ['webp',response([final(Buffer.from('RIFF0000WEBP'),'image/webp')]),'IMAGE_FORMAT'],
+ ['jpeg',response([final(Buffer.from([255,216,255,1]),'image/jpeg')]),'IMAGE_DECODE'],
+ ['webp',response([final(Buffer.from('RIFF0000WEBP'),'image/webp')]),'IMAGE_DECODE'],
  ['incomplete',response([final()],'MAX_TOKENS'),'IMAGE_INCOMPLETE'],
  ['blocked',{promptFeedback:{blockReason:'SAFETY'}},'IMAGE_BLOCKED'],
  ['none',{candidates:[]},'IMAGE_NO_OUTPUT'],
@@ -38,7 +40,7 @@ it.each([
  ['multiple',response([final(),final()]),'IMAGE_STRUCTURE'],
  ['bad-parts',{candidates:[{finishReason:'STOP',content:{parts:{}}}]},'IMAGE_STRUCTURE'],
  ['invalid-base64',response([{inlineData:{mimeType:'image/png',data:'%%%'}}]),'IMAGE_BASE64'],
- ['mime-mismatch',response([final(Buffer.from([255,216,255]),'image/png')]),'IMAGE_FORMAT'],
+ ['mime-mismatch',response([final(Buffer.from([255,216,255]),'image/png')]),'IMAGE_DECODE'],
 ] as const)('%s crosses real HTTP → generator → readiness and survives restart without another request',async(_name,value,code)=>{
  await local(send(value),async(options,root,calls)=>{
   const g=createCloudGenerator(options),t=trip();t.generation=g.prepare!(t);
@@ -50,7 +52,7 @@ it.each([
   const again=createCloudGenerator(options);
   await expect(again(t,new AbortController().signal)).rejects.toMatchObject({code,diagnosticId:(failure as ImageFailure).diagnosticId});
   expect(()=>again.confirmRetry!(t,false)).toThrow('确认');expect(calls()).toBe(1);
-  const d=diagnostic(root);expect(d.summary).toMatchObject({httpStatus:200,contentType:'application/json',failure:{code}});
+  const d=diagnostic(root);expect(d.summary).toMatchObject({httpStatus:200,contentType:'application/json'});expect(d.summary.failure??d.summary.processing?.failure).toMatchObject({code});
   expect(JSON.stringify(d.summary)).not.toContain('secret-test-only');expect(JSON.stringify(d.summary)).not.toContain('private text');
   if(['jpeg','webp','incomplete','multiple','mime-mismatch'].includes(_name))expect(readdirSync(d.dir)).toContain('part-0-raw.bin');
  });
@@ -62,25 +64,34 @@ it('ReadinessCheck saves typed failure and diagnostic ID across a new instance',
   const make=()=>new ReadinessCheck(root,cfg,options.secret,()=> 'fake-host',createCloudGenerator(options));
   const check=make();check.start();
   const end=Date.now()+4000;while(check.state().phase==='checking'&&Date.now()<end)await new Promise(r=>setTimeout(r,10));
-  expect(make().state()).toMatchObject({phase:'failed',valid:false,failure:{code:'IMAGE_FORMAT',diagnosticId:diagnostic(root).summary.diagnosticId}});
+  expect(make().state()).toMatchObject({phase:'failed',valid:false,failure:{code:'IMAGE_DECODE',diagnosticId:diagnostic(root).summary.diagnosticId}});
   expect(calls()).toBe(1);expect(readdirSync(root)).not.toContain('collection');
  });
 });
 
-it('mixed text, thought image and final PNG pass through HTTP and the full image/note pipeline once',async()=>{
- await local(send(response([{thought:true,...final()},{text:'private description'},final()])),async(options,root,calls)=>{
+it.each(['PNG','JPEG','WebP'] as const)('mixed text/thought + final %s passes through HTTP, conversion and the full note pipeline once',async format=>{
+ const input=format==='PNG'?png:await sharp(png).toFormat(format==='JPEG'?'jpeg':'webp').toBuffer();
+ await local(send(response([{thought:true,...final()},{text:'private description'},final(input,format==='JPEG'?'image/jpeg':format==='WebP'?'image/webp':'image/png')])),async(options,root,calls)=>{
   const text=vi.fn(async()=>({choices:[{finish_reason:'stop',message:{content:JSON.stringify({})}}]}));
   // Exercise the original text checks with deterministic local answers.
   const transport=cloudTransport(options);
   const g=createCloudGenerator(options,async(k,p,s,r)=>{
    if(k==='image')return transport(k,p,s,r);
    text();const prompt=(p.messages as any[])[0].content[0].text as string;
+   for(const message of p.messages as any[])for(const part of message.content??[])if(part.type==='image_url')expect(part.image_url.url.startsWith('data:image/png;base64,')).toBe(true);
    const value=prompt.startsWith('图1为候选')?{scene_match:true,character_match:true,usable:true,background_conflicts:[],issues:[],facts:['树林','女孩','溪流']}:prompt.startsWith('写桌宠旅行')?{title:'树影里的小小来信',note:'我在树影里停留了一会儿，看着微光慢慢落下来。这里安静得能让人忘记赶路，只想把这份轻松装进信封，寄到你的桌边，希望你也能歇一歇。'}:prompt.startsWith('只检查文字')?{has_real_place_name:false,names:[]}:{checks:[],has_explicit_conflict:false,conflicts:[],uncertain_details:[]};
    return {choices:[{finish_reason:'stop',message:{content:JSON.stringify(value)}}]};
   });
   const t=trip();t.generation=g.prepare!(t);const card=await g(t,new AbortController().signal);
-  expect(card.image).toEqual(png);await g(t,new AbortController().signal);expect(calls()).toBe(1);expect(text).toHaveBeenCalled();
-  const d=diagnostic(root);expect(d.summary).toMatchObject({phase:'normalized',partCount:3});expect(readFileSync(join(d.dir,'part-2-raw.bin'))).toEqual(png);
+  expect(PNG.sync.read(Buffer.from(card.image)).width).toBe(512);await g(t,new AbortController().signal);expect(calls()).toBe(1);expect(text).toHaveBeenCalled();
+  const d=diagnostic(root);expect(d.summary).toMatchObject({phase:'normalized',partCount:3});expect(readFileSync(join(d.dir,'part-2-raw.bin'))).toEqual(input);
+  const sha=(b:Uint8Array)=>createHash('sha256').update(b).digest('hex');
+  expect(readFileSync(join(root,'trips',t.id,'image-1-raw.bin'))).toEqual(input);
+  if(format!=='PNG'){
+   const conversion=JSON.parse(readFileSync(join(root,'trips',t.id,'image-1-conversion.json'),'utf8'));
+   expect(conversion).toMatchObject({sourceFormat:format,sourceSha256:sha(input),outputSha256:sha(card.image)});
+   expect(d.summary.processing).toMatchObject({status:'converted',conversion});
+  }else expect(card.image).toEqual(png);
  });
 });
 

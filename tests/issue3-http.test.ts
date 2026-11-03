@@ -5,6 +5,7 @@ import {join} from 'node:path';
 import {createServer} from 'node:http';
 import {randomUUID} from 'node:crypto';
 import {PNG} from 'pngjs';
+import sharp from 'sharp';
 import {createCloudGenerator} from '../src/generation.ts';
 
 const note='沿着小路走了一阵，在安静的风景里停留。一路上的颜色让我想起把这一刻留给你，虽然只是一小片远方，放进信里时却觉得很满足。希望你翻到这里的时候，也能有片刻轻轻的好心情。';
@@ -13,7 +14,8 @@ const jpeg=Buffer.from([0xff,0xd8,0xff,0xe0,0x00,0x10,0x4a,0x46,0x49,0x46,0x00,0
 
 it('真实HTTP：兼容接口PNG偏好写入请求，JPEG/拒绝output_format均有可辨原因且不自动重发',async()=>{
  const root=mkdtempSync(join(tmpdir(),'postcard-issue3-http-')),image=png();
- let mode:'png'|'jpeg'|'reject'='png';
+ const goodJpeg=await sharp(image).jpeg().toBuffer();
+ let mode:'png'|'jpeg'|'valid-jpeg'|'reject'='png';
  const imageRequests:any[]=[];
  const server=createServer(async(req,res)=>{
   let text='';for await(const b of req)text+=b;
@@ -21,6 +23,7 @@ it('真实HTTP：兼容接口PNG偏好写入请求，JPEG/拒绝output_format均
   res.setHeader('Content-Type','application/json');
   if(mode==='reject'&&payload.output_format){res.statusCode=400;res.end(JSON.stringify({error:'unsupported output_format'}));return;}
   if(mode==='jpeg'){res.end(JSON.stringify({data:[{b64_json:jpeg.toString('base64')}]}));return;}
+  if(mode==='valid-jpeg'){res.end(JSON.stringify({data:[{b64_json:goodJpeg.toString('base64')}]}));return;}
   res.end(JSON.stringify({data:[{b64_json:image.toString('base64')}]}));
  });
  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -49,7 +52,7 @@ it('真实HTTP：兼容接口PNG偏好写入请求，JPEG/拒绝output_format均
 
   mode='jpeg';const three=trip(),g3=createCloudGenerator({...base,requestPngOutput:true});three.generation=g3.prepare!(three);
   const beforeJpeg=imageRequests.length;
-  await expect(g3(three,new AbortController().signal)).rejects.toThrow('返回了JPEG');
+  await expect(g3(three,new AbortController().signal)).rejects.toMatchObject({code:'IMAGE_DECODE'});
   expect(imageRequests.length-beforeJpeg).toBe(1);
   expect(readFileSync(join(root,'trips',three.id,'image-1-raw.bin'))).toEqual(jpeg);
   expect(existsSync(join(root,'trips',three.id,'image-1.png'))).toBe(false);
@@ -58,6 +61,13 @@ it('真实HTTP：兼容接口PNG偏好写入请求，JPEG/拒绝output_format均
   const result=await g4(four,new AbortController().signal);
   expect(result.image).toEqual(image);
   expect(imageRequests.at(-1).output_format).toBeUndefined();
+
+  mode='valid-jpeg';const five=trip(),g5=createCloudGenerator({...base,requestPngOutput:false});five.generation=g5.prepare!(five);
+  const beforeValid=imageRequests.length,converted=await g5(five,new AbortController().signal);
+  expect(PNG.sync.read(Buffer.from(converted.image)).width).toBe(512);
+  expect(readFileSync(join(root,'trips',five.id,'image-1-raw.bin'))).toEqual(goodJpeg);
+  expect(JSON.parse(readFileSync(join(root,'trips',five.id,'image-1-conversion.json'),'utf8')).sourceFormat).toBe('JPEG');
+  await g5(five,new AbortController().signal);expect(imageRequests.length-beforeValid).toBe(1);
  }finally{
   await new Promise<void>(resolve=>server.close(()=>resolve()));
   rmSync(root,{recursive:true,force:true});

@@ -1,4 +1,4 @@
-> 当前源码候选 **0.8.12-issue4.1**：Gemini 原生错误传递、本地响应摘要与原图留证修复；未公开发布、未真实 Gemini 付费复验，JPEG/WebP 暂不转码。公开稳定版仍为 **0.8.11**，每趟仍等待 2 小时。
+> 当前源码候选 **0.8.12-issue4.2**：Gemini 原生错误传递、本地响应摘要与原图留证修复；未公开发布、未真实 Gemini 付费复验，有效 JPEG/静态 WebP 在本地转 PNG，并保留原图。公开稳定版仍为 **0.8.11**，每趟仍等待 2 小时。
 
 <p align="center"><img src="https://raw.githubusercontent.com/oceanxuhaiao/Travel-Fish/main/assets/branding/logo.png" width="180" alt="旅行大肥鱼 Logo"></p>
 

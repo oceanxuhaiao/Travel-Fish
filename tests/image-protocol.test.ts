@@ -28,7 +28,7 @@ it('Gemini只保留最终单张PNG，不把思考图或文本误当成品',async
  const data=PNG.sync.write(new PNG({width:512,height:768})).toString('base64');
  const response={candidates:[{finishReason:'STOP',content:{parts:[{thought:true,inlineData:{mimeType:'image/png',data:'thought'}},{text:'描述'},{inlineData:{mimeType:'image/png',data}}]}}],usageMetadata:{totalTokenCount:12}};
  expect(await normalizeImageResponse('gemini',response,vi.fn())).toMatchObject({data:[{b64_json:data}]});
- await expect(normalizeImageResponse('gemini',{candidates:[]},vi.fn())).rejects.toThrow();response.candidates[0].content.parts[2].inlineData!.mimeType='image/jpeg';await expect(normalizeImageResponse('gemini',response,vi.fn())).rejects.toThrow('PNG');
+ await expect(normalizeImageResponse('gemini',{candidates:[]},vi.fn())).rejects.toThrow();response.candidates[0].content.parts[2].inlineData!.mimeType='image/jpeg';await expect(normalizeImageResponse('gemini',response,vi.fn())).resolves.toMatchObject({data:[{b64_json:data}]});
 });
 it('千问仅下载官方HTTPS存储图片，URL与鉴权不进入归一化结果',async()=>{
  const url='https://dashscope-result-sz.oss-cn-shenzhen.aliyuncs.com/result.png?Expires=123',download=vi.fn(async()=>Buffer.from('png'));
