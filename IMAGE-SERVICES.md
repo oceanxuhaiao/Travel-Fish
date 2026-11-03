@@ -25,3 +25,14 @@ Gemini采用官方仍有文档的generateContent协议（Google当前主图像�
 - 千问：https://help.aliyun.com/zh/model-studio/qwen-image-edit-api
 - Gemini generateContent：https://ai.google.dev/gemini-api/docs/generate-content/image-generation
 - Gemini现行主指南：https://ai.google.dev/gemini-api/docs/image-generation
+
+## Gemini 原生诊断（0.8.12-issue4.1）
+
+验证失败时，配置引导显示具体错误编号和本地诊断相对路径。以宿主实际数据目录 dataDir 为基准，摘要位于 `postcard/diagnostics/gemini-<UUID>/summary.json`；同目录 `part-<序号>-raw.bin` 是可解码的原始图片字节。按实际格式打开，不能因扩展名为 bin 就把它改称 PNG。验证样张不会加入收藏册。
+
+摘要包含 HTTP 状态、Content-Type 类别、接收字节数、耗时、candidate/part 数、结束原因、图片声明 MIME、实际格式和 SHA256。不保存原始响应文字、请求鉴权头、密钥、URL 或任意异常正文。网络中断时可能没有 HTTP 状态或完整图片，JSON 解析失败也无法提取图像；这与完整收到但格式不支持分别记录。`normalized` 只表示原生协议归一化通过，不表示后续图片完整性、宿主审核与制作验证已通过。
+
+原生响应读取上限64MiB，每请求最多64个 part，原图保存合计上限40MiB，超过上限会拒绝或标记未保存。多次手动验证会生成不同诊断目录；这些文件仅在本地保留，包含候选图片，不应整目录公开上传。排查时优先分享 summary.json，不要分享宿主配置、密钥或请求原文。
+
+当前成品仍必须为 PNG；JPEG/WebP 会保留原图并报 `IMAGE_FORMAT`，不会自动转码、重试或改用别的模型。失败后先检查服务调用与账单，再决定是否手动验证；本次更新不自动恢复既有失败任务、不调整图片尝试上限。
+

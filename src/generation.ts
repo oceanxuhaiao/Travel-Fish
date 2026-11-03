@@ -13,6 +13,9 @@ import type {StoryContext} from './journey-types.ts';
 import {generationContract,objectContract,outputFeedback,feedbackPrompt,type OutputContract} from './model-feedback.ts';
 import {recoverOutput,RECOVERY_VERSION} from './delivery-recovery.ts';
 
+import {ImageFailure,imageNetworkFailure,imageCauseCode,validImageFailureInfo,type ImageFailureInfo} from './image-failure.ts';
+import {GeminiDiagnostics,MAX_IMAGE_RESPONSE_BYTES} from './image-diagnostics.ts';
+
 export const POLICY = 'non-contradiction-cloud-v3';
 export const IMAGE_MODEL = 'doubao-seedream-5-0-flash-260915';
 export const VISION_MODEL = 'deepseek-flash';
@@ -30,9 +33,9 @@ export function imageEndpoint(base:string){let u:URL;try{u=new URL(base);}catch{
 export interface CloudOptions { storyContext?:(trip:Readonly<Trip>,signal:AbortSignal)=>Promise<StoryContext>;imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string;requestPngOutput?:boolean; imageModel?:string; hostReady?:()=>boolean; hostTransport?:Transport; useHostModel?:boolean; root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
 export type Transport = (kind:'image'|'text', payload:Json, signal:AbortSignal,route?:ImageRoute)=>Promise<Json>;
 interface Spec {visibleStatePolicy?:'v1'|'v2'|'v3';visualPolicy?:'expressive-v1'; imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string;requestPngOutput?:boolean;policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; sceneSnapshot?:SceneSnapshot; placeScopeVersion?:'v1'|'v2'; noteReviewVersion?:'v1'|'v2'|'v3'; }
-interface Checkpoint { schema:1; imageAttempt:number; pendingImage:boolean; receivedImageError?:string;stage:string; textRequests:Record<string,number>; errors:string[]; }
+interface Checkpoint { schema:1; imageAttempt:number; pendingImage:boolean; receivedImageError?:string;imageFailure?:ImageFailureInfo;imageHttpFailure?:{status:number;diagnosticId?:string};stage:string; textRequests:Record<string,number>; errors:string[]; }
 export class PipelineError extends Error { constructor(message:string) {super(message);this.name='PostcardPipelineError';} }
-export class HttpError extends Error { constructor(readonly status:number) {super('Cloud HTTP '+status);} }
+export class HttpError extends Error { constructor(readonly status:number,readonly diagnosticId?:string) {super('Cloud HTTP '+status);} }
 const hash = (b:Uint8Array)=>createHash('sha256').update(b).digest('hex');
 const load = <T>(file:string):T=>JSON.parse(readFileSync(file,'utf8')) as T;
 function validateId(id:string):void { if (!/^[a-f0-9-]{36}$/.test(id)) throw new PipelineError('旅行编号无效'); }
@@ -94,23 +97,44 @@ export function cloudTransport(options:CloudOptions):Transport {
     if(proxy){const u=new URL(proxy);if(!['http:','https:'].includes(u.protocol)||u.username||u.password)throw new PipelineError('代理配置无效');}
     const key=options.secret(kind==='image'?imageKeyName(backend):'POSTCARD_VISION_API_KEY');
     if (!key&&backend!=='compatible') throw new PipelineError(kind==='image'?'未配置图片服务密钥':'未配置视觉服务密钥');
+    const request=kind==='image'?imageWireRequest(backend,route?.baseUrl??options.imageBaseUrl??'',payload,key):{url:'https://api.deepseek.com/chat/completions',headers:key?{Authorization:'Bearer '+key}:{},body:payload};
     // Empty means direct even when the host installs its own global proxy dispatcher.
     const agent=proxy?new ProxyAgent(proxy):new Agent({connect:{timeout:30000}});
+    const diagnostic=kind==='image'&&backend==='gemini'?new GeminiDiagnostics(options.root):undefined;
+    const timeout=AbortSignal.any([signal,AbortSignal.timeout(kind==='image'?900000:240000)]);
+    let responseBody:{cancel:()=>Promise<void>}|null|undefined;
     try {
-      const request=kind==='image'?imageWireRequest(backend,route?.baseUrl??options.imageBaseUrl??'',payload,key):{url:'https://api.deepseek.com/chat/completions',headers:key?{Authorization:'Bearer '+key}:{},body:payload};
-      const timeout=AbortSignal.any([signal,AbortSignal.timeout(kind==='image'?900000:240000)]);
       const response=await fetch(request.url,{method:'POST',headers:{...request.headers,'Content-Type':'application/json'},body:JSON.stringify(request.body),signal:timeout,dispatcher:agent,redirect:'error'});
-      if(!response.ok){await response.body?.cancel();throw new HttpError(response.status);}
-      const value=await response.json() as Json;
+      responseBody=response.body;
+      diagnostic?.headers(response.status,response.headers.get('content-type'));
+      if(!response.ok){await response.body?.cancel();throw new HttpError(response.status,diagnostic?.id);}
+      let value:Json;
+      if(diagnostic){
+        const chunks:Buffer[]=[];let length=0;
+        try{for await(const chunk of response.body!){length+=chunk.length;if(length>MAX_IMAGE_RESPONSE_BYTES)throw new ImageFailure('IMAGE_LIMIT','unknown');chunks.push(Buffer.from(chunk));}}
+        catch(error){diagnostic.update({phase:'receiving',responseBytes:length,responseComplete:false});throw error;}
+        finally{await response.body?.cancel().catch(()=>{});}
+        diagnostic.received(length);
+        try{value=JSON.parse(Buffer.concat(chunks).toString('utf8')) as Json;}catch{throw new ImageFailure('IMAGE_JSON');}
+        diagnostic.images(value);
+      }else value=await response.json() as Json;
       if(kind!=='image')return value;
-      return await normalizeImageResponse(backend,value,async url=>{
+      const result=await normalizeImageResponse(backend,value,async url=>{
         const image=await fetch(url,{signal:timeout,dispatcher:agent,redirect:'error'});
         if(!image.ok){await image.body?.cancel();throw new PipelineError('千问图片下载失败，远端可能已计费，请确认后恢复');}
         const chunks:Buffer[]=[];let length=0;
         try{for await(const chunk of image.body!){length+=chunk.length;if(length>40*1024*1024)throw new PipelineError('返回图片超过40MB');chunks.push(Buffer.from(chunk));}}finally{await image.body?.cancel().catch(()=>{});}
         return Buffer.concat(chunks);
       });
-    } finally {await agent?.close();}
+      diagnostic?.update({phase:'normalized'});
+      return diagnostic?{...result,imageDiagnosticId:diagnostic.id}:result;
+    } catch(error){
+      if(!diagnostic)throw error;
+      if(error instanceof HttpError){diagnostic.update({phase:'failed',failure:{code:'HTTP_'+error.status,outcome:'received'}});throw error;}
+      const failure=imageNetworkFailure(error,timeout,diagnostic.id);
+      try{diagnostic.failure(failure,imageCauseCode(timeout.aborted?timeout.reason:error));}catch{throw new ImageFailure('IMAGE_SAVE',failure.outcome,diagnostic.id);}
+      throw failure;
+    } finally {await responseBody?.cancel().catch(()=>{});await agent.close();}
   };
 }
 
@@ -120,6 +144,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
   const getCp=(trip:Readonly<Trip>):Checkpoint=>{
     const file=cpFile(trip);
     const cp=existsSync(file)?load<Checkpoint>(file):{schema:1 as const,imageAttempt:0,pendingImage:false,stage:'prepared',textRequests:{},errors:[]};
+    if(cp.imageFailure&&!validImageFailureInfo(cp.imageFailure)||cp.imageHttpFailure&&(!Number.isInteger(cp.imageHttpFailure.status)||cp.imageHttpFailure.status<100||cp.imageHttpFailure.status>599||cp.imageHttpFailure.diagnosticId!==undefined&&!/^gemini-[a-f0-9-]{36}$/.test(cp.imageHttpFailure.diagnosticId)))throw new PipelineError('生成检查点损坏');
     if(cp.schema!==1||!Number.isInteger(cp.imageAttempt)||cp.imageAttempt<0||cp.imageAttempt>2||typeof cp.pendingImage!=='boolean'||!cp.textRequests||typeof cp.textRequests!=='object'||Object.values(cp.textRequests).some(n=>!Number.isInteger(n)||n<0||n>2)) throw new PipelineError('生成检查点损坏');
     return cp;
   };
@@ -155,6 +180,8 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     };
     if(cp.pendingImage){
       if(imageValid()){cp.pendingImage=false;atomicJson(cpFile(trip),cp);}
+      else if(cp.imageFailure)throw new ImageFailure(cp.imageFailure.code,cp.imageFailure.outcome,cp.imageFailure.diagnosticId);
+      else if(cp.imageHttpFailure)throw new HttpError(cp.imageHttpFailure.status,cp.imageHttpFailure.diagnosticId);
       else if(cp.receivedImageError)throw new PipelineError(cp.receivedImageError);
       else throw new PipelineError('上次图片请求结果不确定，必须确认远端结果后显式重试，不能自动重复收费');
     }
@@ -206,9 +233,10 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
         const previousImageFile=join(folder,'image-'+(cp.imageAttempt-1)+'-rejected.json');
         const effectiveImagePrompt=imagePrompt+(existsSync(previousImageFile)?feedbackPrompt(load<Json>(previousImageFile)):'');
         atomicJson(join(folder,'image-'+cp.imageAttempt+'-request.json'),{model:spec.imageModel,prompt:effectiveImagePrompt,referenceSha:[spec.characterSha,spec.styleSha],size:spec.imageSize??'2K',imageCount:2,...(spec.imageBackend==='compatible'?{requestPngOutput:spec.requestPngOutput===true}:{})});
-        const started=Date.now();
+        const started=Date.now();let imageDiagnosticId:string|undefined;
         try {
           const result=await transport('image',{model:spec.imageModel,prompt:effectiveImagePrompt,image:refs.map(b=>'data:image/png;base64,'+b.toString('base64')),size:spec.imageSize??'2K',response_format:'b64_json',...((spec.imageBackend??'ark')==='ark'?{output_format:'png',watermark:false}:spec.imageBackend==='compatible'&&spec.requestPngOutput===true?{output_format:'png'}:{})},signal,{backend:spec.imageBackend??'ark',baseUrl:spec.imageBaseUrl});
+          imageDiagnosticId=typeof result.imageDiagnosticId==='string'?result.imageDiagnosticId:undefined;
           const items=result.data as {b64_json?:string}[];
           atomicJson(join(folder,'image-'+cp.imageAttempt+'-response.json'),{model:result.model,usage:result.usage,elapsedMs:Date.now()-started,imageItems:items?.length});
           let bytes:Buffer,dims:{width:number;height:number};
@@ -219,16 +247,21 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
            atomicJson(join(folder,'image-'+cp.imageAttempt+'-raw.json'),{format,bytes:bytes.length,sha256:hash(bytes)});
            if(format!=='PNG')throw new PipelineError('图片服务返回了'+format+'，需要PNG；原始图片已保存在本地，不会自动转码');
            dims=decodePng(bytes);
-          }catch(error){cp.receivedImageError=(error instanceof PipelineError?error.message:'图片返回数据保存或检查失败')+'；未自动重发，重试可能重复计费';atomicJson(cpFile(trip),cp);throw new PipelineError(cp.receivedImageError);}
+          }catch(error){
+           if(spec.imageBackend==='gemini')throw error instanceof ImageFailure?error:new ImageFailure(error instanceof PipelineError?(/base64/.test(error.message)?'IMAGE_BASE64':/超过|上限/.test(error.message)?'IMAGE_LIMIT':'IMAGE_FORMAT'):'IMAGE_SAVE','received',imageDiagnosticId);
+           cp.receivedImageError=(error instanceof PipelineError?error.message:'图片返回数据保存或检查失败')+'；未自动重发，重试可能重复计费';atomicJson(cpFile(trip),cp);throw new PipelineError(cp.receivedImageError);}
           atomicJson(imagePath()+'.json',{sha256:hash(bytes),...dims});binary(imagePath(),bytes);
           cp.pendingImage=false;atomicJson(cpFile(trip),cp);
         }catch(error){
+          if(spec.imageBackend==='gemini'&&imageDiagnosticId&&!(error instanceof ImageFailure)&&!(error instanceof HttpError))error=new ImageFailure('IMAGE_SAVE','received',imageDiagnosticId);
+          if(error instanceof ImageFailure){cp.imageFailure=error.info();atomicJson(cpFile(trip),cp);throw error;}
           if(cp.receivedImageError)throw new PipelineError(cp.receivedImageError);
           if(error instanceof HttpError&&error.status>=400&&error.status<500&&error.status!==408){
             cp.pendingImage=false;cp.imageAttempt--;atomicJson(cpFile(trip),cp);
             if(error.status===400&&spec.imageBackend==='compatible'&&spec.requestPngOutput===true)throw new PipelineError('兼容接口拒绝了本张图片请求（HTTP 400），可能不支持 output_format 参数；可在配置中关闭“兼容接口请求PNG输出”并重启后，确认费用再手动继续。不会自动重发');
             throw error;
           }
+          if(spec.imageBackend==='gemini'&&error instanceof HttpError){cp.imageHttpFailure={status:error.status,diagnosticId:error.diagnosticId};atomicJson(cpFile(trip),cp);throw error;}
           // Connection loss, abort or malformed output may have incurred a charge.
           throw new PipelineError('图片请求未完整保存，远端结果或费用不确定；确认后才可显式重试');
         }
@@ -306,7 +339,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       const file=join(tripFolder(trip),'image-'+cp.imageAttempt+'.png');
       if(existsSync(file))return;
       if(!confirmed)throw new PipelineError('上次图片结果不确定，请确认远端结果与可能费用后再显式重试');
-      cp.pendingImage=false;delete cp.receivedImageError;atomicJson(cpFile(trip),cp);
+      cp.pendingImage=false;delete cp.receivedImageError;delete cp.imageFailure;delete cp.imageHttpFailure;atomicJson(cpFile(trip),cp);
     }
   };
   return generate;

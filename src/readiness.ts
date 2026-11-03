@@ -6,8 +6,10 @@ import {characterReference,styleReference} from './characters.ts';
 import {imageKeyName,protocolEndpoint,validateImageSettings} from './image-protocol.ts';
 import {decodePng,HttpError,IMAGE_MODEL,VISION_MODEL} from './generation.ts';
 import type {PostcardConfigSection} from './config.ts';
+import {ImageFailure,IMAGE_FAILURE_REASONS} from './image-failure.ts';
 const phases:Record<string,string>={preparing:'检查配置与参考图',generating_image:'生图服务生成图片',reviewing_image:'宿主看图审核',image_rejected:'候选图片检查',writing_note:'宿主撰写短笺',reviewing_note:'宿主核对图文',committing:'整理成品',checking_output:'检查最终图片与短笺'};
 export function verificationFailure(error:unknown,stage:string){
+ if(error instanceof ImageFailure)return {code:error.code,stage:phases[stage]??'制作过程',reason:IMAGE_FAILURE_REASONS[error.code],advice:error.code==='IMAGE_FORMAT'?'原始图片已尝试保存在本地诊断目录；本版仍需PNG，不会自动转码或重发生图请求。':error.code==='IMAGE_SAVE'?'检查数据目录的写入权限、磁盘空间与文件占用；远端请求可能已计费。':'请查看本地诊断摘要并核对服务商调用记录；不会自动重发，重新验证可能再次计费。',outcome:error.outcome,...(error.diagnosticId?{diagnosticId:error.diagnosticId}:{})};
  const message=error instanceof Error?error.message:'';let code='UNKNOWN',reason='制作过程失败，现有信息不足以确定具体原因',advice='请核对服务商调用记录与宿主状态；不要仅凭这条提示认定是密钥问题。';
  if(error instanceof HttpError){code='HTTP_'+error.status;const rules:Record<number,[string,string]>={400:['服务拒绝了生图请求参数','核对模型ID、尺寸、所选服务的双参考图协议；聊天接口或纯文生图不能替代该接口。若使用兼容接口且已请求PNG输出，服务可能不接受 output_format：可在配置中关闭该选项并重启后重试，本地检查不能免费证明服务一定输出PNG，真实验证可能收费。'],401:['服务身份验证失败','检查当前失败步骤对应服务的API Key是否正确、有效，保存后重启本World。'],403:['服务拒绝访问','检查模型调用权限、额度与服务限制；HTTP 403本身不能确定是哪一项。'],404:['服务找不到请求的资源','核对生图API请求地址、路径与模型ID；不要填写聊天或网页地址。'],429:['服务触发频率或额度限制','到服务商控制台核对限流及额度，稍后再明确重试。']};const rule=rules[error.status];if(rule)[reason,advice]=rule;else if(error.status>=500){reason='当前步骤使用的服务暂时发生错误';advice='检查服务商状态和调用记录，确认是否已收费后再重试。';}else{reason='服务返回HTTP '+error.status;advice='核对服务文档与调用记录。';}}
  else if(/超时|timeout|timed out/i.test(message)||error instanceof Error&&error.name==='TimeoutError'){code='TIMEOUT';reason=stage==='generating_image'?'等待生图服务超时':'等待宿主处理或制作步骤超时';advice='检查网络与宿主是否忙碌、是否正确提交工具结果；先核对已发请求是否收费。';}
@@ -18,7 +20,7 @@ export function verificationFailure(error:unknown,stage:string){
  else if(/参考|密钥|接口|配置|不支持PNG/.test(message)){code='CONFIGURATION';reason='配置、参考图或模型能力检查未通过';advice='先完成本地配置检查，确认参考图可读、生图模型与接口正确、宿主支持PNG；配置有改动需保存并重启。';}
  else if(/中断|aborted|取消/.test(message)||error instanceof Error&&error.name==='AbortError'){code='INTERRUPTED';reason='验证被关闭、取消或中断';advice='先查看服务调用记录；已提交的请求可能已计费。';}
  else if(/fetch|network|ENOTFOUND|ECONN|ETIMEDOUT|证书/i.test(message)){code='NETWORK';reason='无法正常连接服务或读取响应';advice='检查API地址、网络、代理与服务端证书，不要绕过证书校验。';}
- return {code,stage:phases[stage]??'制作过程',reason,advice};
+ return {code,stage:phases[stage]??'制作过程',reason,advice,...(error instanceof HttpError&&error.diagnosticId?{diagnosticId:error.diagnosticId}:{})};
 }
 export class ReadinessCheck {
  private running=false;private controller?:AbortController;

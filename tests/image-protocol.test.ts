@@ -1,3 +1,7 @@
+import {PNG} from 'pngjs';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {it,expect,vi} from 'vitest';
 import {createServer} from 'node:http';
 import {imageWireRequest,protocolEndpoint,normalizeImageResponse,qwenResultUrl,IMAGE_PRESETS} from '../src/image-protocol.ts';
@@ -21,8 +25,9 @@ it('完整地址不重复拼接；拒绝模型冲突、聊天地址、查询密�
  expect(()=>imageWireRequest('gemini','https://example.com/v1', {...p,size:'1024x1536'},'test')).toThrow('分辨率');expect(()=>imageWireRequest('qwen','https://example.com/api/v1',p,'test')).toThrow('尺寸');
 });
 it('Gemini只保留最终单张PNG，不把思考图或文本误当成品',async()=>{
- const response={candidates:[{finishReason:'STOP',content:{parts:[{thought:true,inlineData:{mimeType:'image/png',data:'thought'}},{text:'描述'},{inlineData:{mimeType:'image/png',data:'actual'}}]}}],usageMetadata:{totalTokenCount:12}};
- expect(await normalizeImageResponse('gemini',response,vi.fn())).toMatchObject({data:[{b64_json:'actual'}]});
+ const data=PNG.sync.write(new PNG({width:512,height:768})).toString('base64');
+ const response={candidates:[{finishReason:'STOP',content:{parts:[{thought:true,inlineData:{mimeType:'image/png',data:'thought'}},{text:'描述'},{inlineData:{mimeType:'image/png',data}}]}}],usageMetadata:{totalTokenCount:12}};
+ expect(await normalizeImageResponse('gemini',response,vi.fn())).toMatchObject({data:[{b64_json:data}]});
  await expect(normalizeImageResponse('gemini',{candidates:[]},vi.fn())).rejects.toThrow();response.candidates[0].content.parts[2].inlineData!.mimeType='image/jpeg';await expect(normalizeImageResponse('gemini',response,vi.fn())).rejects.toThrow('PNG');
 });
 it('千问仅下载官方HTTPS存储图片，URL与鉴权不进入归一化结果',async()=>{
@@ -32,7 +37,7 @@ it('千问仅下载官方HTTPS存储图片，URL与鉴权不进入归一化结�
  for(const u of ['http://127.0.0.1/a','https://localhost/a','https://aliyuncs.com.evil.test/a','https://u:p@a.aliyuncs.com/a'])expect(()=>qwenResultUrl(u)).toThrow();
 });
 it('原生Gemini实际HTTP请求不经过OpenAI路径且不使用方舟Key；HTTP错误保留状态码',async()=>{
- let body:any,headers:any,url='';const server=createServer((req,res)=>{url=req.url!;headers=req.headers;let raw='';req.on('data',b=>raw+=b);req.on('end',()=>{body=JSON.parse(raw);res.writeHead(403,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'private provider body'}));});});await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));
- try{const base='http://127.0.0.1:'+String((server.address() as any).port)+'/v1beta';const transport=cloudTransport({root:'',characterReference:'',styleReference:'',imageBackend:'gemini',imageBaseUrl:base,secret:n=>n==='POSTCARD_GEMINI_API_KEY'?'gemini-test-only':'WRONG-KEY'});let error:any;try{await transport('image',p,new AbortController().signal);}catch(e){error=e;}expect(error).toBeInstanceOf(HttpError);expect(verificationFailure(error,'generating_image').code).toBe('HTTP_403');expect(String(error)).not.toContain('private');expect(headers['x-goog-api-key']).toBe('gemini-test-only');expect(headers.authorization).toBeUndefined();expect(url.endsWith(':generateContent')).toBe(true);expect(body.contents[0].parts).toHaveLength(3);
- }finally{await new Promise<void>(r=>server.close(()=>r()));}
+ const root=mkdtempSync(join(tmpdir(),'postcard-gemini-protocol-'));let body:any,headers:any,url='';const server=createServer((req,res)=>{url=req.url!;headers=req.headers;let raw='';req.on('data',b=>raw+=b);req.on('end',()=>{body=JSON.parse(raw);res.writeHead(403,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'private provider body'}));});});await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));
+ try{const base='http://127.0.0.1:'+String((server.address() as any).port)+'/v1beta';const transport=cloudTransport({root,characterReference:'',styleReference:'',imageBackend:'gemini',imageBaseUrl:base,secret:n=>n==='POSTCARD_GEMINI_API_KEY'?'gemini-test-only':'WRONG-KEY'});let error:any;try{await transport('image',p,new AbortController().signal);}catch(e){error=e;}expect(error).toBeInstanceOf(HttpError);expect(verificationFailure(error,'generating_image').code).toBe('HTTP_403');expect(String(error)).not.toContain('private');expect(headers['x-goog-api-key']).toBe('gemini-test-only');expect(headers.authorization).toBeUndefined();expect(url.endsWith(':generateContent')).toBe(true);expect(body.contents[0].parts).toHaveLength(3);
+ }finally{await new Promise<void>(r=>server.close(()=>r()));rmSync(root,{recursive:true,force:true});}
 });

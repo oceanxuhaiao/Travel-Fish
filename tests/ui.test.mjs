@@ -135,7 +135,7 @@ it('禁用出发显示原因，前往验证定位第5步，不自动启动付费
 });
 
 it('制作验证失败呈现步骤、原因、建议与错误编号，不再只显示尚未通过',async()=>{
- const f=fixture();f.ctx.invoke.mockImplementation(async method=>method==='verification'?{phase:'failed',failedAt:1700000000000,failure:{code:'HTTP_401',stage:'生图服务生成图片',reason:'服务身份验证失败',advice:'检查当前失败步骤对应服务的API Key是否正确'}}:{keys:{ark:false},presets:[]});await mountSetup(f.ctx);const status=f.ctx.root.querySelector('.pc-verification-status');expect(status.dataset.state).toBe('failed');expect(status.textContent).toContain('失败步骤：生图服务生成图片');expect(status.textContent).toContain('原因：服务身份验证失败');expect(status.textContent).toContain('处理建议：检查');expect(status.textContent).toContain('错误编号：HTTP_401');expect(status.textContent).toContain('重新验证可能再次计费');expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='verify')).toBe(false);
+ const f=fixture();f.ctx.invoke.mockImplementation(async method=>method==='verification'?{phase:'failed',failedAt:1700000000000,failure:{diagnosticId:'gemini-11111111-1111-1111-1111-111111111111',code:'HTTP_401',stage:'生图服务生成图片',reason:'服务身份验证失败',advice:'检查当前失败步骤对应服务的API Key是否正确'}}:{keys:{ark:false},presets:[]});await mountSetup(f.ctx);const status=f.ctx.root.querySelector('.pc-verification-status');expect(status.dataset.state).toBe('failed');expect(status.textContent).toContain('失败步骤：生图服务生成图片');expect(status.textContent).toContain('原因：服务身份验证失败');expect(status.textContent).toContain('处理建议：检查');expect(status.textContent).toContain('错误编号：HTTP_401');expect(status.textContent).toContain('postcard/diagnostics/gemini-11111111-1111-1111-1111-111111111111/summary.json');expect(status.textContent).toContain('重新验证可能再次计费');expect(f.ctx.invoke.mock.calls.some(c=>c[0]==='verify')).toBe(false);
 });
 
 it('保存后显示重启提示，不自动重启或验证；诊断显示未应用模型',async()=>{

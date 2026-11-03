@@ -1,4 +1,4 @@
-> 当前发布版 **0.8.11**：新旅程规划、更具体的结构反馈与宿主输出终态识别，短途 grounding 形状修复；每趟仍等待 2 小时。上一版 0.8.10 说明保留在发布记录中。
+> 当前源码候选 **0.8.12-issue4.1**：Gemini 原生错误传递、本地响应摘要与原图留证修复；未公开发布、未真实 Gemini 付费复验，JPEG/WebP 暂不转码。公开稳定版仍为 **0.8.11**，每趟仍等待 2 小时。
 
 <p align="center"><img src="https://raw.githubusercontent.com/oceanxuhaiao/Travel-Fish/main/assets/branding/logo.png" width="180" alt="旅行大肥鱼 Logo"></p>
 

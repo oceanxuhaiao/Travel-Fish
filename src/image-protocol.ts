@@ -1,3 +1,5 @@
+import {ImageFailure} from './image-failure.ts';
+import {nativeImageBytes,imageFormat} from './image-diagnostics.ts';
 /** Image protocols are selected explicitly; model names never select a protocol. */
 export type ImageBackend = 'ark'|'compatible'|'qwen'|'gemini';
 export type Json = Record<string, any>;
@@ -40,10 +42,23 @@ export function imageWireRequest(backend:ImageBackend,base:string,p:Json,key:str
 export function qwenResultUrl(value:string){const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||u.port||!u.hostname.endsWith('.aliyuncs.com'))throw Error('千问图片链接不是受支持的官方HTTPS存储地址');return u.href;}
 export async function normalizeImageResponse(backend:ImageBackend,value:Json,download:(url:string)=>Promise<Buffer>):Promise<Json>{
  if(backend==='gemini'){
-  const candidates=value.candidates;if(!Array.isArray(candidates)||candidates.length!==1||candidates[0].finishReason!=='STOP')throw Error('Gemini未返回完整图片，可能被拦截或输出中断');
-  const images=(candidates[0].content?.parts??[]).filter((p:Json)=>!p.thought&&(p.inlineData||p.inline_data));
-  if(images.length!==1)throw Error('Gemini未返回单张PNG图片');const image=images[0].inlineData??images[0].inline_data;
-  if((image.mimeType??image.mime_type)!=='image/png'||typeof image.data!=='string'||image.data.length>56*1024*1024)throw Error('Gemini图片不是受支持的PNG格式');
+  if(!value||typeof value!=='object')throw new ImageFailure('IMAGE_STRUCTURE');
+  const block=value.promptFeedback?.blockReason;
+  if(typeof block==='string'&&block!=='BLOCK_REASON_UNSPECIFIED')throw new ImageFailure('IMAGE_BLOCKED');
+  const candidates=value.candidates;
+  if(!Array.isArray(candidates))throw new ImageFailure('IMAGE_STRUCTURE');
+  if(candidates.length===0)throw new ImageFailure('IMAGE_NO_OUTPUT');
+  if(candidates.length!==1||!candidates[0]||typeof candidates[0]!=='object')throw new ImageFailure('IMAGE_STRUCTURE');
+  if(['SAFETY','BLOCKLIST','PROHIBITED_CONTENT','SPII','IMAGE_SAFETY','IMAGE_PROHIBITED_CONTENT'].includes(candidates[0].finishReason))throw new ImageFailure('IMAGE_BLOCKED');
+  if(candidates[0].finishReason!=='STOP')throw new ImageFailure('IMAGE_INCOMPLETE');
+  const parts=candidates[0].content?.parts;
+  if(!Array.isArray(parts)||parts.some((p:unknown)=>!p||typeof p!=='object'||Array.isArray(p)))throw new ImageFailure('IMAGE_STRUCTURE');
+  if(parts.length>64)throw new ImageFailure('IMAGE_LIMIT');
+  const images=parts.filter((p:Json)=>!p.thought&&(p.inlineData||p.inline_data));
+  if(images.length===0)throw new ImageFailure('IMAGE_NO_OUTPUT');
+  if(images.length!==1)throw new ImageFailure('IMAGE_STRUCTURE');const image=images[0].inlineData??images[0].inline_data;
+  const bytes=nativeImageBytes(image?.data);
+  if((image.mimeType??image.mime_type)!=='image/png'||imageFormat(bytes)!=='PNG')throw new ImageFailure('IMAGE_FORMAT');
   return {model:value.modelVersion,usage:value.usageMetadata,data:[{b64_json:image.data}]};
  }
  if(backend==='qwen'){
