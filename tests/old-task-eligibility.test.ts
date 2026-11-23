@@ -34,7 +34,7 @@ it('旧故事缓存按新修复规则重新复验：根级grounding搬移成功�
   mkdirSync(folder,{recursive:true});
   writeFileSync(join(folder,'v2-expand-1.json'),JSON.stringify(checkpoint({response:withoutGrounding()})));
   const engine=new StoryEngine(service,transport as any);
-  const value=await (engine as any).call(owner,'v2-expand-1',savedPrompt,new AbortController().signal,contract,hints);
+  const value=await (engine as any).call(owner,'v2-expand-1',savedPrompt,new AbortController().signal,contract,undefined,hints);
   expect(transport).not.toHaveBeenCalled();
   expect(value.plan.grounding).toHaveLength(3);expect(value.grounding).toBeUndefined();
   const saved=JSON.parse(readFileSync(join(folder,'v2-expand-1.json'),'utf8'));
@@ -50,7 +50,7 @@ it('曾被拒的原始提交可直接复用，不再花一次尝试，也不删�
   mkdirSync(folder,{recursive:true});
   writeFileSync(join(folder,'v2-expand-1.json'),JSON.stringify(checkpoint({rejectedResponse:withoutGrounding()})));
   const engine=new StoryEngine(service,transport as any);
-  const value=await (engine as any).call(owner,'v2-expand-1',savedPrompt,new AbortController().signal,contract,hints);
+  const value=await (engine as any).call(owner,'v2-expand-1',savedPrompt,new AbortController().signal,contract,undefined,hints);
   expect(value.plan.grounding).toHaveLength(3);expect(transport).not.toHaveBeenCalled();
   const saved=JSON.parse(readFileSync(join(folder,'v2-expand-1.json'),'utf8'));
   expect(saved.attempts).toBe(1);expect(saved.rejectedResponse).toBeUndefined();
@@ -66,7 +66,7 @@ it('旧缓存与当前契约不再兼容时保留原结果并说明原因，不�
   delete broken.plan.grounding;
   writeFileSync(join(folder,'v2-expand-1.json'),JSON.stringify(checkpoint({response:broken})));
   const engine=new StoryEngine(service,transport as any);
-  await expect((engine as any).call(owner,'v2-expand-1',savedPrompt,new AbortController().signal,contract,hints)).rejects.toThrow('grounding');
+  await expect((engine as any).call(owner,'v2-expand-1',savedPrompt,new AbortController().signal,contract,undefined,hints)).rejects.toThrow('grounding');
   expect(transport).not.toHaveBeenCalled();
   const saved=JSON.parse(readFileSync(join(folder,'v2-expand-1.json'),'utf8'));
   expect(saved).toEqual(checkpoint({response:broken}));

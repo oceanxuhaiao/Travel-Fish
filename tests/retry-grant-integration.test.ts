@@ -39,7 +39,7 @@ for(const mode of ['long','short'] as const){
    expect(service.store.snapshot().trips.find(t=>t.id===trip.id)!.failure).toMatchObject({kind:'budget_exhausted',stage:'v2-expand-1'});
 
    const engine=new StoryEngine(service,bridge.transport);
-   const call=()=>(engine as any).call(owner,'v2-expand-1',prompt,new AbortController().signal,contract,hints) as Promise<any>;
+   const call=()=>(engine as any).call(owner,'v2-expand-1',prompt,new AbortController().signal,contract,undefined,hints) as Promise<any>;
 
    // First activation: two structural submissions are rejected inside the same host task.
    const first=call().then(()=>({ok:true,error:''}),e=>({ok:false,error:String(e)}));

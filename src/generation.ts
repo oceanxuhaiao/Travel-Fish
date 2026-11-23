@@ -199,19 +199,28 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       const feedbackFile=join(folder,label+'-feedback.json');
       const validate=(value:Json)=>{const repaired=recoverOutput(label,value,contract,prompt);if(repaired.repairs.length){atomicJson(join(folder,label+'-local-recovery.json'),{version:RECOVERY_VERSION,original:value,repairs:repaired.repairs});value=repaired.value;}const feedback=outputFeedback(label,contract,value);atomicJson(feedbackFile,feedback);if(!feedback.valid){atomicJson(join(folder,label+'-invalid-output-'+(cp.textRequests[label]??0)+'.json'),value);if(existsSync(target))renameSync(target,join(folder,label+'.invalid-'+(cp.textRequests[label]??0)+'.json'));throw new PipelineError(feedback.errors.map(e=>e.message).join('；'));}return value;};
       if(existsSync(target))return validate(load<Json>(target));
-      if(localOnly)throw new PipelineError('本地修复没有找到「'+label+'」的可复用结果，未发起任何模型请求；现有进度与计数不变','budget_exhausted',label);
       const prior=existsSync(feedbackFile)?load<Json>(feedbackFile):null;
-      const effectivePrompt=prompt+(prior?.valid===false?feedbackPrompt(prior):'');
+      // A local repair has to reuse the frozen request, not rebuild one: the host task is addressed by a digest of its
+      // payload, so swapping the prompt (for instance dropping the previous feedback) would address a different task.
+      const requestFile=join(folder,label+'-request.json');
+      const frozen=localOnly&&existsSync(requestFile)?load<Json>(requestFile):null;
+      const effectivePrompt=typeof frozen?.prompt==='string'?frozen.prompt:prompt+(prior?.valid===false?feedbackPrompt(prior):'');
       const content:Json[]=[{type:'text',text:effectivePrompt},...images.map(b=>({type:'image_url',image_url:{url:'data:image/png;base64,'+b.toString('base64')}}))];
       const payload:Json={model:spec.visionModel,stream:false,thinking:{type:'disabled'},response_format:{type:'json_object'},max_tokens:1800,messages:[{role:'user',content}]};
-      atomicJson(join(folder,label+'-request.json'),{model:spec.visionModel,prompt:effectivePrompt,images:images.map(b=>({sha256:hash(b),bytes:b.length}))});
+      if(!localOnly)atomicJson(requestFile,{model:spec.visionModel,prompt:effectivePrompt,images:images.map(b=>({sha256:hash(b),bytes:b.length}))});
       if(spec.visionModel==='host-model'){
         if(!options.hostTransport)throw new PipelineError('本趟使用宿主模型，请恢复宿主模式后继续');
-        const result=await options.hostTransport('text',{...payload,__postcardTask:{tripId:trip.id,label}},signal,{outputContract:contract,...(localOnly?{cacheOnly:true}:{})});
+        // cacheOnly never creates a task, so a local repair can only replay what an earlier run already paid for.
+        const result=await options.hostTransport('text',{...payload,__postcardTask:{tripId:trip.id,label}},signal,{outputContract:contract,...(localOnly?{cacheOnly:true}:{})}).catch(error=>{
+          if(localOnly&&error instanceof PipelineError&&error.kind==='budget_exhausted')throw new PipelineError('本地修复没有找到「'+label+'」的可复用宿主结果，未发起任何模型请求；现有进度与计数不变','budget_exhausted',label);
+          throw error;
+        });
         const choice=(result.choices as any[])?.[0];let value:Json;
         try{value=JSON.parse(choice.message.content);}catch{atomicJson(feedbackFile,{schemaVersion:'model-feedback-v1',stage:label,validation:'structure',valid:false,errors:[{code:'JSON_PARSE',path:label,message:'宿主结果不是有效JSON'}]});throw new PipelineError('宿主结果不是有效JSON');}
         value=validate(value);atomicJson(target,value);return value;
       }
+      // Only the host bridge can replay saved work; an external text API has nothing to re-read, so a local repair stops.
+      if(localOnly)throw new PipelineError('本地修复没有找到「'+label+'」的可复用结果，未发起任何模型请求；现有进度与计数不变','budget_exhausted',label);
       while((cp.textRequests[label]??0)<2){
         cp.textRequests[label]=(cp.textRequests[label]??0)+1;atomicJson(cpFile(trip),cp);
         const started=Date.now();

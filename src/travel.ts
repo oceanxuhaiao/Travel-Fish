@@ -29,7 +29,8 @@ const png = Buffer.from('89504e470d0a1a0a', 'hex');
 /** One explicit, non-renewable user grant per failed stage. Persisted so a restart cannot re-consume it. */
 export interface RetryGrant {id:string;tripId:string;owner:string;stage:string;kind:'text'|'image';createdAt:number;consumedAt?:number;consumedBy?:string;
  /** reserved = written but generation never started, so an interrupted attempt may reuse it; running = a call may have happened. */
- state?:'reserved'|'running';}
+ state?:'reserved'|'running'; /** When the dispatch was recorded; only used to tell a crash before the first request from a real one. */
+ dispatchedAt?:number;}
 interface GrantFile {schema:1;grants:RetryGrant[];}
 export function loadRetryGrantsAt(file:string):GrantFile {
  if(!existsSync(file))return {schema:1,grants:[]};
@@ -180,7 +181,7 @@ export class TravelService {
   private controller?: AbortController;
   private stopped = true;
   constructor(readonly store: TravelStore, private generator: Generator | undefined, private now: () => number = Date.now,private earlyPreparation=false,readonly roundMinutes=120,private plannerVersion?:'staged-v2') {if(roundMinutes!==120&&roundMinutes!==5)throw Error('仅支持正式2小时或开发5分钟');}
-  open(): void { this.store.open(); this.stopped = false; }
+  open(): void { this.store.open(); this.stopped = false; this.reconcileGrantDispatch(); }
   async close(): Promise<void> { this.stopped = true; this.controller?.abort(); try {await this.flight;} finally {this.store.close();} }
   status(): Trip | null { const trips = this.store.snapshot().trips; return trips.find(t => active.has(t.status)) ?? trips.at(-1) ?? null; }
   journeyCards(id:string):Card[] {return this.store.cards().filter(c=>c.series?.id===id).sort((a,b)=>a.series!.nodeIndex-b.series!.nodeIndex);}
@@ -276,7 +277,7 @@ export class TravelService {
       if(!grantId)throw new Error('本阶段调用额度已用完；可以先点「本地修复（不产生调用）」重试已保存的结果，仍不够再显式追加一次重试授权。当前不会自动重试，也不会重跑整趟旅行');
       grants=this.grants();grant=grants.grants.find(g=>g.id===grantId);
       if(!grant||grant.tripId!==id||grant.owner!==(trip.series?.id??trip.id))throw new Error('追加授权无效或不属于本次旅行');
-      if(grant.consumedAt!==undefined&&!(grant.state==='reserved'&&grant.consumedBy===id&&trip.grantRef!==grant.id))throw new Error('这次追加授权已经用过，不能重复消费；如再次失败，需要重新确认追加');
+      if(grant.consumedAt!==undefined&&grant.state!=='reserved')throw new Error('这次追加授权已经用过，不能重复消费；如再次失败，需要重新确认追加');
     }
     this.generator?.confirmRetry?.(trip, confirmUnknownOutcome);
     if(grant){
@@ -288,11 +289,50 @@ export class TravelService {
     // A local-only pass keeps the recorded failure: if it cannot finish, that is still the reason the trip is stuck.
     trip.status = 'traveling'; delete trip.error; if(!localOnly)delete trip.failure; this.store.save(state); return structuredClone(trip);
   }
-  /** A grant is only spent once a generation actually starts; before that an interrupted reservation stays reusable. */
-  private markGrantRunning(grantId:string){
+  /**
+   * Running is recorded only after the trip itself is saved as generating, so a grant can never look spent while no
+   * dispatch was ever persisted. A failed write aborts the dispatch instead of being ignored.
+   */
+  private markGrantRunning(grantId:string):boolean{
     try{const grants=this.grants(),grant=grants.grants.find(g=>g.id===grantId);
-      if(grant&&grant.state!=='running'){grant.state='running';this.saveGrants(grants);}
-    }catch{/* Never block delivery on bookkeeping; the trip already records grantRef. */}
+      if(!grant)return false;
+      if(grant.state!=='running'){grant.state='running';grant.dispatchedAt=this.now();this.saveGrants(grants);}
+      return true;
+    }catch{return false;}
+  }
+  /**
+   * A grant marked running is only spent if the stage left something on disk. A crash between recording the grant and the
+   * first request leaves no trace, so the grant is handed back instead of costing the user a second confirmation.
+   */
+  private reconcileGrantDispatch(){
+    const state=this.store.snapshot(),pending=state.trips.filter(t=>t.status==='failed'&&t.grantRef);
+    if(!pending.length)return;
+    let grants:GrantFile;try{grants=this.grants();}catch{return;}
+    let changed=false;
+    for(const trip of pending){
+      const grant=grants.grants.find(g=>g.id===trip.grantRef);
+      if(!grant||grant.state!=='running')continue;
+      if(this.dispatchTrace(trip.series?.id??trip.id,grant)){
+        // Something was written for this stage after the grant was recorded: treat it as possibly charged, never resend.
+        trip.failure={kind:'budget_exhausted',stage:grant.stage,message:'上次追加尝试已派发但结果不明，可能已产生费用；不会自动重发，确需再试请重新确认追加一次',at:this.now()};
+        changed=true;continue;
+      }
+      grant.state='reserved';delete grant.dispatchedAt;delete trip.grantRef;changed=true;
+      trip.failure={kind:'budget_exhausted',stage:grant.stage,message:'上次追加授权在派发前中断，本次没有发起任何调用；授权仍可复用，直接重试本阶段即可',at:this.now()};
+    }
+    if(changed){try{this.saveGrants(grants);}catch{/* Reconcile again on the next start rather than refusing to open. */}this.store.save(state);}
+  }
+  private dispatchTrace(owner:string,grant:RetryGrant):boolean{
+    const since=(grant.dispatchedAt??grant.consumedAt??0)-2000;
+    for(const dir of [join(this.store.root,'host-tasks'),join(this.store.root,'journey-tasks',owner)]){
+      if(!existsSync(dir))continue;
+      let names:string[];try{names=readdirSync(dir);}catch{continue;}
+      for(const name of names){
+        if(!name.toLowerCase().endsWith('.json'))continue;
+        try{if(statSync(join(dir,name)).mtimeMs>=since)return true;}catch{/* Unreadable entries prove nothing. */}
+      }
+    }
+    return false;
   }
   tick(): Promise<void> {
     if (this.stopped) return Promise.resolve();
@@ -307,8 +347,21 @@ export class TravelService {
     let prepared:Artifact|null;try{prepared=trip.prepareDuringTravel?this.store.stagedArtifact(trip.id):null;}catch{trip.status='failed';trip.error='待交付成品损坏，请恢复备份，禁止重新收费生成';this.store.save(state);return;}
     if(prepared){if(this.now()<trip.dueAt)return;try{const card=this.store.commit(trip,prepared,this.now());trip.status='completed';trip.completedAt=card.completedAt;delete trip.error;delete trip.failure;delete trip.localRetry;delete trip.grantRef;}catch{trip.status='failed';trip.error='成品交付保存失败，已保留待交付文件；请检查磁盘后手动继续';}this.store.save(state);return;}
     if (!this.generator) { if(this.now()<trip.dueAt)return;trip.status = 'awaiting_service'; this.store.save(state); return; }
-    if(trip.grantRef)this.markGrantRunning(trip.grantRef);
-    trip.status = 'generating'; this.store.save(state); this.controller = new AbortController();
+    // Start is persisted before the grant is touched: an interrupted run must not leave a spent grant and no dispatch.
+    trip.status = 'generating';
+    try { this.store.save(state); } catch (error) {
+      trip.status = 'failed'; trip.error = '无法保存开始记录，本次没有发起生成；追加授权仍保留，稍后重试即可';
+      delete trip.grantRef;
+      throw error;
+    }
+    if (trip.grantRef && !this.markGrantRunning(trip.grantRef)) {
+      // Nothing was dispatched without this record, so give the attempt back rather than burning the one grant.
+      trip.status = 'failed'; trip.error = '授权派发记录写入失败，本次没有发起生成；追加授权仍可复用，稍后重试即可';
+      delete trip.grantRef;
+      try { this.store.save(state); } catch { /* open() reconciles from disk if this write also fails. */ }
+      return;
+    }
+    this.controller = new AbortController();
     try {
       const artifact = await this.generator(structuredClone(trip), this.controller.signal, phase=>{
         const snapshot = this.store.snapshot(), current = snapshot.trips.find(t=>t.id===trip.id)!;
