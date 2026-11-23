@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, openSync, closeSync, fsyncSync, unlinkSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type {Journey,SeriesRef,StoryPlan} from './journey-types.ts';
 
 import {SCENES,chooseScene,freezeScene,type Scene,type Destination,type SceneSnapshot,type VisualVariation} from './scenes.ts';
@@ -301,8 +301,10 @@ export class TravelService {
     }catch{return false;}
   }
   /**
-   * A grant marked running is only spent if the stage left something on disk. A crash between recording the grant and the
-   * first request leaves no trace, so the grant is handed back instead of costing the user a second confirmation.
+   * A grant marked running is only spent if the stage actually got as far as writing its request. Every request record
+   * (generation text/image, story checkpoint) is stamped with the grant id in the same atomic write that precedes the
+   * transport call, so a missing stamp is a positive "no request was made", not an inference from an empty directory.
+   * Anything we cannot read resolves to 'unknown' and is never handed back.
    */
   private reconcileGrantDispatch(){
     const state=this.store.snapshot(),pending=state.trips.filter(t=>t.status==='failed'&&t.grantRef);
@@ -312,9 +314,14 @@ export class TravelService {
     for(const trip of pending){
       const grant=grants.grants.find(g=>g.id===trip.grantRef);
       if(!grant||grant.state!=='running')continue;
-      if(this.dispatchTrace(trip.series?.id??trip.id,grant)){
-        // Something was written for this stage after the grant was recorded: treat it as possibly charged, never resend.
+      const evidence=this.dispatchEvidence(trip,grant);
+      if(evidence==='traced'){
+        // Something for this grant reached the transport call: treat it as possibly charged, never resend.
         trip.failure={kind:'budget_exhausted',stage:grant.stage,message:'上次追加尝试已派发但结果不明，可能已产生费用；不会自动重发，确需再试请重新确认追加一次',at:this.now()};
+        changed=true;continue;
+      }
+      if(evidence==='unknown'){
+        trip.failure={kind:'budget_exhausted',stage:grant.stage,message:'无法确认上次追加尝试是否已派发（本地请求记录读不出来或无法归属），按可能已产生费用处理；不会自动重发，确需再试请重新确认追加一次',at:this.now()};
         changed=true;continue;
       }
       grant.state='reserved';delete grant.dispatchedAt;delete trip.grantRef;changed=true;
@@ -322,17 +329,55 @@ export class TravelService {
     }
     if(changed){try{this.saveGrants(grants);}catch{/* Reconcile again on the next start rather than refusing to open. */}this.store.save(state);}
   }
-  private dispatchTrace(owner:string,grant:RetryGrant):boolean{
-    const since=(grant.dispatchedAt??grant.consumedAt??0)-2000;
-    for(const dir of [join(this.store.root,'host-tasks'),join(this.store.root,'journey-tasks',owner)]){
-      if(!existsSync(dir))continue;
-      let names:string[];try{names=readdirSync(dir);}catch{continue;}
-      for(const name of names){
-        if(!name.toLowerCase().endsWith('.json'))continue;
-        try{if(statSync(join(dir,name)).mtimeMs>=since)return true;}catch{/* Unreadable entries prove nothing. */}
+  /**
+   * Only the folders that belong to this trip are scanned, and only records of this stage count. A recent file of
+   * another stage or another task is not evidence either way; it is ignored rather than allowed to burn or refund.
+   */
+  private dispatchEvidence(trip:Trip,grant:RetryGrant):'traced'|'none'|'unknown'{
+    const owner=trip.series?.id??trip.id,since=grant.dispatchedAt??grant.consumedAt??0;
+    let unknown=false;
+    const stageFile=(name:string)=>grant.stage==='image'?/^image-\d+-/.test(name):name.startsWith(grant.stage);
+    /**
+     * A folder that was never written is not the same as one we cannot read. Windows reports both as ENOENT, so walk
+     * up to the nearest existing ancestor: only "every missing part is a genuinely absent child of a real directory"
+     * counts as absent, and a parent that is not a directory counts as unreadable.
+     */
+    const neverWritten=(dir:string):boolean=>{
+      let current=dir;
+      for(;;){
+        if(existsSync(current))return false;
+        const parent=dirname(current);if(parent===current)return false;
+        let stats:ReturnType<typeof statSync>;
+        try{stats=statSync(parent);}catch{current=parent;continue;} // The parent is missing as well: keep walking up.
+        return stats.isDirectory();
       }
-    }
-    return false;
+    };
+    const scan=(dir:string,own:boolean):boolean=>{
+      let names:string[];try{names=readdirSync(dir);}catch{if(!neverWritten(dir))unknown=true;return false;}
+      for(const name of names){
+        if(!name.endsWith('.json'))continue;
+        const file=join(dir,name);
+        let record:Record<string,unknown>|null=null;
+        try{record=JSON.parse(readFileSync(file,'utf8')) as Record<string,unknown>;}catch{record=null;}
+        if(record){
+          if(record.grant===grant.id)return true;
+          // An image request leaves this before the transport call; a pending one may never have written its record.
+          if(own&&grant.kind==='image'&&record.pendingImage===true)return true;
+          // Records written before grants were stamped can only be attributed by time, and only as "cannot tell".
+          if(own&&record.grant===undefined&&stageFile(name)){
+            let mtime:number;try{mtime=statSync(file).mtimeMs;}catch{unknown=true;continue;}
+            if(mtime>=since)unknown=true;
+          }
+          continue;
+        }
+        let mtime:number;try{mtime=statSync(file).mtimeMs;}catch{unknown=true;continue;}
+        if(own||mtime>=since)unknown=true;
+      }
+      return false;
+    };
+    if(scan(join(this.store.root,'trips',trip.contentId??trip.id),true))return 'traced';
+    if(scan(join(this.store.root,'journey-tasks',owner),true))return 'traced';
+    return unknown?'unknown':'none';
   }
   tick(): Promise<void> {
     if (this.stopped) return Promise.resolve();

@@ -51,8 +51,11 @@ it('一次性图片授权只把上限提高到第三次，成功入藏后不再�
  const f=fixture();
  try{
   writeFileSync(join(f.root,'retry-grants.json'),JSON.stringify({schema:1,grants:[{id:'grant-image-1',tripId:f.id,owner:f.jid,stage:'image',kind:'image',createdAt:1,consumedAt:2,consumedBy:f.id}]}));
+  f.trip.grantRef='grant-image-1';
   const artifact=await f.generator(f.trip,new AbortController().signal);
   expect(f.transport.mock.calls.filter(c=>c[0]==='image')).toHaveLength(1);
+  // The request record names the grant, so a restart can tell a dispatched attempt from one that never left.
+  expect(JSON.parse(readFileSync(join(f.folder,'image-3-request.json'),'utf8')).grant).toBe('grant-image-1');
   expect(artifact.title).toBe('长椅上的海风');
   const saved=JSON.parse(readFileSync(join(f.folder,'checkpoint.json'),'utf8'));
   expect(saved.imageAttempt).toBe(3);

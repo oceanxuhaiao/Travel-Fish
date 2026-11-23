@@ -207,7 +207,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       const effectivePrompt=typeof frozen?.prompt==='string'?frozen.prompt:prompt+(prior?.valid===false?feedbackPrompt(prior):'');
       const content:Json[]=[{type:'text',text:effectivePrompt},...images.map(b=>({type:'image_url',image_url:{url:'data:image/png;base64,'+b.toString('base64')}}))];
       const payload:Json={model:spec.visionModel,stream:false,thinking:{type:'disabled'},response_format:{type:'json_object'},max_tokens:1800,messages:[{role:'user',content}]};
-      if(!localOnly)atomicJson(requestFile,{model:spec.visionModel,prompt:effectivePrompt,images:images.map(b=>({sha256:hash(b),bytes:b.length}))});
+      if(!localOnly)atomicJson(requestFile,{model:spec.visionModel,prompt:effectivePrompt,images:images.map(b=>({sha256:hash(b),bytes:b.length})),...(trip.grantRef?{grant:trip.grantRef}:{})});
       if(spec.visionModel==='host-model'){
         if(!options.hostTransport)throw new PipelineError('本趟使用宿主模型，请恢复宿主模式后继续');
         // cacheOnly never creates a task, so a local repair can only replay what an earlier run already paid for.
@@ -250,7 +250,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
         stage('generating_image');cp.imageAttempt++;cp.pendingImage=true;atomicJson(cpFile(trip),cp);
         const previousImageFile=join(folder,'image-'+(cp.imageAttempt-1)+'-rejected.json');
         const effectiveImagePrompt=imagePrompt+(existsSync(previousImageFile)?feedbackPrompt(load<Json>(previousImageFile)):'');
-        atomicJson(join(folder,'image-'+cp.imageAttempt+'-request.json'),{model:spec.imageModel,prompt:effectiveImagePrompt,referenceSha:[spec.characterSha,spec.styleSha],size:spec.imageSize??'2K',imageCount:2,...(spec.imageBackend==='compatible'?{requestPngOutput:spec.requestPngOutput===true}:{})});
+        atomicJson(join(folder,'image-'+cp.imageAttempt+'-request.json'),{model:spec.imageModel,prompt:effectiveImagePrompt,referenceSha:[spec.characterSha,spec.styleSha],size:spec.imageSize??'2K',imageCount:2,...(spec.imageBackend==='compatible'?{requestPngOutput:spec.requestPngOutput===true}:{}),...(trip.grantRef?{grant:trip.grantRef}:{})});
         const started=Date.now();let imageDiagnosticId:string|undefined;
         try {
           const result=await transport('image',{model:spec.imageModel,prompt:effectiveImagePrompt,image:refs.map(b=>'data:image/png;base64,'+b.toString('base64')),size:spec.imageSize??'2K',response_format:'b64_json',...((spec.imageBackend??'ark')==='ark'?{output_format:'png',watermark:false}:spec.imageBackend==='compatible'&&spec.requestPngOutput===true?{output_format:'png'}:{})},signal,{backend:spec.imageBackend??'ark',baseUrl:spec.imageBaseUrl});

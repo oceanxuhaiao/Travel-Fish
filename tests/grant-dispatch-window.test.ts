@@ -85,10 +85,10 @@ it('崩溃在首次请求之前：重启把授权退回可复用，用户不必�
  }finally{await service.close();}
 });
 
-it('已有阶段痕迹时按可能已计费处理：不自动重发，需要重新确认一次追加',async()=>{
+it('带授权编号的请求记录按可能已计费处理：不自动重发，需要重新确认一次追加',async()=>{
  const root=scratch(),id=crashed(root,'running');
  mkdirSync(join(root,'journey-tasks',id),{recursive:true});
- writeFileSync(join(root,'journey-tasks',id,'plan-1-request.json'),JSON.stringify({model:'host-model',prompt:'已发出的请求'}));
+ writeFileSync(join(root,'journey-tasks',id,'plan-1.json'),JSON.stringify({attempts:3,grant:'g1'}));
  const service=new TravelService(new TravelStore(root),undefined,()=>10);
  try{
   service.open();
@@ -98,5 +98,18 @@ it('已有阶段痕迹时按可能已计费处理：不自动重发，需要重�
   expect(()=>service.retry(id,false,'g1')).toThrow('已经用过');
   const again=service.grantRetry(id);
   expect(again.grantId).not.toBe('g1');
+ }finally{await service.close();}
+});
+
+it('不带授权编号的旧记录只能按时间归属：按无法确认处理，不退回也不重发',async()=>{
+ const root=scratch(),id=crashed(root,'running');
+ mkdirSync(join(root,'journey-tasks',id),{recursive:true});
+ writeFileSync(join(root,'journey-tasks',id,'plan-1-request.json'),JSON.stringify({model:'host-model',prompt:'旧版本写下的请求'}));
+ const service=new TravelService(new TravelStore(root),undefined,()=>10);
+ try{
+  service.open();
+  const trip=service.store.snapshot().trips.find(t=>t.id===id)!;
+  expect(trip.failure!.message).toContain('无法确认');
+  expect(grantsOf(join(root,'retry-grants.json'))[0]).toMatchObject({state:'running'});
  }finally{await service.close();}
 });

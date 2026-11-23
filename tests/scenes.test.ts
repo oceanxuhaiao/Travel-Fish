@@ -21,9 +21,11 @@ it('取消也记入近期；快照重启后不变，不依赖生成服务在线'
  try{const first=service.start('surprise',1);service.cancel(first.id);const second=service.start('surprise',1);expect(second.scene).not.toBe(first.scene);const frozen=structuredClone(second.sceneSnapshot);await service.close();service=new TravelService(new TravelStore(root),undefined,()=>1000);service.open();expect(service.status()?.sceneSnapshot).toEqual(frozen);expect(service.status()?.id).toBe(second.id);}finally{await service.close();rmSync(root,{recursive:true,force:true});}
 });
 it('旧版三场景收藏按原始字节读取，不自动迁移或改写',()=>{
- // Existing E evidence provides real old records; only read from original data.
- const root=process.env.POSTCARD_LEGACY_FIXTURE??join(process.cwd(),'../../../../output/stage-e-quality/runs/coast/data/postcard');
- if(!existsSync(root)){console.warn('legacy scene fixture missing, skipped');return;}const store=new TravelStore(root);const cards=store.cards();expect(cards.length).toBeGreaterThan(0);
+ // Existing E evidence provides real old records; only read from original data. Try the known checkouts so a wrong
+ // relative depth cannot turn this into a silent pass.
+ const candidates=[process.env.POSTCARD_LEGACY_FIXTURE,join(process.cwd(),'../../stage-e-quality/runs/coast/data/postcard'),join(process.cwd(),'../../../../output/stage-e-quality/runs/coast/data/postcard')].filter((p):p is string=>!!p);
+ const root=candidates.find(p=>existsSync(p));
+ if(!root){console.warn('legacy scene fixture missing, skipped');return;}const store=new TravelStore(root);const cards=store.cards();expect(cards.length).toBeGreaterThan(0);
  const card=cards[0],file=join(root,'collection',card.tripId,'record.json');const before=readFileSync(file);expect(store.card(card.tripId)?.sha256).toBe(card.sha256);expect(readFileSync(file).equals(before)).toBe(true);
 });
 

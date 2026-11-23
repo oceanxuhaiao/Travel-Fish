@@ -39,7 +39,7 @@ for(const mode of ['long','short'] as const){
    expect(service.store.snapshot().trips.find(t=>t.id===trip.id)!.failure).toMatchObject({kind:'budget_exhausted',stage:'v2-expand-1'});
 
    const engine=new StoryEngine(service,bridge.transport);
-   const call=()=>(engine as any).call(owner,'v2-expand-1',prompt,new AbortController().signal,contract,undefined,hints) as Promise<any>;
+   const call=(ctx?:{tripId:string;localOnly:boolean;grant?:string})=>(engine as any).call(owner,'v2-expand-1',prompt,new AbortController().signal,contract,ctx,hints) as Promise<any>;
 
    // First activation: two structural submissions are rejected inside the same host task.
    const first=call().then(()=>({ok:true,error:''}),e=>({ok:false,error:String(e)}));
@@ -65,7 +65,7 @@ for(const mode of ['long','short'] as const){
    expect(JSON.parse(readFileSync(grants,'utf8')).grants[0]).toMatchObject({id:grant.grantId,state:'reserved'});
 
    // Third activation accepts the extra attempt and the good submission is saved as the response.
-   const third=call();
+   const third=call({tripId:trip.id,localOnly:false,grant:grant.grantId});
    await until(()=>host.events.length===2);
    expect(taskId(host)).toBe(id);
    expect(bridge.submit(id,id,good())).toMatchObject({accepted:true,remainingSubmissions:0});
@@ -74,6 +74,8 @@ for(const mode of ['long','short'] as const){
    cp=JSON.parse(readFileSync(join(root,'journey-tasks',owner,'v2-expand-1.json'),'utf8'));
    expect(cp.response.plan.id).toBe(plans[0].id);
    expect(cp.attempts).toBe(3);
+   // The checkpoint names the grant, so a restart can attribute this attempt instead of guessing by timestamp.
+   expect(cp.grant).toBe(grant.grantId);
    expect(host.events).toHaveLength(2);
   }finally{await service.close();bridge.detach();rmSync(root,{recursive:true,force:true});}
  });

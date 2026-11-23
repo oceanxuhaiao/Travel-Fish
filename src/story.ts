@@ -20,7 +20,7 @@ const words=(v:unknown):v is string[]=>Array.isArray(v)&&v.every(x=>typeof x==='
 const text=(v:unknown,max=1000):v is string=>typeof v==='string'&&!!v.trim()&&v.length<=max;
 const DIMENSIONS=['detail','agency','connection','standalone_payoff','visual','novelty','naturalness'];
 /** Which trip this run belongs to, and whether it may only re-read saved work. Passed down, never inferred from an id. */
-type StoryRun={tripId:string;localOnly:boolean};
+type StoryRun={tripId:string;localOnly:boolean;/** The grant this pass spends, stamped on the checkpoint so a restart can tell whether this call was dispatched. */grant?:string};
 const VOCAB:Record<string,string[]>={motive:['taste','learn_action','understand_place','watch_details','rest','meet_routine','try_route','keep_wish'],development:['preference_compare','skill_practice','question_follow','perspective_compare','route_learning','relationship_revisit','expectation_adjust','deliberate_pause','weather_detour'],links:['memory','question','skill','preference','route','relationship','object','feeling'],ending:['choose_preference','apply_skill','recognize_detail','leave_question','accept_regret','familiar_greeting','rest_content'],activities:['choose_food','eat','observe','ask','walk','rest','compare','practice','ride','greet']};
 export {VOCAB as STORY_VOCABULARY};
 const POLICY='真实生活逻辑，可爱表现，不用魔法，不编造用户同行或长期记忆。每轮独立同意2小时，只制作本轮，三张各有独立收获。跨天只延续合理的物件、技能、兴趣或记忆，不存同一份鲜食，不因用户暂停错过日落或受罚。允许朴素遗憾，不必补偿，不强求赠物或升华。全部地点虚构，不使用真实地名。来源保留具体处境、行动、结果，明确改编和原创，绝不换主角照抄作者整程。';
@@ -153,7 +153,7 @@ export class StoryEngine {
   }
   if(!Number.isInteger(cp.attempts)||cp.attempts<0)throw new PipelineError('故事检查点次数无效，已保存进度，暂缓交付','content_invalid',label);
   const extra=consumedGrantCount(this.service.store.root,id,label),localOnly=this.localMode(id,ctx,label),cacheOnly=localOnly||cp.attempts>=2+extra;
-  if(!cacheOnly){cp.attempts++;atomicJson(file,cp);}
+  if(!cacheOnly){cp.attempts++;if(ctx?.grant)cp.grant=ctx.grant;else delete cp.grant;atomicJson(file,cp);}
   const result=await this.dispatch({model:'host-model',stream:false,response_format:{type:'json_object'},max_tokens:7000,messages:[{role:'user',content:[{type:'text',text:prompt}]}],__postcardTask:{tripId:id,label}},signal,{outputContract:contract,repairHints:hints,...(cacheOnly?{cacheOnly:true}:{})},localOnly);
   signal.throwIfAborted();
   const raw=(result?.choices as any[])?.[0]?.message?.content;
@@ -171,7 +171,7 @@ export class StoryEngine {
  }
  private async plan(trip:Readonly<Trip>,signal:AbortSignal):Promise<StoryPlan>{
   const id=trip.series!.id,j=this.journey(id);if(j.plan){validatePlan(j.plan,j.plan.motifIds);return j.plan;}
-  const run:StoryRun={tripId:trip.id,localOnly:trip.localRetry===true};
+  const run:StoryRun={tripId:trip.id,localOnly:trip.localRetry===true,...(trip.grantRef?{grant:trip.grantRef}:{})};
   if(this.requireStoryApproval){
    const library=JSON.parse(readFileSync(this.materialFile,'utf8'));
    const file=join(this.service.store.root,'development-story-review','approved-plan.json');
@@ -214,7 +214,7 @@ export class StoryEngine {
  }
  private async planV2(trip:Readonly<Trip>,signal:AbortSignal,nodeCount:number):Promise<StoryPlan>{
   const owner=trip.series?.id??trip.id,folder=join(this.service.store.root,'journey-tasks',owner);mkdirSync(folder,{recursive:true});
-  const run:StoryRun={tripId:trip.id,localOnly:trip.localRetry===true};
+  const run:StoryRun={tripId:trip.id,localOnly:trip.localRetry===true,...(trip.grantRef?{grant:trip.grantRef}:{})};
   const file=join(folder,'v2-materials.json');let frozen:any;
   if(existsSync(file)){
    frozen=JSON.parse(readFileSync(file,'utf8'));
@@ -254,7 +254,7 @@ export class StoryEngine {
  /** Plans one self-contained node for a short trip; same material and review bar as a long journey. */
  private async planShort(trip:Readonly<Trip>,signal:AbortSignal):Promise<StoryPlan>{
   const id=trip.id;
-  const run:StoryRun={tripId:trip.id,localOnly:trip.localRetry===true};
+  const run:StoryRun={tripId:trip.id,localOnly:trip.localRetry===true,...(trip.grantRef?{grant:trip.grantRef}:{})};
   const saved=this.service.store.snapshot().trips.find(t=>t.id===id)?.shortPlan;
   if(saved){validatePlan(saved,saved.motifIds,1);return saved;}
   if(trip.plannerVersion==='staged-v2'){const plan=await this.planV2(trip,signal,1);this.assertShortTrip(trip,signal);this.service.setShortPlan(id,plan);return plan;}
@@ -297,7 +297,7 @@ export class StoryEngine {
  async context(trip:Readonly<Trip>,signal:AbortSignal):Promise<StoryContext>{
   if(trip.mode==='short'&&!trip.series)return this.shortContext(trip,signal);
   this.assertTrip(trip,signal);const plan=await this.plan(trip,signal),index=trip.series!.nodeIndex;
-  const run:StoryRun={tripId:trip.id,localOnly:trip.localRetry===true};
+  const run:StoryRun={tripId:trip.id,localOnly:trip.localRetry===true,...(trip.grantRef?{grant:trip.grantRef}:{})};
   const expressive=!!plan.nodes[0].visualBeat;
   const priorCards=this.service.journeyCards(trip.series!.id).map(c=>({tripId:c.tripId,nodeIndex:c.series!.nodeIndex,title:c.title,note:c.note,noteHash:textHash(c.note),imageHash:c.sha256,...(expressive?{visualFacts:(c.generation?.visualEvidence as any)?.facts,portrayal:c.generation?.portrayal as any}:{} )}));
   if(priorCards.length!==index-1)throw Error('前序实际交付不完整');
