@@ -50,7 +50,7 @@
     },
     {
       "name": "postcard_status",
-      "description": "Read the current trip and availability. awaiting_service means a generator is not connected; do not claim a postcard exists.",
+      "description": "Read the current trip and availability. awaiting_service means a generator is not connected; do not claim a postcard exists. When the last trip failed it also returns localRecovery, a read-only audit of saved work: localModelCalls is always 0, verdict reusable only means a candidate exists for the blocking stage, and unblocks marks findings that can actually release it. It never proves the stage will pass.",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -291,7 +291,7 @@
     },
     {
       "name": "postcard_retry",
-      "description": "Manually retry a failed trip only after the user requests it. For an uncertain image outcome, set confirmUnknownOutcome only after the user has explicitly confirmed checking the previous result and possible charge.",
+      "description": "Manually retry a failed trip only after the user requests it. Prefer localOnly first: it re-reads only saved work, spends no budget and makes no network call. A paid retry of an exhausted stage needs a separately confirmed grant; this tool cannot grant one. For an uncertain image outcome, set confirmUnknownOutcome only after the user has explicitly confirmed checking the previous result and possible charge.",
       "parameters": {
         "type": "object",
         "additionalProperties": false,
@@ -303,6 +303,10 @@
           "confirmUnknownOutcome": {
             "type": "boolean",
             "description": "True only after the user explicitly confirms the uncertain previous request and possible charge."
+          },
+          "localOnly": {
+            "type": "boolean",
+            "description": "True to only re-read saved results: no model call, no image request, no budget consumed. Use before asking for any paid retry."
           }
         },
         "required": [
