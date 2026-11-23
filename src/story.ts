@@ -104,6 +104,11 @@ export class StoryEngine {
   return choices;
  }
  private assertTrip(trip:Readonly<Trip>,signal:AbortSignal){signal.throwIfAborted();const current=this.service.store.snapshot().trips.find(t=>t.id===trip.id);if(!trip.series||!current||!['generating','traveling'].includes(current.status)||this.journey(trip.series.id).endedAt)throw Error('本轮已取消或结束');}
+ /** A local-only retry may re-use saved work but must never pay for a new one; the flag lives on the trip, not the engine. */
+ private localOnly(owner:string){
+  try{const trip=this.service.store.snapshot().trips.find(t=>t.id===owner||t.series?.id===owner);return trip?.localRetry===true;}
+  catch{return false;} // No readable store (isolated unit harness) simply means this is not a local-only run.
+ }
  private async call(id:string,label:string,prompt:string,signal:AbortSignal,contract:OutputContract=objectContract('story-object-v1'),hints:RepairHints={}){
   if(prompt.length>42000)throw Error('故事上下文超过上限');
   const folder=join(this.service.store.root,'journey-tasks',id);mkdirSync(folder,{recursive:true});
@@ -130,9 +135,9 @@ export class StoryEngine {
    }
   }
   if(!Number.isInteger(cp.attempts)||cp.attempts<0)throw new PipelineError('故事检查点次数无效，已保存进度，暂缓交付','content_invalid',label);
-  const extra=consumedGrantCount(this.service.store.root,id,label),cacheOnly=cp.attempts>=2+extra;
+  const extra=consumedGrantCount(this.service.store.root,id,label),cacheOnly=this.localOnly(id)||cp.attempts>=2+extra;
   if(!cacheOnly){cp.attempts++;atomicJson(file,cp);}
-  const result=await this.transport('text',{model:'host-model',stream:false,response_format:{type:'json_object'},max_tokens:7000,messages:[{role:'user',content:[{type:'text',text:prompt}]}],__postcardTask:{tripId:id,label}},signal,{outputContract:contract,repairHints:hints,extraAttempts:extra,...(cacheOnly?{cacheOnly:true}:{})});
+  const result=await this.transport('text',{model:'host-model',stream:false,response_format:{type:'json_object'},max_tokens:7000,messages:[{role:'user',content:[{type:'text',text:prompt}]}],__postcardTask:{tripId:id,label}},signal,{outputContract:contract,repairHints:hints,...(cacheOnly?{cacheOnly:true}:{})});
   signal.throwIfAborted();
   const raw=(result?.choices as any[])?.[0]?.message?.content;
   const decoded=decodeAndRecover(label,typeof raw==='string'?raw:'',contract,prompt,hints),feedback=decoded.feedback;

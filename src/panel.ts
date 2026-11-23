@@ -36,6 +36,7 @@ export class PostcardPanel {
       case 'qualify': {const id=String(args[0]),trip=this.service.store.snapshot().trips.find(t=>t.id===id);if(!trip)throw new Error('找不到这趟旅行');return qualifyLocalRecovery(this.service.store.root,trip);}
       case 'grantRetry': return this.service.grantRetry(String(args[0]));
       case 'retry': this.service.retry(String(args[0]),args[1]===true,typeof args[2]==='string'?args[2]:undefined);return this.snapshot();
+      case 'retryLocal': this.service.retry(String(args[0]),false,undefined,{localOnly:true});return this.snapshot();
       case 'image': case 'thumbnail': case 'png': case 'zip': {
         const id=String(args[0]);const record=this.service.store.card(id);if(!record)throw new Error('找不到这份已完成的来信');
         const image=readFileSync(join(this.service.store.collection,id,'postcard.png'));

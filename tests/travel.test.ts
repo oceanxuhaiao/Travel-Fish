@@ -182,3 +182,53 @@ describe('图片阶段的追加授权',()=>{
   expect(generator).toHaveBeenCalledTimes(2);
  });
 });
+
+describe('本地修复与授权原子性',()=>{
+ it('本地修复不需要授权也不消费额度，失败后保留原失败类别',async()=>{
+  let calls=0;
+  const generator=vi.fn(async(trip:{localRetry?:boolean})=>{
+   calls++;
+   if(calls===1)throw new PipelineError('两次尝试上限','budget_exhausted','v2-expand-1');
+   expect(trip.localRetry).toBe(true);
+   throw new PipelineError('本地修复没有可复用的候选图，未发起任何生图请求','budget_exhausted','image');
+  });
+  const s=make(generator as any),trip=s.start('forest',1);time+=60000;await s.tick();
+  expect(existsSync(join(root,'retry-grants.json'))).toBe(false);
+  const moved=s.retry(trip.id,false,undefined,{localOnly:true});
+  expect(moved.status).toBe('traveling');expect(moved.localRetry).toBe(true);
+  time+=60000;await s.tick();
+  const after=s.store.snapshot().trips.find(t=>t.id===trip.id)!;
+  expect(after.status).toBe('failed');expect(after.localRetry).toBeUndefined();
+  expect(after.failure).toMatchObject({kind:'budget_exhausted',stage:'v2-expand-1'});
+  expect(after.error).toContain('本地修复未完成');
+  expect(existsSync(join(root,'retry-grants.json'))).toBe(false);
+  expect(generator).toHaveBeenCalledTimes(2);
+ });
+ it('授权只在所有只读检查通过后消费：确认钩子抛错或已有收藏时不消耗',async()=>{
+  const generator:any=vi.fn(async()=>{throw new PipelineError('两次尝试上限','budget_exhausted','v2-expand-1');});
+  const s=make(generator),trip=s.start('forest',1);time+=60000;await s.tick();
+  const grant=s.grantRetry(trip.id);
+  const stored=()=>JSON.parse(readFileSync(join(root,'retry-grants.json'),'utf8')).grants[0];
+  generator.confirmRetry=()=>{throw Error('需要确认远端结果');};
+  expect(()=>s.retry(trip.id,false,grant.grantId)).toThrow('需要确认');
+  expect(stored().consumedAt).toBeUndefined();
+  expect(s.store.snapshot().trips.find(t=>t.id===trip.id)!.status).toBe('failed');
+  generator.confirmRetry=vi.fn();
+  s.store.commit(s.store.snapshot().trips.find(t=>t.id===trip.id)!,artifact,time);
+  expect(()=>s.retry(trip.id,false,grant.grantId)).toThrow('已有收藏');
+  expect(stored().consumedAt).toBeUndefined();
+  expect(s.store.snapshot().trips.find(t=>t.id===trip.id)!.status).toBe('failed');
+ });
+ it('中断的授权预占可复用一次，真正开始生成后视为已用',async()=>{
+  const generator=vi.fn(async()=>{throw new PipelineError('两次尝试上限','budget_exhausted','v2-expand-1');});
+  const s=make(generator),trip=s.start('forest',1);time+=60000;await s.tick();
+  writeFileSync(join(root,'retry-grants.json'),JSON.stringify({schema:1,grants:[{id:'g1',tripId:trip.id,owner:trip.id,stage:'v2-expand-1',kind:'text',createdAt:1,consumedAt:2,consumedBy:trip.id,state:'reserved'}]}));
+  const moved=s.retry(trip.id,false,'g1');
+  expect(moved.grantRef).toBe('g1');
+  const stored=()=>JSON.parse(readFileSync(join(root,'retry-grants.json'),'utf8')).grants[0];
+  expect(stored().state).toBe('reserved');
+  time+=60000;await s.tick();
+  expect(stored().state).toBe('running');
+  expect(()=>s.retry(trip.id,false,'g1')).toThrow('已经用过');
+ });
+});

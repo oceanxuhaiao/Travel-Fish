@@ -208,11 +208,23 @@ it('失败态可重新核查本地结果，只读查询不触发重试或生成'
  const f=fixture();
  f.setState({trip:{id:'spent-audit',scene:'snow',status:'failed',startedAt:0,dueAt:0,error:'图片请求已达到上限',failure:{kind:'budget_exhausted',stage:'image',message:'图片请求已达到上限',at:1}},cards:[],minutes:120,generatorConnected:true});
  const base=f.ctx.invoke.getMockImplementation();
- f.ctx.invoke.mockImplementation(async(method,args)=>method==='qualify'?{verdict:'reusable',localModelCalls:0,stages:[{stage:'image-1',source:'image',reusable:true,detail:'本地候选图可解码且哈希一致，重试会先复用，不重新生图'}],notes:['本次核查只读本地文件']}:base(method,args));
+ f.ctx.invoke.mockImplementation(async(method,args)=>method==='qualify'?{verdict:'reusable',localModelCalls:0,blockingStage:'image',stages:[{stage:'image-1',source:'image',reusable:true,unblocks:true,detail:'本地候选图可解码且哈希一致，重试会先复用，不重新生图'}],notes:['本次核查只读本地文件']}:base(method,args));
  await mountAlbum(f.ctx);await flush();
  [...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='重新核查本地结果').click();await flush();await flush();
  expect(f.ctx.invoke).toHaveBeenCalledWith('qualify',['spent-audit']);
- expect(f.ctx.root.textContent).toContain('本地找到 1 处可复用结果');
+ expect(f.ctx.root.textContent).toContain('本地找到 1 处候选');
+ expect(f.ctx.root.textContent).toContain('1 处对应当前失败阶段');
+ expect([...f.ctx.root.querySelectorAll('button')].some(b=>b.textContent==='先试本地修复（不产生调用）')).toBe(true);
+ expect(f.ctx.invoke.mock.calls.filter(c=>['retry','grantRetry','start','startShort','retryLocal'].includes(c[0]))).toHaveLength(0);
+});
+it('额度耗尽时先给零调用本地修复入口，确认后只派发retryLocal',async()=>{
+ const f=fixture();
+ f.setState({trip:{id:'local-fix',scene:'snow',status:'failed',startedAt:0,dueAt:0,error:'图片请求已达到上限',failure:{kind:'budget_exhausted',stage:'image',message:'图片请求已达到上限',at:1}},cards:[],minutes:120,generatorConnected:true});
+ f.ctx.ui.confirm.mockResolvedValue(true);
+ await mountAlbum(f.ctx);await flush();
+ const local=[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='先试本地修复（不产生调用）');
+ expect(local).toBeTruthy();local.click();await flush();await flush();
+ expect(f.ctx.invoke).toHaveBeenCalledWith('retryLocal',['local-fix']);
  expect(f.ctx.invoke.mock.calls.filter(c=>['retry','grantRetry','start','startShort'].includes(c[0]))).toHaveLength(0);
 });
 it('文案阶段明确反证失败时给出结束出口，不诱导无意义的同流程重试',async()=>{

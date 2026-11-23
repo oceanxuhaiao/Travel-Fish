@@ -122,3 +122,25 @@ it('被审核判为不合格的候选图不会被当作可复用结果，待交�
   expect(existsSync(join(root,'trips',id,'image-2-rejected.json'))).toBe(true);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
+
+it('其他阶段的候选不解除当前阻塞；长途宿主任务按journey owner匹配',()=>{
+ const root=mkdtempSync(join(tmpdir(),'audit-scope-')),id=randomUUID(),owner=randomUUID(),image=png();
+ mkdirSync(join(root,'trips',id),{recursive:true});
+ writeFileSync(join(root,'trips',id,'image-1.png'),image);writeFileSync(join(root,'trips',id,'image-1.png.json'),JSON.stringify({sha256:sha(image)}));
+ const trip:Trip={id,scene:'coast',series:{id:owner,mark:'旅迹·test',nodeIndex:2,total:3},startedAt:0,dueAt:0,status:'failed',failure:{kind:'budget_exhausted',stage:'v2-expand-2',message:'两次上限',at:1}};
+ try{
+  const onlyImage=qualifyLocalRecovery(root,trip);
+  expect(onlyImage.blockingStage).toBe('v2-expand-2');
+  expect(onlyImage.stages.find(s=>s.stage==='image-1')).toMatchObject({reusable:true,unblocks:false});
+  expect(onlyImage.verdict).toBe('needs_grant');
+  expect(onlyImage.notes.join(' ')).toContain('属于其他阶段');
+
+  // Story stages of a long journey live under the journey id, not under the trip id.
+  const digest='a'.repeat(64);
+  mkdirSync(join(root,'host-tasks'),{recursive:true});
+  writeFileSync(join(root,'host-tasks',digest+'.json'),JSON.stringify({id:digest,digest,tripId:owner,label:'v2-expand-2',createdAt:1,submissions:[{resultJson:JSON.stringify(withoutGrounding())}]}));
+  const withHost=qualifyLocalRecovery(root,trip);
+  expect(withHost.stages.find(s=>s.stage==='v2-expand-2')).toMatchObject({source:'host',reusable:true,unblocks:true});
+  expect(withHost.verdict).toBe('reusable');
+ }finally{rmSync(root,{recursive:true,force:true});}
+});

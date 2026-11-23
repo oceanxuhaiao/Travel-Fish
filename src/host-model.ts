@@ -1,10 +1,10 @@
 import {PNG} from 'pngjs';
 import {mkdirSync,readFileSync,existsSync} from 'node:fs';
-import {join} from 'node:path';
+import {dirname,join} from 'node:path';
 import {createHash} from 'node:crypto';
 import type {WorldHost,ToolDef,RunPhase,EventEnvelope} from 'cortico/core/types.ts';
 import {HostTaskObserver,type TaskTerminal} from './host-task-observer.ts';
-import {atomicJson} from './travel.ts';
+import {atomicJson,loadRetryGrantsAt,grantedAttempts} from './travel.ts';
 import {PipelineError,type Transport} from './generation.ts';
 import {objectContract,outputFeedback,type OutputContract,type OutputFeedback} from './model-feedback.ts';
 import {decodeAndRecover,parseBoundedOutput,RECOVERY_VERSION,type RepairHints} from './delivery-recovery.ts';
@@ -36,7 +36,11 @@ export class HostModelBridge {
    }catch{this.host?.log.error('旅行待办投递状态记录失败');}});
   }
  }
- constructor(private root:string,private timeoutMs=600000){mkdirSync(root,{recursive:true});}
+ constructor(private root:string,private timeoutMs=600000,private grantFile=join(dirname(root),'retry-grants.json')){mkdirSync(root,{recursive:true});}
+ /** Only a grant already persisted as consumed can raise a task's allowance; a caller-supplied number is never enough. */
+ private allowance(task:{tripId:string;label:string}):number{
+  try{return grantedAttempts(loadRetryGrantsAt(this.grantFile).grants,task.tripId,task.label);}catch{return 0;}
+ }
  ready(){return !!this.host?.modelFacts.accepts('image/png');}
  attach(host:WorldHost){this.host=host;this.closed=false;}
  detach(){this.closed=true;this.host=undefined;}
@@ -75,15 +79,17 @@ export class HostModelBridge {
    if(replay){task.result=replay.value;task.recovery={version:RECOVERY_VERSION,sourceSubmission:replay.sourceSubmission,repairs:replay.repairs,selection:replay.selection};atomicJson(file,task);return response(task.result!);}
   }
   if(route?.cacheOnly)throw new PipelineError('恢复预算已耗尽，现有结果未通过本地修复校验；已保存进度，暂缓交付','budget_exhausted',task.label);
-  const limit=2+(this.limits.get(id)??0);
-  if((task.submissions?.length??0)>=limit)throw new PipelineError('本阶段两次结构提交已耗尽；继续准备不会增加次数，请先检查已保存反馈或决定结束原旅程，不会自动重新收费','budget_exhausted',task.label);
+  // The allowance has to include this run before the exhaustion check, otherwise a granted extra attempt is rejected
+  // by the old two-submission limit. It is read from the persisted grant file, never from route.extraAttempts alone.
+  const extra=this.allowance(task),limit=2+extra;
+  if((task.submissions?.length??0)>=limit)throw new PipelineError((extra?'本阶段结构提交已耗尽（含'+extra+'次已验证的追加授权，共'+limit+'次）':'本阶段两次结构提交已耗尽')+'；继续准备不会增加次数，请先检查已保存反馈或决定结束原旅程，不会自动重新收费','budget_exhausted',task.label);
   if(this.active.has(id))throw new PipelineError('同一宿主待办正在处理，请等待','transient',task.label);
   this.active.set(id,signal);
   const old=task.lifecycle;task.lifecycle={activation:(old?.activation??0)+1,deliveries:(old?.deliveries??0)+1,reads:old?.reads??0,lastProgressAt:Date.now(),state:'queued',terminals:old?.terminals};
   this.generations.set(id,task.lifecycle.activation);atomicJson(file,task);
   if(route?.outputContract)this.contracts.set(id,route.outputContract);
   if(route?.repairHints)this.hints.set(id,route.repairHints);
-  if(route?.extraAttempts)this.limits.set(id,route.extraAttempts);
+  if(extra)this.limits.set(id,extra);
   try{
    const content=(payload.messages as any[])[0].content as any[];
    const blobs=content.filter(x=>x.type==='image_url').map((x:any,i:number)=>({bytes:this.preview(x.image_url.url),mime:'image/png',name:'postcard-task-'+i+'.png',fallbackText:'明信片任务图片；无法看图时不要猜测'}));
@@ -148,7 +154,7 @@ export class HostModelBridge {
    if(feedback.valid){t.result=decoded.value as Record<string,unknown>;if(t.lifecycle){t.lifecycle.state='submitted';delete t.lifecycle.terminalReason;t.lifecycle.lastProgressAt=Date.now();}}
    if(decoded.repairs.length)t.recovery={version:RECOVERY_VERSION,sourceSubmission:t.submissions.length,repairs:decoded.repairs,textHash:decoded.textHash,valueHash:decoded.valueHash};
    atomicJson(this.file(id),t);
-   return {accepted:feedback.valid,feedback,remainingSubmissions:limit-t.submissions.length,nextAction:feedback.valid?'等待后续业务评审与交付回执':t.submissions.length<2?'按反馈修正后向同一任务重新提交':'停止提交，保留结果待用户处理'};
+   return {accepted:feedback.valid,feedback,remainingSubmissions:limit-t.submissions.length,nextAction:feedback.valid?'等待后续业务评审与交付回执':t.submissions.length<limit?'按反馈修正后向同一任务重新提交':'停止提交，保留结果待用户处理'};
   }
   if(typeof resultJson!=='string'||resultJson.length>20000)throw new Error('结果过大或类型无效');let result:any;try{result=JSON.parse(resultJson);}catch{throw new Error('结果必须为JSON对象');}
   if(!result||typeof result!=='object'||Array.isArray(result))throw new Error('结果必须为JSON对象');

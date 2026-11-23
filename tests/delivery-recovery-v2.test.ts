@@ -76,7 +76,7 @@ const savedTask=(root:string,label:string,submissions:Array<{resultJson:string}>
  writeFileSync(join(root,id+'.json'),JSON.stringify({id,digest:id,payload,tripId:'one',label,createdAt:1,submissions}));
  return {payload,id,file:join(root,id+'.json')};
 };
-const bridgeAt=(root:string)=>{const bridge=new HostModelBridge(root),host=new FakeHost();host.modelFacts.accepts=()=>true;bridge.attach(host);return {bridge,host};};
+const bridgeAt=(root:string)=>{const bridge=new HostModelBridge(root,600000,join(root,'grants.json')),host=new FakeHost();host.modelFacts.accepts=()=>true;bridge.attach(host);return {bridge,host};};
 const cacheOnly={outputContract:longContract,cacheOnly:true,repairHints:nodeHint};
 
 it('E 缓存回放按新→旧选择首个通过当前契约的提交，已有result优先',async()=>{
@@ -143,11 +143,13 @@ it('D 实时提交首次可修复即接受并仍计一次提交；语义失败�
  }finally{bridge.detach();rmSync(root,{recursive:true,force:true});}
 });
 
-it('D2 追加授权把本代提交上限提高到三次，历史计数不被清零',async()=>{
+it('D2 已落盘的追加授权把本代提交上限提高到三次，历史计数不被清零',async()=>{
  const root=mkdtempSync(join(tmpdir(),'extra-attempts-')),{bridge,host}=bridgeAt(root);
  try{
+  // The allowance is read from the persisted grant record, not from the caller: owner and stage must match.
+  writeFileSync(join(root,'grants.json'),JSON.stringify({schema:1,grants:[{id:'g1',tripId:'one',owner:'one',stage:'v2-expand-1',kind:'text',createdAt:1,consumedAt:2,consumedBy:'one',state:'running'}]}));
   const payload=payloadFor('v2-expand-1');
-  const p=bridge.transport('text',payload,new AbortController().signal,{outputContract:longContract,repairHints:nodeHint,extraAttempts:1});
+  const p=bridge.transport('text',payload,new AbortController().signal,{outputContract:longContract,repairHints:nodeHint});
   await new Promise(r=>setTimeout(r,5));
   const id=String(host.events[0]!.text).match(/taskId=([a-f0-9]{64})/)![1];
   expect(bridge.submit(id,id,'{"bad":true}')).toMatchObject({accepted:false,remainingSubmissions:2});
@@ -157,5 +159,17 @@ it('D2 追加授权把本代提交上限提高到三次，历史计数不被清�
   const disk=JSON.parse(readFileSync(join(root,id+'.json'),'utf8'));
   expect(disk.submissions).toHaveLength(3);
   await p;
+ }finally{bridge.detach();rmSync(root,{recursive:true,force:true});}
+});
+
+it('D3 追加额度只认已落盘授权：只传extraAttempts而授权未写入时仍按两次上限拒绝',async()=>{
+ const root=mkdtempSync(join(tmpdir(),'bare-extra-')),{bridge}=bridgeAt(root);
+ try{
+  const payload=payloadFor('v2-expand-1');
+  const {file}=savedTask(root,'v2-expand-1',[{resultJson:'{"bad":true}'},{resultJson:'{"bad":true}'}]);
+  let error='';
+  try{await bridge.transport('text',payload,new AbortController().signal,{outputContract:longContract,repairHints:nodeHint,extraAttempts:1});}catch(e){error=(e as Error).message;}
+  expect(error).toContain('两次结构提交已耗尽');
+  expect(JSON.parse(readFileSync(file,'utf8')).submissions).toHaveLength(2);
  }finally{bridge.detach();rmSync(root,{recursive:true,force:true});}
 });

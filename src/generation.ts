@@ -29,6 +29,7 @@ const COMMON = '生成完整收藏级旅行明信片，竖版2:3，单张。图1
 const EXPRESSIVE_COMMON=COMMON.replace('人物含帽约占画面高度18%至33%，具体按本次景别，风景主导','人物大小与镜头距离完全遵循故事节点composition指定的景别，不设统一人物占比').replace('脸部、头饰','身份特征、头饰')+' 参考图不能作为姿态模板，必须重新画朝向、动作与神态，不要每次正面直立看镜头。画面前中远至少两层可探索环境细节，避免大片空白天空取代场景。本轮：';
 
 type Json = Record<string,unknown>;
+/** extraAttempts is a legacy caller hint and is deliberately ignored by the host bridge: only a persisted grant widens a limit. */
 export interface ImageRoute {backend?:ImageBackend;baseUrl?:string;outputContract?:OutputContract;cacheOnly?:boolean;repairHints?:RepairHints;extraAttempts?:number;}
 export function imageEndpoint(base:string){let u:URL;try{u=new URL(base);}catch{throw new PipelineError('生图API请求地址无效');}if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.search||u.hash)throw new PipelineError('生图接口只支持不含凭据或查询参数的HTTP(S)地址');return u.href.replace(/\/$/,'')+(u.pathname.replace(/\/$/,'').endsWith('/images/generations')?'':'/images/generations');}
 export interface CloudOptions { storyContext?:(trip:Readonly<Trip>,signal:AbortSignal)=>Promise<StoryContext>;imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string;requestPngOutput?:boolean; imageModel?:string; hostReady?:()=>boolean; hostTransport?:Transport; useHostModel?:boolean; root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
@@ -152,6 +153,8 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
   };
   const generate:Generator=async(trip,signal,onPhase)=>{
     const folder=tripFolder(trip),spec=trip.generation as unknown as Spec;
+    /** A local-only retry re-reads saved work; it must never open a network call or raise a counter. */
+    const localOnly=trip.localRetry===true;
     if(spec?.imageBackend&&!IMAGE_BACKENDS.includes(spec.imageBackend))throw new PipelineError('生图通道版本不支持');
     if(!spec||![POLICY,CONTENT_POLICY,LEGACY_POLICY].includes(spec.policy)||(typeof spec.imageModel!=='string'||!spec.imageModel.trim())||![VISION_MODEL,'host-model'].includes(spec.visionModel))throw new PipelineError('旅程生成版本不支持或缺少固定输入');
     if(spec.policy!==LEGACY_POLICY&&(!spec.scenePrompt||!spec.sceneVariant||!spec.noteVoice))throw new PipelineError('旅程缺少固定内容策略');
@@ -196,6 +199,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       const feedbackFile=join(folder,label+'-feedback.json');
       const validate=(value:Json)=>{const repaired=recoverOutput(label,value,contract,prompt);if(repaired.repairs.length){atomicJson(join(folder,label+'-local-recovery.json'),{version:RECOVERY_VERSION,original:value,repairs:repaired.repairs});value=repaired.value;}const feedback=outputFeedback(label,contract,value);atomicJson(feedbackFile,feedback);if(!feedback.valid){atomicJson(join(folder,label+'-invalid-output-'+(cp.textRequests[label]??0)+'.json'),value);if(existsSync(target))renameSync(target,join(folder,label+'.invalid-'+(cp.textRequests[label]??0)+'.json'));throw new PipelineError(feedback.errors.map(e=>e.message).join('；'));}return value;};
       if(existsSync(target))return validate(load<Json>(target));
+      if(localOnly)throw new PipelineError('本地修复没有找到「'+label+'」的可复用结果，未发起任何模型请求；现有进度与计数不变','budget_exhausted',label);
       const prior=existsSync(feedbackFile)?load<Json>(feedbackFile):null;
       const effectivePrompt=prompt+(prior?.valid===false?feedbackPrompt(prior):'');
       const content:Json[]=[{type:'text',text:effectivePrompt},...images.map(b=>({type:'image_url',image_url:{url:'data:image/png;base64,'+b.toString('base64')}}))];
@@ -203,7 +207,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       atomicJson(join(folder,label+'-request.json'),{model:spec.visionModel,prompt:effectivePrompt,images:images.map(b=>({sha256:hash(b),bytes:b.length}))});
       if(spec.visionModel==='host-model'){
         if(!options.hostTransport)throw new PipelineError('本趟使用宿主模型，请恢复宿主模式后继续');
-        const result=await options.hostTransport('text',{...payload,__postcardTask:{tripId:trip.id,label}},signal,{outputContract:contract});
+        const result=await options.hostTransport('text',{...payload,__postcardTask:{tripId:trip.id,label}},signal,{outputContract:contract,...(localOnly?{cacheOnly:true}:{})});
         const choice=(result.choices as any[])?.[0];let value:Json;
         try{value=JSON.parse(choice.message.content);}catch{atomicJson(feedbackFile,{schemaVersion:'model-feedback-v1',stage:label,validation:'structure',valid:false,errors:[{code:'JSON_PARSE',path:label,message:'宿主结果不是有效JSON'}]});throw new PipelineError('宿主结果不是有效JSON');}
         value=validate(value);atomicJson(target,value);return value;
@@ -232,6 +236,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     let imageReview:Json|undefined;
     while(true){
       if(cp.imageAttempt===0||!imageValid()||existsSync(join(folder,'image-'+cp.imageAttempt+'-rejected.json'))){
+        if(localOnly)throw new PipelineError('本地修复没有可复用的候选图，未发起任何生图请求；现有进度与计数不变；如需要新图，请确认追加一次图片制作','budget_exhausted','image');
         if(cp.imageAttempt>=imageLimit)throw new PipelineError((imageLimit===2?'本趟图片请求已达到两次上限':'本趟图片请求已达到上限（'+imageLimit+'次，含'+imageGrants+'次显式追加）')+'；需要你再次确认追加一次图片制作，不会自动重试','budget_exhausted','image');
         stage('generating_image');cp.imageAttempt++;cp.pendingImage=true;atomicJson(cpFile(trip),cp);
         const previousImageFile=join(folder,'image-'+(cp.imageAttempt-1)+'-rejected.json');

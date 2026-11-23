@@ -11,7 +11,7 @@ export const POSTCARD: WorldDefinition<PostcardConfigSection> = {
   id:'postcard', label:'旅行大肥鱼', defaults:()=>({...POSTCARD_DEFAULTS}),
   create:ctx=>{
     let world:PostcardWorld;
-    const bridge=new HostModelBridge(join(ctx.dataDir,'postcard/host-tasks'));
+    const bridge=new HostModelBridge(join(ctx.dataDir,'postcard/host-tasks'),600000,join(ctx.dataDir,'postcard/retry-grants.json'));
     const generator=ctx.cfg.cloudEnabled?createCloudGenerator({storyContext:(trip,signal)=>world.story!.context(trip,signal),imageBackend:ctx.cfg.imageBackend,imageBaseUrl:ctx.cfg.imageBaseUrl,imageSize:ctx.cfg.imageSize,requestPngOutput:ctx.cfg.requestPngOutput,imageModel:ctx.cfg.imageModel,hostReady:()=>bridge.ready(),hostTransport:bridge.transport,useHostModel:ctx.cfg.useHostModel,root:join(ctx.dataDir,'postcard'),characterReference:characterReference(ctx.cfg),styleReference:styleReference(ctx.cfg),secret:name=>ctx.secret(name),imageProxyUrl:ctx.cfg.imageProxyUrl,visionProxyUrl:ctx.cfg.visionProxyUrl,recentTitles:()=>world.service.store.cards().slice(0,12).map(c=>c.title),recentVariants:scene=>world.service.store.cards().filter(c=>c.scene===scene&&typeof c.generation?.sceneVariant==='string').map(c=>c.generation!.sceneVariant as string)}):undefined;
     world=new PostcardWorld({cfg:ctx.cfg,dataDir:ctx.dataDir,generator,bridge,restart:()=>ctx.restart(),mailboxRuntime:()=>mailboxRuntime(runtimesRoot(),ctx.cfg.mailboxElectronFile),setup:{secret:name=>ctx.secret(name),storeSecret:(name,value)=>ctx.storeSecret(name,value)}});return world;
   },

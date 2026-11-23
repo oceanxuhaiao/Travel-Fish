@@ -59,13 +59,18 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
   async function requalify(){
     if(!data?.trip||busy||ctx.signal.aborted)return;
     try{
-      const q=await ctx.invoke<{verdict:'reusable'|'needs_grant'|'no_local_result';stages:Array<{stage:string;reusable:boolean;detail:string}>}>('qualify',[data.trip.id]);
+      const q=await ctx.invoke<{verdict:'reusable'|'needs_grant'|'no_local_result';stages:Array<{stage:string;reusable:boolean;unblocks:boolean;detail:string}>}>('qualify',[data.trip.id]);
       if(ctx.signal.aborted)return;
-      const reusable=q.stages.filter(s=>s.reusable);
-      if(q.verdict==='reusable')tell('本地找到 '+reusable.length+' 处可复用结果，继续时会先复核，不会新增调用也不会计数清零：'+reusable.map(s=>s.detail).join('；'));
-      else if(q.verdict==='needs_grant')tell('按当前修复规则重新核查过：本地没有可复用的结果，本阶段额度已用完，需要显式追加一次授权才能继续。',true);
+      const usable=q.stages.filter(s=>s.reusable);
+      if(q.verdict==='reusable')tell('本地找到 '+usable.length+' 处候选，其中 '+usable.filter(s=>s.unblocks).length+' 处对应当前失败阶段。可以先点「先试本地修复」按完整规则再验一次：本地复核本身不产生调用，也不消耗次数。');
+      else if(q.verdict==='needs_grant')tell('按当前修复规则重新核查过：当前失败阶段没有可复用的本地结果，需要显式追加一次授权才能继续。这次核查本身没有产生调用。',true);
       else tell('按当前修复规则重新核查过：本地没有可复用的结果，原来的失败结论仍然成立。',true);
     }catch(error){if(!ctx.signal.aborted)tell(error instanceof Error?error.message:'本地核查暂时失败。',true);}
+  }
+  async function localRepair(){
+    if(!data?.trip||busy||ctx.signal.aborted)return;
+    if(!await ctx.ui.confirm({title:'先试一次本地修复？',body:'只重新读取已经保存的结果，不发起模型请求，也不生图、不消耗本阶段次数。本地结果仍然不够时，会回到这里再询问是否追加一次授权。'}))return;
+    await action('retryLocal',[data.trip.id]);
   }
   async function retry(){if(!data?.trip)return;const failure=data.trip.failure;
     if(failure?.kind==='policy_blocked'){tell('本轮内容被宿主模型策略拦截，重试同一阶段大概率仍会失败；已有来信仍可阅读，也可结束本次旅行。',true);return;}
@@ -90,13 +95,17 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
       title.textContent=failed?'这次旅行没走完':inTravel?'正在远方旅行':t!.status==='awaiting_service'?'旅途到了，等来信启程':'正在把旅途装进信里';
       if(failed){
         const kind=t!.failure?.kind;
-        sub.textContent='尚未收到这封来信；已保存的进度、候选图和已有收藏都还在。'+(kind==='budget_exhausted'?'本阶段调用额度已用完，本地也没有可用结果；继续需要显式追加一次重试授权。':kind==='policy_blocked'?'本轮内容被宿主模型策略拦截，重试同一阶段大概率仍会失败。':kind==='content_invalid'&&t!.failure?.stage==='note'?'两版短笺都没有通过明确的图文反证检查；图片已保留，但重试同一文字流程不会产生新的结果。':kind==='transient'?'像是临时服务问题，可以稍后再试。':'可以直接再试一次，问题未解决时会保留原进度。');
+        sub.textContent='尚未收到这封来信；已保存的进度、候选图和已有收藏都还在。'+(kind==='budget_exhausted'?'本阶段调用额度已用完。先点「先试本地修复」只会重读已保存的结果，不产生调用；本地结果不够时再决定是否追加一次授权。':kind==='policy_blocked'?'本轮内容被宿主模型策略拦截，重试同一阶段大概率仍会失败。':kind==='content_invalid'&&t!.failure?.stage==='note'?'两版短笺都没有通过明确的图文反证检查；图片已保留，但重试同一文字流程不会产生新的结果。':kind==='transient'?'像是临时服务问题，可以稍后再试。':'可以直接再试一次，问题未解决时会保留原进度。');
       }else{
         sub.textContent=inTravel?'预计 '+new Date(t!.dueAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})+' 归来，明信片将在旅途中准备。':t!.status==='awaiting_service'?'请先在扩展配置中连接云端生成服务。':'明信片和短笺准备好后，会自动收进下面的收藏册。';
         const preparation:Record<string,string>={story_directions:'正在整理旅途方向',story_selection:'正在核对方向与素材',story_expand:'正在展开旅途故事',story_review:'正在核对故事内容'};
         if(t!.phase&&preparation[t!.phase])sub.textContent+=' '+preparation[t!.phase]+'。';
       }
-      if(failed)controls.append(button('重试本阶段',retry,'pc-button pc-primary'),button('重新核查本地结果',requalify),button('结束本次旅行',cancel));
+      if(failed){
+        const spent=t!.failure?.kind==='budget_exhausted';
+        if(spent)controls.append(button('先试本地修复（不产生调用）',localRepair,'pc-button pc-primary'),button('重试本阶段',retry),button('重新核查本地结果',requalify),button('结束本次旅行',cancel));
+        else controls.append(button('重试本阶段',retry,'pc-button pc-primary'),button('重新核查本地结果',requalify),button('结束本次旅行',cancel));
+      }
       else controls.append(button('先回家',cancel));
       if(t!.error){const info=el('details','pc-error-details');info.append(el('summary','','查看原因'),el('p','',t!.error));text.append(info);}
     }else{
