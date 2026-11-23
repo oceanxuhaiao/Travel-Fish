@@ -35,8 +35,8 @@ export function loadRetryGrants(root:string):GrantFile {
  return value;
 }
 /** Counts only grants already consumed for this exact stage; a cancelled confirmation never adds budget. */
-export function consumedGrantCount(root:string,owner:string,stage:string):number {
- try{return loadRetryGrants(root).grants.filter(g=>g.owner===owner&&g.stage===stage&&g.consumedAt!==undefined).length;}catch{return 0;}
+export function consumedGrantCount(root:string,owner:string,stage:string,tripId?:string):number {
+ try{return loadRetryGrants(root).grants.filter(g=>g.owner===owner&&g.stage===stage&&(tripId===undefined||g.tripId===tripId)&&g.consumedAt!==undefined).length;}catch{return 0;}
 }
 
 export function atomicJson(path: string, value: unknown): void {
@@ -239,7 +239,7 @@ export class TravelService {
     if(!pending){grants.grants.push(grant);this.saveGrants(grants);}
     const target=trip.series?'本轮':'本次旅行';
     return {grantId:grant.id,tripId:id,stage,kind,owner,
-      message:'失败阶段：'+stage+'。'+target+'已交付的卡片、候选图和已通过的文字都会保留；'+(kind==='image'?'本次追加一次图片制作，可能产生图片费用，且仍受本趟图片次数上限约束。':'本次只追加一次文字调用，不会重跑整趟旅行，也不会自动授权后续路段；宿主模型用量可能收费。')};
+      message:'失败阶段：'+stage+'。'+target+'已交付的卡片、候选图和已通过的文字都会保留；'+(kind==='image'?'本次追加一次图片制作，可能产生图片费用；只追加这一轮，不会重跑整趟旅行，也不授权后续路段。':'本次只追加一次文字调用，不会重跑整趟旅行，也不会自动授权后续路段；宿主模型用量可能收费。')};
   }
   retry(id: string, confirmUnknownOutcome = false, grantId?: string): Trip {
     const state = this.store.snapshot(), trip = state.trips.find(t => t.id === id);
@@ -252,6 +252,7 @@ export class TravelService {
       grant.consumedAt=this.now();grant.consumedBy=id;this.saveGrants(grants);
     }
     if (trip.failure?.kind === 'policy_blocked') throw new Error('本轮内容被宿主模型策略拦截；重试同一阶段大概率仍会失败，已保留进度，可以结束本次旅行');
+    if (trip.failure?.kind === 'content_invalid' && trip.failure.stage === 'note') throw new Error('这封短笺两版都因明确的图文反证未通过；图片和进度已保留，但重试同一文字流程不会产生新结果，可以结束本次旅行或稍后从记录另行处理');
     if (this.flight) throw new Error('上次生成尚未退出');
     if (this.store.card(id)) throw new Error('已有收藏，无需重新生成');
     this.generator?.confirmRetry?.(trip, confirmUnknownOutcome);

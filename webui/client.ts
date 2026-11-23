@@ -2,7 +2,7 @@ import {mountSetup} from './setup.ts';
 import {STAMP_ART} from './stamp-art.ts';
 import type {WebUiPanelContext} from 'cortico/web/shared/client-panel.ts';
 
-interface Card {tripId:string;scene:string;title:string;note:string;completedAt:number;unread?:boolean;series?:{id:string;mark:string;nodeIndex:number;total:3};}
+interface Card {tripId:string;scene:string;title:string;note:string;completedAt:number;unread?:boolean;series?:{id:string;mark:string;nodeIndex:number;total:3};deliveryTier?:'degraded';degradedNotes?:Array<{soft:string;stage:string;detail:string}>;}
 interface Trip {id:string;scene:string;status:string;startedAt:number;dueAt:number;error?:string;phase?:string;failure?:{kind:string;stage?:string;message:string;at:number};}
 interface Snapshot {journey?:{id:string;mark:string;phase:string;completed:number;nextNode:number|null;summary?:{status:string;error?:string;text?:string}}|null;cost?:{normalImageCost:number|null;maxImageCost:number|null;hostCost:string};readyForTravel?:boolean;trip:Trip|null;cards:Card[];minutes:number;generatorConnected:boolean;mailbox?:{unreadCount:number};mailboxWindow?:{phase:string;detail:string};}
 type SummaryPayload={status:string;error?:string;text?:string};
@@ -56,8 +56,20 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
     finally {busy=false;if(!ctx.signal.aborted)renderJourney();}
   }
   async function cancel(){if(!data?.trip)return;if(await ctx.ui.confirm({title:'让它先回家吗？',body:'这趟旅行将结束。已经发出的云端生成请求可能仍会计费。'}))await action('cancel',[data.trip.id]);}
+  async function requalify(){
+    if(!data?.trip||busy||ctx.signal.aborted)return;
+    try{
+      const q=await ctx.invoke<{verdict:'reusable'|'needs_grant'|'no_local_result';stages:Array<{stage:string;reusable:boolean;detail:string}>}>('qualify',[data.trip.id]);
+      if(ctx.signal.aborted)return;
+      const reusable=q.stages.filter(s=>s.reusable);
+      if(q.verdict==='reusable')tell('本地找到 '+reusable.length+' 处可复用结果，继续时会先复核，不会新增调用也不会计数清零：'+reusable.map(s=>s.detail).join('；'));
+      else if(q.verdict==='needs_grant')tell('按当前修复规则重新核查过：本地没有可复用的结果，本阶段额度已用完，需要显式追加一次授权才能继续。',true);
+      else tell('按当前修复规则重新核查过：本地没有可复用的结果，原来的失败结论仍然成立。',true);
+    }catch(error){if(!ctx.signal.aborted)tell(error instanceof Error?error.message:'本地核查暂时失败。',true);}
+  }
   async function retry(){if(!data?.trip)return;const failure=data.trip.failure;
     if(failure?.kind==='policy_blocked'){tell('本轮内容被宿主模型策略拦截，重试同一阶段大概率仍会失败；已有来信仍可阅读，也可结束本次旅行。',true);return;}
+    if(failure?.kind==='content_invalid'&&failure.stage==='note'){tell('这封短笺两版都因明确的图文反证未通过；图片和进度已保留，但重试同一流程不会产生新的文字结果，可以结束本次旅行。',true);return;}
     let grantId:string|undefined;
     if(failure?.kind==='budget_exhausted'){
       let grant:{grantId:string;kind:string;message:string};
@@ -78,13 +90,13 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
       title.textContent=failed?'这次旅行没走完':inTravel?'正在远方旅行':t!.status==='awaiting_service'?'旅途到了，等来信启程':'正在把旅途装进信里';
       if(failed){
         const kind=t!.failure?.kind;
-        sub.textContent='尚未收到这封来信；已保存的进度、候选图和已有收藏都还在。'+(kind==='budget_exhausted'?'本阶段调用额度已用完，本地也没有可用结果；继续需要显式追加一次重试授权。':kind==='policy_blocked'?'本轮内容被宿主模型策略拦截，重试同一阶段大概率仍会失败。':kind==='transient'?'像是临时服务问题，可以稍后再试。':'可以直接再试一次，问题未解决时会保留原进度。');
+        sub.textContent='尚未收到这封来信；已保存的进度、候选图和已有收藏都还在。'+(kind==='budget_exhausted'?'本阶段调用额度已用完，本地也没有可用结果；继续需要显式追加一次重试授权。':kind==='policy_blocked'?'本轮内容被宿主模型策略拦截，重试同一阶段大概率仍会失败。':kind==='content_invalid'&&t!.failure?.stage==='note'?'两版短笺都没有通过明确的图文反证检查；图片已保留，但重试同一文字流程不会产生新的结果。':kind==='transient'?'像是临时服务问题，可以稍后再试。':'可以直接再试一次，问题未解决时会保留原进度。');
       }else{
         sub.textContent=inTravel?'预计 '+new Date(t!.dueAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})+' 归来，明信片将在旅途中准备。':t!.status==='awaiting_service'?'请先在扩展配置中连接云端生成服务。':'明信片和短笺准备好后，会自动收进下面的收藏册。';
         const preparation:Record<string,string>={story_directions:'正在整理旅途方向',story_selection:'正在核对方向与素材',story_expand:'正在展开旅途故事',story_review:'正在核对故事内容'};
         if(t!.phase&&preparation[t!.phase])sub.textContent+=' '+preparation[t!.phase]+'。';
       }
-      if(failed)controls.append(button('重试本阶段',retry,'pc-button pc-primary'),button('结束本次旅行',cancel));
+      if(failed)controls.append(button('重试本阶段',retry,'pc-button pc-primary'),button('重新核查本地结果',requalify),button('结束本次旅行',cancel));
       else controls.append(button('先回家',cancel));
       if(t!.error){const info=el('details','pc-error-details');info.append(el('summary','','查看原因'),el('p','',t!.error));text.append(info);}
     }else{
@@ -222,6 +234,7 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
       const image=el('img');image.alt=card.title+'旅行明信片';image.loading='lazy';image.width=360;image.height=540;
       const art=el('span','pc-postcard-art');art.append(image);if(card.series?.total===3)art.append(sealFor(card));
       const footer=el('div','pc-card-footer');footer.append(el('h3','',card.title+(card.unread?' · 新来信':'')),el('time','',date(card.completedAt)));if(card.series?.nodeIndex===3&&card.series.total===3)footer.append(el('span','pc-summary-tag','含这趟总结'));
+      if(card.deliveryTier==='degraded'){const tag=el('span','pc-summary-tag','普通成品');tag.title=(card.degradedNotes??[]).map(n=>n.detail).join('；')||'按可接受瑕疵交付';tag.setAttribute('aria-label','这封来信按可接受瑕疵交付：'+(tag.title||''));footer.append(tag);}
       open.append(art,footer);grid.append(open);void thumbnail(card,image);
     }
     if(selected&&!data.cards.some(c=>c.tripId===selected)){selected=null;remember();}
@@ -237,7 +250,7 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
     async function acknowledgeRead(){if(!card?.unread||readInFlight||ctx.signal.aborted||epoch!==imageEpoch)return;readInFlight=true;try{const next=await ctx.invoke<Snapshot>('markRead',[card.tripId]);if(!ctx.signal.aborted&&epoch===imageEpoch){data=next;render();}}catch{if(!ctx.signal.aborted)tell('来信已打开，已读状态保存失败，稍后可重试。',true);}}
     const bar=el('div','pc-detail-bar');bar.append(el('h2','','旅途寄来的信'),button('收起来',()=>{selected=null;remember();void renderDetail(false);}));
     const content=el('div','pc-letter');
-    if(flipped){content.classList.add('pc-letter-back');content.append(el('span','pc-postmark','旅途留念 · '+date(card.completedAt)),el('h3','',card.title),el('p','pc-note',card.note),el('span','pc-signature','把这一刻，寄给你。'));}
+    if(flipped){content.classList.add('pc-letter-back');content.append(el('span','pc-postmark','旅途留念 · '+date(card.completedAt)),el('h3','',card.title),el('p','pc-note',card.note),el('span','pc-signature','把这一刻，寄给你。'));if(card.deliveryTier==='degraded'){const notes=el('p','pc-delivery-note');notes.append(el('span','','这封来信按可接受瑕疵交付：'+(card.degradedNotes??[]).map(n=>n.detail).join('；')+'。结构与归属、角色身份、图文一致和来源均已复核，只是没有为了更好而反复重画。'));content.append(notes);}}
     else {const art=el('span','pc-detail-art'),image=el('img','pc-full-image');image.width=1664;image.height=2496;image.onload=()=>{void acknowledgeRead();};image.alt=card.title;art.append(image);if(card.series?.total===3)art.append(sealFor(card,true));content.append(art);try{const blob=await ctx.invokeBinary('image',[card.tripId]);if(ctx.signal.aborted||epoch!==imageEpoch)return;detailUrl=URL.createObjectURL(blob);image.src=detailUrl;}catch{if(epoch===imageEpoch)content.append(el('p','pc-error','图片暂时无法载入，仍可翻到背面读信。'));}}
     if(ctx.signal.aborted||epoch!==imageEpoch)return;
     const actions=el('div','pc-detail-actions');const flip=button(flipped?'看看风景':'翻到背面读信',()=>{flipped=!flipped;remember();void renderDetail(false);},'pc-button pc-primary');flip.setAttribute('aria-pressed',String(flipped));actions.append(flip,button('保存图片',()=>download(card,'png')),button('打包带走',()=>download(card,'zip')));

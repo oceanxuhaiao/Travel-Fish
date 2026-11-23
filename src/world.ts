@@ -13,6 +13,7 @@ import type { World, WorldHost, ToolDef, WorldWebUiDecl, RunPhase } from 'cortic
 import type { PostcardConfigSection } from './config.ts';
 import { TRAVEL_MINUTES, POSTCARD_CONFIG_GROUP } from './config.ts';
 import { TravelService, TravelStore, type Generator, type Scene } from './travel.ts';
+import {qualifyLocalRecovery} from './recovery-audit.ts';
 import {InvitationSchedule, invitationText, shouldRecap} from './invitations.ts';
 import { PostcardPanel,tripView } from './panel.ts';
 import { PostcardRecords, isDevelopmentCard, type RecordsQuery } from './records.ts';
@@ -92,7 +93,7 @@ export class PostcardWorld implements World {
         case 'postcard_journey':result=this.service.journeyStatus(typeof args.journeyId==='string'?args.journeyId:undefined);break;
         case 'postcard_end_journey':result=this.service.endJourney(String(args.journeyId));break;
         case 'postcard_summary_retry':if(!this.story)throw Error('宿主故事服务未接入');result=this.story.retrySummary(String(args.journeyId));break;
-        case 'postcard_status': result = {readyForTravel:!this.opts.setup?!!this.opts.generator:(this.setup.invoke('check') as {readyForTravel:boolean}).readyForTravel,cost:costEstimate(this.opts.cfg),journey:this.service.journeyStatus(), trip: tripView(this.service.status()), generatorConnected: !!this.opts.generator, invitation:{enabled:this.opts.cfg.proactiveEnabled??true,intervalMinutes:this.opts.cfg.proactiveIntervalMinutes??360,nextAt:this.invitations.snapshot()?.nextAt??null,...(!this.invitationsHealthy?{error:'主动询问日程损坏，已暂停'}:{})} }; break;
+        case 'postcard_status': {const current=this.service.status(),localRecovery=current?.status==='failed'?qualifyLocalRecovery(this.service.store.root,current):undefined;result = {readyForTravel:!this.opts.setup?!!this.opts.generator:(this.setup.invoke('check') as {readyForTravel:boolean}).readyForTravel,cost:costEstimate(this.opts.cfg),journey:this.service.journeyStatus(), trip: tripView(current), generatorConnected: !!this.opts.generator, invitation:{enabled:this.opts.cfg.proactiveEnabled??true,intervalMinutes:this.opts.cfg.proactiveIntervalMinutes??360,nextAt:this.invitations.snapshot()?.nextAt??null,...(!this.invitationsHealthy?{error:'主动询问日程损坏，已暂停'}:{})},...(localRecovery?{localRecovery}:{}) }; break;}
         case 'postcard_list': result = this.service.store.cards(); break;
         case 'postcard_records': result = this.records.search(args as RecordsQuery); break;
         case 'postcard_recall': result = this.reminiscence.recall(String(args.query),typeof args.limit==='number'?args.limit:undefined); break;

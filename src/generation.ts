@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync } from '
 import { join } from 'node:path';
 import { PNG } from 'pngjs';
 import { fetch, ProxyAgent, Agent } from 'undici';
-import { atomicJson, type Generator, type Trip, type Artifact, type Scene } from './travel.ts';
+import { atomicJson, consumedGrantCount, type Generator, type Trip, type Artifact, type Scene } from './travel.ts';
 import {CONTENT_POLICY,LEGACY_POLICY,selectCoastVariant,selectNoteVoice,notePrompt} from './content.ts';
 import {freezeScene,type SceneSnapshot} from './scenes.ts';
 import {PORTRAYAL_INSTRUCTION,validatePortrayal,portrayalIssues} from './story-quality.ts';
@@ -143,11 +143,11 @@ export function cloudTransport(options:CloudOptions):Transport {
 export function createCloudGenerator(options:CloudOptions, transport:Transport=cloudTransport(options)):Generator {
   const tripFolder=(trip:Readonly<Trip>)=>{validateId(trip.id);if(trip.contentId)validateId(trip.contentId);return join(options.root,'trips',trip.contentId??trip.id);};
   const cpFile=(trip:Readonly<Trip>)=>join(tripFolder(trip),'checkpoint.json');
-  const getCp=(trip:Readonly<Trip>):Checkpoint=>{
+  const getCp=(trip:Readonly<Trip>,imageLimit=2):Checkpoint=>{
     const file=cpFile(trip);
     const cp=existsSync(file)?load<Checkpoint>(file):{schema:1 as const,imageAttempt:0,pendingImage:false,stage:'prepared',textRequests:{},errors:[]};
     if(cp.imageFailure&&!validImageFailureInfo(cp.imageFailure)||cp.imageHttpFailure&&(!Number.isInteger(cp.imageHttpFailure.status)||cp.imageHttpFailure.status<100||cp.imageHttpFailure.status>599||cp.imageHttpFailure.diagnosticId!==undefined&&!/^gemini-[a-f0-9-]{36}$/.test(cp.imageHttpFailure.diagnosticId)))throw new PipelineError('生成检查点损坏');
-    if(cp.schema!==1||!Number.isInteger(cp.imageAttempt)||cp.imageAttempt<0||cp.imageAttempt>2||typeof cp.pendingImage!=='boolean'||!cp.textRequests||typeof cp.textRequests!=='object'||Object.values(cp.textRequests).some(n=>!Number.isInteger(n)||n<0||n>2)) throw new PipelineError('生成检查点损坏');
+    if(cp.schema!==1||!Number.isInteger(cp.imageAttempt)||cp.imageAttempt<0||cp.imageAttempt>imageLimit||typeof cp.pendingImage!=='boolean'||!cp.textRequests||typeof cp.textRequests!=='object'||Object.values(cp.textRequests).some(n=>!Number.isInteger(n)||n<0||n>2)) throw new PipelineError('生成检查点损坏');
     return cp;
   };
   const generate:Generator=async(trip,signal,onPhase)=>{
@@ -158,7 +158,9 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     if(spec.policy===POLICY&&(!spec.sceneSnapshot||spec.sceneSnapshot.scene!==trip.scene||!spec.sceneSnapshot.core||!spec.sceneSnapshot.conflicts))throw new PipelineError('旅行缺少固定场景快照');
     const refs=['character.png','style.png'].map(file=>readFileSync(join(folder,'input',file)));
     if(hash(refs[0])!==spec.characterSha||hash(refs[1])!==spec.styleSha)throw new PipelineError('旅行参考图校验失败，禁止使用变化的输入');
-    const cp=getCp(trip);
+    // Image allowance is two attempts per trip; each explicitly confirmed grant adds exactly one more.
+    const imageGrants=consumedGrantCount(options.root,trip.series?.id??trip.id,'image',trip.id),imageLimit=2+imageGrants;
+    const cp=getCp(trip,imageLimit);
     const story=(trip.series||trip.mode==='short')?await options.storyContext?.(trip,signal):undefined;
     if((trip.series||trip.mode==='short')&&!story)throw new PipelineError('系列叙事尚未接入，未发起生图');
     const expressive=spec.visualPolicy==='expressive-v1'&&!!story;
@@ -230,7 +232,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     let imageReview:Json|undefined;
     while(true){
       if(cp.imageAttempt===0||!imageValid()||existsSync(join(folder,'image-'+cp.imageAttempt+'-rejected.json'))){
-        if(cp.imageAttempt>=2)throw new PipelineError('本趟图片请求已达到两次上限');
+        if(cp.imageAttempt>=imageLimit)throw new PipelineError((imageLimit===2?'本趟图片请求已达到两次上限':'本趟图片请求已达到上限（'+imageLimit+'次，含'+imageGrants+'次显式追加）')+'；需要你再次确认追加一次图片制作，不会自动重试','budget_exhausted','image');
         stage('generating_image');cp.imageAttempt++;cp.pendingImage=true;atomicJson(cpFile(trip),cp);
         const previousImageFile=join(folder,'image-'+(cp.imageAttempt-1)+'-rejected.json');
         const effectiveImagePrompt=imagePrompt+(existsSync(previousImageFile)?feedbackPrompt(load<Json>(previousImageFile)):'');
@@ -286,7 +288,7 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
       if(!qualityIssues.length&&(imageAccepted(imageReview)||(story&&imageReview.character_match===true&&imageReview.usable===true&&strings(imageReview.facts,3,8)&&typeof imageReview.scene_match==='boolean'&&Array.isArray(imageReview.background_conflicts))))break;
       // A malformed check does not justify paying for another image.
       if(['scene_match','character_match','usable'].some(k=>typeof imageReview![k]!=='boolean')||!Array.isArray(imageReview.background_conflicts)||!strings(imageReview.facts,3,8))invalidSchema('image-'+cp.imageAttempt+'-review','图像审核格式无效，请检查后恢复本张图片');
-      if(cp.imageAttempt>=2)throw new PipelineError('两张候选图均未通过，暂不入库');
+      if(cp.imageAttempt>=imageLimit)throw new PipelineError((imageLimit===2?'两张候选图均未通过':'累计'+imageLimit+'张候选图均未通过（含'+imageGrants+'次显式追加）')+'，暂不入藏；可确认追加一次图片制作或结束本次旅行','budget_exhausted','image');
       stage('image_rejected');
       atomicJson(join(folder,'image-'+cp.imageAttempt+'-rejected.json'),{rejected:true,validation:'business',review:imageReview,qualityIssues,repairInstruction:'只修正审核指出的身份或不可用问题，不用改字掩盖坏图'});
     }
@@ -324,12 +326,12 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
         }
         atomicJson(join(folder,'image-'+cp.imageAttempt+'-note-'+attempt+'-outcome.json'),{valid:true,validation:'business',reviews:'已通过当前图文、地点及适用的故事评审；不等于已交付'});
         stage('committing');
-        return {image,title:note.title as string,note:note.note as string,generation:{...(story?{storyLocation:story.node.location,...(expressive?{portrayal:imageReview.portrayal}:{}),storyPolicy:story.policy,storyPlanHash:story.planHash,previousCardsHash:story.priorHash,visualEvidence:{imageSha:hash(image),facts:imageReview.facts,...(stateReview?{paperStates:imageReview.paperStates,...(observationReview?{paperObservations:imageReview.paperObservations}:{} )}:{}),reviewHash:hash(Buffer.from(JSON.stringify(imageReview)))}}:{}),policy:spec.policy,noteFormatting:'sentence-boundary-length-v1',...(spec.policy===POLICY?{placeScopeVersion:spec.placeScopeVersion??'v1',noteReviewVersion:spec.noteReviewVersion??'v1'}:{}),imageModel:spec.imageModel,visionModel:spec.visionModel,characterSha:spec.characterSha,styleSha:spec.styleSha,imageAttempt:cp.imageAttempt,noteAttempt:attempt,...(spec.sceneSnapshot?{catalogVersion:spec.sceneSnapshot.catalogVersion,sceneLabel:spec.sceneSnapshot.label}:{}),...(spec.sceneVariant?{sceneVariant:spec.sceneVariant,noteVoice:spec.noteVoice}:{})}} satisfies Artifact;
+        return {image,title:note.title as string,note:note.note as string,generation:{...(story?{storyLocation:story.node.location,...(expressive?{portrayal:imageReview.portrayal}:{}),storyPolicy:story.policy,storyPlanHash:story.planHash,previousCardsHash:story.priorHash,...(story.delivery?.tier==='degraded'?{deliveryTier:'degraded',degradedNotes:story.delivery.notes}:{}),visualEvidence:{imageSha:hash(image),facts:imageReview.facts,...(stateReview?{paperStates:imageReview.paperStates,...(observationReview?{paperObservations:imageReview.paperObservations}:{} )}:{}),reviewHash:hash(Buffer.from(JSON.stringify(imageReview)))}}:{}),policy:spec.policy,noteFormatting:'sentence-boundary-length-v1',...(spec.policy===POLICY?{placeScopeVersion:spec.placeScopeVersion??'v1',noteReviewVersion:spec.noteReviewVersion??'v1'}:{}),imageModel:spec.imageModel,visionModel:spec.visionModel,characterSha:spec.characterSha,styleSha:spec.styleSha,imageAttempt:cp.imageAttempt,noteAttempt:attempt,...(spec.sceneSnapshot?{catalogVersion:spec.sceneSnapshot.catalogVersion,sceneLabel:spec.sceneSnapshot.label}:{}),...(spec.sceneVariant?{sceneVariant:spec.sceneVariant,noteVoice:spec.noteVoice}:{})}} satisfies Artifact;
       }
       rejectNote('IMAGE_TEXT_CONFLICT',review);
       if(typeof review.has_explicit_conflict!=='boolean'||!Array.isArray(review.conflicts)||!strings(review.uncertain_details))invalidSchema('image-'+cp.imageAttempt+'-note-'+attempt+'-review','文案审核格式无效，不能按通过处理');
     }
-    throw new PipelineError('两版文案均未通过，请检查后恢复；不会因此重新生图');
+    throw new PipelineError('两版文案（短笺）均未通过明确的图文反证检查；图片与进度已保留，不会因此重新生图，重试同一流程也不会产生新的文字结果','content_invalid','note');
   };
   generate.prepare=trip=>{
     validateId(trip.id);
@@ -346,7 +348,9 @@ export function createCloudGenerator(options:CloudOptions, transport:Transport=c
     atomicJson(join(folder,'spec.json'),spec);return {...spec};
   };
   generate.confirmRetry=(trip,confirmed)=>{
-    const cp=getCp(trip);if(cp.pendingImage){
+    // Image allowance is two attempts per trip; each explicitly confirmed grant adds exactly one more.
+    const imageGrants=consumedGrantCount(options.root,trip.series?.id??trip.id,'image',trip.id),imageLimit=2+imageGrants;
+    const cp=getCp(trip,imageLimit);if(cp.pendingImage){
       const file=join(tripFolder(trip),'image-'+cp.imageAttempt+'.png');
       if(existsSync(file))return;
       if(!confirmed)throw new PipelineError('上次图片结果不确定，请确认远端结果与可能费用后再显式重试');

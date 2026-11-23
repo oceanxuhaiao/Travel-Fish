@@ -162,3 +162,23 @@ describe('一次性追加授权',()=>{
   expect(s2.store.snapshot().trips.find(t=>t.id===trip.id)!.status).toBe('traveling');
  });
 });
+
+describe('图片阶段的追加授权',()=>{
+ it('失败阶段为图片时授予图片许可，消费一次后必须重新确认',async()=>{
+  const generator=vi.fn(async()=>{throw new PipelineError('本趟图片请求已达到上限（2次）；需要你再次确认追加一次图片制作，不会自动重试','budget_exhausted','image');});
+  const s=make(generator),trip=s.start('forest',1);time+=60000;await s.tick();
+  const failed=s.store.snapshot().trips.find(t=>t.id===trip.id)!;
+  expect(failed.failure).toMatchObject({kind:'budget_exhausted',stage:'image'});
+  expect(()=>s.retry(trip.id)).toThrow('显式追加一次重试授权');
+  const grant=s.grantRetry(trip.id);
+  expect(grant).toMatchObject({stage:'image',kind:'image'});
+  expect(grant.message).toContain('追加一次图片制作');expect(grant.message).not.toContain('只追加一次文字调用');
+  s.retry(trip.id,false,grant.grantId);
+  expect(s.store.snapshot().trips.find(t=>t.id===trip.id)!.status).toBe('traveling');
+  time+=60000;await s.tick();
+  expect(s.store.snapshot().trips.find(t=>t.id===trip.id)!.failure?.stage).toBe('image');
+  expect(()=>s.retry(trip.id,false,grant.grantId)).toThrow('已经用过');
+  const next=s.grantRetry(trip.id);expect(next.grantId).not.toBe(grant.grantId);expect(next.kind).toBe('image');
+  expect(generator).toHaveBeenCalledTimes(2);
+ });
+});

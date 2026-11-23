@@ -193,3 +193,34 @@ it('策略拦截的失败给出结束出口而不诱导重试',async()=>{
  expect(f.ctx.invoke.mock.calls.filter(c=>c[0]==='retry')).toHaveLength(0);
  expect(f.ctx.root.textContent).toContain('大概率仍会失败');
 });
+it('按可接受瑕疵交付的来信在册页标注普通成品，翻面如实说明降级项',async()=>{
+ vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:test');vi.spyOn(URL,'revokeObjectURL').mockImplementation(()=>{});
+ const degraded={...card('plain','forest'),deliveryTier:'degraded',degradedNotes:[{soft:'S1',stage:'story-review',dimension:'detail',detail:'评分偏低（1/3，2 分为具体自然可用）：受控低分；已按可接受瑕疵交付，未调高评分'}]};
+ const f=fixture([degraded]);f.setState({trip:null,cards:[degraded],minutes:120,generatorConnected:true});
+ await mountAlbum(f.ctx);await flush();
+ const tag=f.ctx.root.querySelector('.pc-summary-tag');expect(tag).not.toBeNull();expect(tag.textContent).toBe('普通成品');expect(tag.getAttribute('title')).toContain('评分偏低');
+ [...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='打开来信：'+degraded.title)?.click();
+ const postcard=[...f.ctx.root.querySelectorAll('.pc-postcard')][0];postcard.click();await flush();await flush();
+ [...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='翻到背面读信').click();await flush();
+ expect(f.ctx.root.textContent).toContain('按可接受瑕疵交付');expect(f.ctx.root.textContent).toContain('未调高评分');
+});
+it('失败态可重新核查本地结果，只读查询不触发重试或生成',async()=>{
+ const f=fixture();
+ f.setState({trip:{id:'spent-audit',scene:'snow',status:'failed',startedAt:0,dueAt:0,error:'图片请求已达到上限',failure:{kind:'budget_exhausted',stage:'image',message:'图片请求已达到上限',at:1}},cards:[],minutes:120,generatorConnected:true});
+ const base=f.ctx.invoke.getMockImplementation();
+ f.ctx.invoke.mockImplementation(async(method,args)=>method==='qualify'?{verdict:'reusable',localModelCalls:0,stages:[{stage:'image-1',source:'image',reusable:true,detail:'本地候选图可解码且哈希一致，重试会先复用，不重新生图'}],notes:['本次核查只读本地文件']}:base(method,args));
+ await mountAlbum(f.ctx);await flush();
+ [...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='重新核查本地结果').click();await flush();await flush();
+ expect(f.ctx.invoke).toHaveBeenCalledWith('qualify',['spent-audit']);
+ expect(f.ctx.root.textContent).toContain('本地找到 1 处可复用结果');
+ expect(f.ctx.invoke.mock.calls.filter(c=>['retry','grantRetry','start','startShort'].includes(c[0]))).toHaveLength(0);
+});
+it('文案阶段明确反证失败时给出结束出口，不诱导无意义的同流程重试',async()=>{
+ const f=fixture();
+ f.setState({trip:{id:'note-conflict',scene:'coast',status:'failed',startedAt:0,dueAt:0,error:'两版短笺均未通过明确的图文反证检查',failure:{kind:'content_invalid',stage:'note',message:'两版短笺均未通过明确的图文反证检查',at:1}},cards:[],minutes:120,generatorConnected:true});
+ await mountAlbum(f.ctx);await flush();
+ [...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='重试本阶段').click();await flush();
+ expect(f.ctx.invoke.mock.calls.filter(c=>c[0]==='retry')).toHaveLength(0);
+ expect(f.ctx.root.textContent).toContain('不会产生新的文字结果');
+ expect([...f.ctx.root.querySelectorAll('button')].some(b=>b.textContent==='结束本次旅行')).toBe(true);
+});

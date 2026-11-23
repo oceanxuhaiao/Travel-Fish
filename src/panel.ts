@@ -6,12 +6,13 @@ import { join } from 'node:path';
 import { PNG } from 'pngjs';
 import { zipSync,strToU8 } from 'fflate';
 import {collectionSceneLabel,type Card,type Scene,type TravelService,type Trip} from './travel.ts';
+import {qualifyLocalRecovery} from './recovery-audit.ts';
 
 export type PublicTrip=Omit<Trip,'generation'|'sceneSnapshot'|'shortPlan'|'plannerVersion'>;
-export type PublicCard=Pick<Card,'tripId'|'scene'|'title'|'note'|'completedAt'|'sceneLabel'|'series'>;
+export type PublicCard=Pick<Card,'tripId'|'scene'|'title'|'note'|'completedAt'|'sceneLabel'|'series'>&{deliveryTier?:'degraded';degradedNotes?:Array<{soft:string;stage:string;detail:string}>};
 export interface PanelSnapshot { journey?:ReturnType<TravelService['journeyStatus']>;trip:PublicTrip|null; cards:Array<PublicCard&{unread?:boolean}>; mailbox?:MailboxSnapshot; mailboxWindow?:MailboxWindowState; minutes:number; generatorConnected:boolean; }
 export function tripView(trip:Trip|null):PublicTrip|null {if(!trip)return null;const {generation,sceneSnapshot,shortPlan,plannerVersion,...view}=trip;return view;}
-function cardView(card:Card):PublicCard {const {tripId,scene,title,note,completedAt,series}=card;const sceneLabel=collectionSceneLabel(card);return {tripId,scene,title,note,completedAt,...(series?{series}:{}),...(sceneLabel?{sceneLabel}:{})};}
+function cardView(card:Card):PublicCard {const {tripId,scene,title,note,completedAt,series}=card;const sceneLabel=collectionSceneLabel(card),degraded=card.generation?.deliveryTier==='degraded'&&Array.isArray(card.generation.degradedNotes)?card.generation.degradedNotes:[];return {tripId,scene,title,note,completedAt,...(series?{series}:{}),...(sceneLabel?{sceneLabel}:{}),...(degraded.length?{deliveryTier:'degraded' as const,degradedNotes:degraded}:{})};}
 const binary=(mime:string,bytes:Uint8Array)=>({$binary:{mime,base64:Buffer.from(bytes).toString('base64')}});
 
 /** Standard panel data surface; every mutation uses the existing travel service. */
@@ -32,6 +33,7 @@ export class PostcardPanel {
       case 'endJourney':this.service.endJourney(String(args[0]));return this.snapshot();
       case 'retrySummary':if(!this.retrySummary)throw Error('总结服务未接入');this.retrySummary(String(args[0]));return this.snapshot();
       case 'cancel': this.service.cancel(String(args[0]));return this.snapshot();
+      case 'qualify': {const id=String(args[0]),trip=this.service.store.snapshot().trips.find(t=>t.id===id);if(!trip)throw new Error('找不到这趟旅行');return qualifyLocalRecovery(this.service.store.root,trip);}
       case 'grantRetry': return this.service.grantRetry(String(args[0]));
       case 'retry': this.service.retry(String(args[0]),args[1]===true,typeof args[2]==='string'?args[2]:undefined);return this.snapshot();
       case 'image': case 'thumbnail': case 'png': case 'zip': {

@@ -58,8 +58,18 @@ export class HostModelBridge {
   if(route?.cacheOnly&&!existsSync(file))throw new PipelineError('恢复预算已耗尽且没有可复用的宿主结果；已保存进度，暂缓交付','budget_exhausted',meta.label);
   if(existsSync(file))task=this.load(id);else{task={id,digest,tripId:meta.tripId,label:meta.label,payload,createdAt:Date.now()};atomicJson(file,task);}
   const response=(r:Record<string,unknown>)=>({model:'host-model',choices:[{finish_reason:'stop',message:{content:JSON.stringify(r)}}]});
-  if(task.result){route?.outputContract?.validate(task.result);return response(task.result);}
   const promptText=(task.payload.messages as any[])?.[0]?.content?.filter?.((x:any)=>x.type==='text').map((x:any)=>x.text).join('\n')??'';
+  if(task.result&&route?.outputContract){
+   // A result accepted by an older build is re-checked locally: repaired when the current rules allow it. If the current
+   // contract still rejects it, surface that contract error and keep the original file instead of silently discarding it.
+   const stored=decodeAndRecover(task.label,JSON.stringify(task.result),route.outputContract,promptText,route.repairHints);
+   if(stored.feedback.valid){
+    if(stored.repairs.length){task.result=stored.value;task.recovery={version:RECOVERY_VERSION,sourceSubmission:task.submissions?.length??0,repairs:stored.repairs,selection:'stored-result'};atomicJson(file,task);}
+    return response(task.result!);
+   }
+   route.outputContract.validate(task.result);
+  }
+  if(task.result)return response(task.result);
   if(route?.outputContract){
    const replay=this.replay(task,route.outputContract,promptText,route.repairHints);
    if(replay){task.result=replay.value;task.recovery={version:RECOVERY_VERSION,sourceSubmission:replay.sourceSubmission,repairs:replay.repairs,selection:replay.selection};atomicJson(file,task);return response(task.result!);}

@@ -3,6 +3,7 @@ import type {StoryPlan} from './journey-types.ts';
 import {objectContract,OutputValidationError,type OutputContract} from './model-feedback.ts';
 import {PipelineError} from './generation.ts';
 import {MATERIAL_GUIDANCE} from './materials.ts';
+import type {DeliveryTier} from './delivery-tier.ts';
 
 type History=Array<{id:string;signature:any}>;
 interface Direction {id:string;motive:string;chain:string[];motifIds:string[];development:string;ending:string;}
@@ -12,7 +13,9 @@ export interface StagedPlanningOptions {
  assertActive:()=>void;phase:(phase:string)=>void;
  validatePlan:(plan:any,materialIds:string[],nodeCount:number)=>void;
  reviewValid:(review:any,plan:StoryPlan,history:History)=>void;
- accepted:(review:any,plan:StoryPlan,history:History)=>boolean;
+ /** Clean accept or a score/repetition-only degradation; null means the candidate stays rejected. */
+ accepted:(review:any,plan:StoryPlan,history:History)=>DeliveryTier|null;
+ onAccepted?:(plan:StoryPlan,tier:DeliveryTier)=>void;
 }
 const text=(v:unknown,max:number)=>typeof v==='string'&&!!v.trim()&&v.length<=max;
 /** Exact evidence projection; never truncate source statements or manufacture a feeling. */
@@ -89,7 +92,8 @@ export async function stagedPlanning(o:StagedPlanningOptions):Promise<StoryPlan>
   o.phase('story_review');
   const review=await request('v2-review-'+(index+1),'独立完整七维评审，核对来源真实处境/行动/结果与适用前提、明确原创边界、节点连续性和历史差异。每个候选返回{candidateId,candidateVersion,historyIds,ruleIssues:字符串数组,decision:accept|revise|reject|pending,ratings:[{dimension,score,reason}]}，包在{reviews:数组}中。七维detail/agency/connection/standalone_payoff/visual/novelty/naturalness，score为0到3，2为具体自然可用；无历史novelty.score=null。有规则问题或任何适用维度低于2不得accept。historyIds逐字复制history的全部id，candidateId/candidateVersion逐字复制plan。平静观景无需强加人物互动；不得为过审虚构来源感受或经历。',
    {direction,plans:[plan],materials:selected,history:o.history},objectContract('story-review-seven-dimensions-v2',v=>o.reviewValid(v,plan,o.history)));
-  if(o.accepted(review,plan,o.history))return plan;
+  const tier=o.accepted(review,plan,o.history);
+  if(tier){o.onAccepted?.(plan,tier);return plan;}
  }
  throw new PipelineError('首选与备用故事未通过完整评审；进度已保存，尚未生图，不会自动增加候选');
 }

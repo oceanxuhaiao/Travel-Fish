@@ -7,11 +7,23 @@ export function validateExpressiveNode(node:StoryNode){
  if(!e||!['before','trigger','response','after'].every(k=>typeof (e as any)[k]==='string'&&(e as any)[k].trim()))throw Error('emotionalBeat缺少before/trigger/response/after，需具体事件、角色反应及感受');
  if(!v||!['front','side','three-quarter-back'].includes(v.orientation)||!v.action?.trim()||!v.expression?.trim())throw Error('visualBeat须有受控orientation、具体action和expression');
 }
-export function validateExpressivePlan(p:StoryPlan,nodeCount=3){
+/** Per-node structure only: fields must exist and use the controlled vocabulary. Repetition is a soft quality item. */
+export function validateExpressiveNodes(p:StoryPlan){
  p.nodes.forEach(validateExpressiveNode);
- if(nodeCount<2)return;
- if(new Set(p.nodes.map(n=>n.visualBeat!.orientation)).size<2||new Set(p.nodes.map(n=>n.visualBeat!.action.trim())).size<2||new Set(p.nodes.map(n=>n.visualBeat!.expression.trim())).size<2)throw Error('三节点角色表现重复：至少两种朝向、动作、神态，不能只换背景');
- if(new Set(p.nodes.map(n=>n.emotionalBeat!.trigger.trim())).size<2||new Set(p.nodes.map(n=>n.emotionalBeat!.response.trim())).size<2)throw Error('情绪发展重复：不同节点须有各自具体触发与角色反应');
+}
+/** Soft quality findings, returned instead of thrown so a plain-but-usable plan can still be delivered with a note. */
+export function expressiveRepetitionIssues(p:StoryPlan,nodeCount=3):string[] {
+ if(nodeCount<2)return [];
+ const issues:string[]=[];
+ if(new Set(p.nodes.map(n=>n.visualBeat!.orientation)).size<2||new Set(p.nodes.map(n=>n.visualBeat!.action.trim())).size<2||new Set(p.nodes.map(n=>n.visualBeat!.expression.trim())).size<2)issues.push('三节点角色表现重复：至少两种朝向、动作、神态，不能只换背景');
+ if(new Set(p.nodes.map(n=>n.emotionalBeat!.trigger.trim())).size<2||new Set(p.nodes.map(n=>n.emotionalBeat!.response.trim())).size<2)issues.push('情绪发展重复：不同节点须有各自具体触发与角色反应');
+ return issues;
+}
+/** Kept for callers that gate on the full expressive bar (for example a human pre-approval checkpoint). */
+export function validateExpressivePlan(p:StoryPlan,nodeCount=3){
+ validateExpressiveNodes(p);
+ const issues=expressiveRepetitionIssues(p,nodeCount);
+ if(issues.length)throw Error(issues[0]);
 }
 export function validatePortrayal(p:any):asserts p is Portrayal {
  const enums={orientation:['front','side','three-quarter','back','uncertain'],action:['idle','walk','sit','bend','reach','interact','other','uncertain'],expression:['neutral','curious','focused','surprised','pleased','disappointed','amused','not-visible','other','uncertain']};

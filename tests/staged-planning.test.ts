@@ -89,7 +89,7 @@ async function inspectStage(stage:string,mutate:(v:any)=>void){
  let feedback:OutputFeedback|undefined;
  const directions=Array.from({length:3},(_,i)=>({id:'d'+i,motive:'动机',chain:['因果'+i],motifIds:['m'],development:'dev',ending:'end'}));
  const assessments=directions.map(d=>({directionId:d.id,accepted:true,issues:[],reason:'可用'}));
- try{await stagedPlanning({owner:'probe',nodeCount:1,scene:'lake',materials:[{id:'m'}],history:[],schema:{},policy:'',vocabulary:{development:['dev'],ending:['end']},assertActive(){},phase(){},validatePlan(){},reviewValid(){},accepted:()=>true,call:async(label,prompt,contract)=>{
+ try{await stagedPlanning({owner:'probe',nodeCount:1,scene:'lake',materials:[{id:'m'}],history:[],schema:{},policy:'',vocabulary:{development:['dev'],ending:['end']},assertActive(){},phase(){},validatePlan(){},reviewValid(){},accepted:()=>({tier:'standard' as const,notes:[]}),call:async(label,prompt,contract)=>{
    const value=label==='v2-directions'?{directions:structuredClone(directions)}:{assessments:structuredClone(assessments),rankedIds:['d0']};
    if(label===stage){mutate(value);feedback=outputFeedback(label,contract,value);if(stage==='v2-selection')expect(prompt).toContain('不得为了过审清空issues');throw Error('probe-complete');}
    contract.validate(value);return value;

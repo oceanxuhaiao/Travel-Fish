@@ -43,8 +43,10 @@ export class PostcardRecords {
   read(tripId: string) {
     const card = this.store.card(tripId);
     if (!card) throw new Error('没有这份已完成收藏');
+    const degraded=card.generation?.deliveryTier==='degraded'&&Array.isArray(card.generation.degradedNotes)?card.generation.degradedNotes:[];
     return {tripId:card.tripId, scene:card.scene, ...(card.series?{series:card.series}:{}),...(collectionSceneLabel(card)?{sceneLabel:collectionSceneLabel(card)}:{}),
       title:card.title, note:card.note, completedAt:card.completedAt, sha256:card.sha256,
+      ...(degraded.length?{deliveryTier:'degraded' as const,degradedNotes:degraded,deliveryBoundary:'这封来信按可接受瑕疵交付：结构、归属、角色身份、图文一致与来源均已复核；降级项只是质量偏好，不代表首次即完美通过。'}:{}),
       source:this.source(card), evidenceBoundary:RECORD_EVIDENCE_BOUNDARY};
   }
 
