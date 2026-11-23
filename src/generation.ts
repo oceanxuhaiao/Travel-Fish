@@ -11,7 +11,7 @@ import {freezeScene,type SceneSnapshot} from './scenes.ts';
 import {PORTRAYAL_INSTRUCTION,validatePortrayal,portrayalIssues} from './story-quality.ts';
 import type {StoryContext} from './journey-types.ts';
 import {generationContract,objectContract,outputFeedback,feedbackPrompt,type OutputContract} from './model-feedback.ts';
-import {recoverOutput,RECOVERY_VERSION} from './delivery-recovery.ts';
+import {recoverOutput,RECOVERY_VERSION,type RepairHints} from './delivery-recovery.ts';
 
 import {ImageFailure,imageNetworkFailure,imageCauseCode,validImageFailureInfo,type ImageFailureInfo} from './image-failure.ts';
 import {GeminiDiagnostics,MAX_IMAGE_RESPONSE_BYTES,recordImageProcessing} from './image-diagnostics.ts';
@@ -29,13 +29,14 @@ const COMMON = '生成完整收藏级旅行明信片，竖版2:3，单张。图1
 const EXPRESSIVE_COMMON=COMMON.replace('人物含帽约占画面高度18%至33%，具体按本次景别，风景主导','人物大小与镜头距离完全遵循故事节点composition指定的景别，不设统一人物占比').replace('脸部、头饰','身份特征、头饰')+' 参考图不能作为姿态模板，必须重新画朝向、动作与神态，不要每次正面直立看镜头。画面前中远至少两层可探索环境细节，避免大片空白天空取代场景。本轮：';
 
 type Json = Record<string,unknown>;
-export interface ImageRoute {backend?:ImageBackend;baseUrl?:string;outputContract?:OutputContract;cacheOnly?:boolean;}
+export interface ImageRoute {backend?:ImageBackend;baseUrl?:string;outputContract?:OutputContract;cacheOnly?:boolean;repairHints?:RepairHints;extraAttempts?:number;}
 export function imageEndpoint(base:string){let u:URL;try{u=new URL(base);}catch{throw new PipelineError('生图API请求地址无效');}if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.search||u.hash)throw new PipelineError('生图接口只支持不含凭据或查询参数的HTTP(S)地址');return u.href.replace(/\/$/,'')+(u.pathname.replace(/\/$/,'').endsWith('/images/generations')?'':'/images/generations');}
 export interface CloudOptions { storyContext?:(trip:Readonly<Trip>,signal:AbortSignal)=>Promise<StoryContext>;imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string;requestPngOutput?:boolean; imageModel?:string; hostReady?:()=>boolean; hostTransport?:Transport; useHostModel?:boolean; root:string; characterReference:string; styleReference:string; secret:(name:string)=>string; imageProxyUrl?:string; visionProxyUrl?:string; recentTitles?:()=>string[]; recentVariants?:(scene:Scene)=>string[]; }
 export type Transport = (kind:'image'|'text', payload:Json, signal:AbortSignal,route?:ImageRoute)=>Promise<Json>;
 interface Spec {visibleStatePolicy?:'v1'|'v2'|'v3';visualPolicy?:'expressive-v1'; imageBackend?:ImageBackend;imageBaseUrl?:string;imageSize?:string;requestPngOutput?:boolean;policy:string; imageModel:string; visionModel:string; prompt:string; characterSha:string; styleSha:string; scenePrompt?:string; sceneVariant?:string; noteVoice?:string; sceneSnapshot?:SceneSnapshot; placeScopeVersion?:'v1'|'v2'; noteReviewVersion?:'v1'|'v2'|'v3'; }
 interface Checkpoint { schema:1; imageAttempt:number; pendingImage:boolean; receivedImageError?:string;imageFailure?:ImageFailureInfo;imageHttpFailure?:{status:number;diagnosticId?:string};stage:string; textRequests:Record<string,number>; errors:string[]; }
-export class PipelineError extends Error { constructor(message:string) {super(message);this.name='PostcardPipelineError';} }
+export type FailureKind='transient'|'budget_exhausted'|'content_invalid'|'policy_blocked'|'remote_unknown'|'unknown';
+export class PipelineError extends Error { constructor(message:string,readonly kind:FailureKind='unknown',readonly stage?:string) {super(message);this.name='PostcardPipelineError';} }
 export class HttpError extends Error { constructor(readonly status:number,readonly diagnosticId?:string) {super('Cloud HTTP '+status);} }
 const hash = (b:Uint8Array)=>createHash('sha256').update(b).digest('hex');
 const load = <T>(file:string):T=>JSON.parse(readFileSync(file,'utf8')) as T;

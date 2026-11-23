@@ -2,13 +2,13 @@ import {createHash} from 'node:crypto';
 import {existsSync,mkdirSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {atomicJson,type Trip,type TravelService,type Card} from './travel.ts';
+import {atomicJson,consumedGrantCount,type Trip,type TravelService,type Card} from './travel.ts';
 import type {Transport} from './generation.ts';
 import {GROUNDING_GUIDANCE,validateGroundedPlan,EMOTIONAL_GUIDANCE,VISUAL_GUIDANCE,validateExpressiveNode,validateExpressivePlan} from './story-quality.ts';
 import type {StoryNode,StoryPlan,StoryContext} from './journey-types.ts';
-import {objectContract,decisionContract,outputFeedback,feedbackPrompt,OutputValidationError,type OutputContract} from './model-feedback.ts';
+import {objectContract,decisionContract,feedbackPrompt,OutputValidationError,type OutputContract} from './model-feedback.ts';
 import {PipelineError} from './generation.ts';
-import {recoverOutput,parseBoundedOutput,RECOVERY_VERSION} from './delivery-recovery.ts';
+import {decodeAndRecover,RECOVERY_VERSION,type RepairHints} from './delivery-recovery.ts';
 import {selectMaterialPool,MATERIAL_GUIDANCE} from './materials.ts';
 import {checkpointPrompt,StoryCheckpointError} from './story-checkpoint.ts';
 import {stagedPlanning,planningMaterials} from './staged-planning.ts';
@@ -79,22 +79,29 @@ export class StoryEngine {
  stop(){this.summaryController?.abort();return this.summaryFlight;}
  private journey(id:string){const j=this.service.store.snapshot().journeys?.find(j=>j.id===id);if(!j)throw Error('系列不存在');return j;}
  private assertTrip(trip:Readonly<Trip>,signal:AbortSignal){signal.throwIfAborted();const current=this.service.store.snapshot().trips.find(t=>t.id===trip.id);if(!trip.series||!current||!['generating','traveling'].includes(current.status)||this.journey(trip.series.id).endedAt)throw Error('本轮已取消或结束');}
- private async call(id:string,label:string,prompt:string,signal:AbortSignal,contract:OutputContract=objectContract('story-object-v1')){
+ private async call(id:string,label:string,prompt:string,signal:AbortSignal,contract:OutputContract=objectContract('story-object-v1'),hints:RepairHints={}){
   if(prompt.length>42000)throw Error('故事上下文超过上限');
   const folder=join(this.service.store.root,'journey-tasks',id);mkdirSync(folder,{recursive:true});
   const file=join(folder,label+'.json'),requestHash=hash(prompt);
   let cp=existsSync(file)?JSON.parse(readFileSync(file,'utf8')):{requestHash,prompt,attempts:0};
   prompt=checkpointPrompt(label,cp,prompt);
   if(cp.response){contract.validate(cp.response);return cp.response;}
-  if(!Number.isInteger(cp.attempts)||cp.attempts<0)throw new PipelineError('故事检查点次数无效，已保存进度，暂缓交付');
-  const cacheOnly=cp.attempts>=2;
+  if(!Number.isInteger(cp.attempts)||cp.attempts<0)throw new PipelineError('故事检查点次数无效，已保存进度，暂缓交付','content_invalid',label);
+  const extra=consumedGrantCount(this.service.store.root,id,label),cacheOnly=cp.attempts>=2+extra;
   if(!cacheOnly){cp.attempts++;atomicJson(file,cp);}
-  const result=await this.transport('text',{model:'host-model',stream:false,response_format:{type:'json_object'},max_tokens:7000,messages:[{role:'user',content:[{type:'text',text:prompt}]}],__postcardTask:{tripId:id,label}},signal,{outputContract:contract,...(cacheOnly?{cacheOnly:true}:{})});
-  signal.throwIfAborted();let value:any;
-  try{const raw=(result?.choices as any[])?.[0]?.message?.content;value=parseBoundedOutput(raw);}catch{if(cacheOnly)throw new PipelineError('故事阶段已达两次尝试上限；无可本地修复的缓存，已保存进度，暂缓交付');atomicJson(join(folder,label+'-feedback.json'),outputFeedback(label,objectContract('bounded-json-v1',()=>{throw Error('结果必须是有效的有界JSON');}),{}));throw Error('故事宿主结果不是有效的有界JSON');}
-  const repaired=recoverOutput(label,value,contract,prompt);if(repaired.repairs.length){atomicJson(join(folder,label+'-local-recovery.json'),{version:RECOVERY_VERSION,original:value,repairs:repaired.repairs});value=repaired.value;}
-  const feedback=outputFeedback(label,contract,value);atomicJson(join(folder,label+'-feedback.json'),feedback);
-  if(!feedback.valid){cp.rejectedResponse=value;atomicJson(file,cp);throw Error(feedback.errors.map(e=>e.path+'：'+e.message+(e.expected&&e.expected!==contract.id?'（期望：'+e.expected+'）':'')).join('；'));}
+  const result=await this.transport('text',{model:'host-model',stream:false,response_format:{type:'json_object'},max_tokens:7000,messages:[{role:'user',content:[{type:'text',text:prompt}]}],__postcardTask:{tripId:id,label}},signal,{outputContract:contract,repairHints:hints,extraAttempts:extra,...(cacheOnly?{cacheOnly:true}:{})});
+  signal.throwIfAborted();
+  const raw=(result?.choices as any[])?.[0]?.message?.content;
+  const decoded=decodeAndRecover(label,typeof raw==='string'?raw:'',contract,prompt,hints),feedback=decoded.feedback;
+  if(!feedback.valid){
+   atomicJson(join(folder,label+'-feedback.json'),feedback);
+   if(cacheOnly)throw new PipelineError('故事阶段已达两次尝试上限；本地修复仍无效，已保存进度，暂缓交付','budget_exhausted',label);
+   if(feedback.errors[0]?.code==='JSON_PARSE')throw Error('故事宿主结果不是有效的有界JSON');
+   cp.rejectedResponse=decoded.value;atomicJson(file,cp);
+   throw Error(feedback.errors.map(e=>e.path+'：'+e.message+(e.expected&&e.expected!==contract.id?'（期望：'+e.expected+'）':'')).join('；'));
+  }
+  if(decoded.repairs.length)atomicJson(join(folder,label+'-local-recovery.json'),{version:RECOVERY_VERSION,textHash:decoded.textHash,valueHash:decoded.valueHash,repairs:decoded.repairs});
+  const value=decoded.value;atomicJson(join(folder,label+'-feedback.json'),feedback);
   cp.response=value;atomicJson(file,cp);return value;
  }
  private async plan(trip:Readonly<Trip>,signal:AbortSignal):Promise<StoryPlan>{
@@ -112,7 +119,7 @@ export class StoryEngine {
    this.service.store.updateJourney(id,j=>{j.plan=reviewed.plan;});return reviewed.plan;
   }
   if(j.plannerVersion==='staged-v2'){const plan=await this.planV2(trip,signal,3);this.assertTrip(trip,signal);this.service.store.updateJourney(id,j=>{j.plan=plan;});return plan;}
-  if(j.plannerVersion)throw new PipelineError('未知故事规划版本；保留原记录，不混用缓存');
+  if(j.plannerVersion)throw new PipelineError('未知故事规划版本；保留原记录，不混用缓存','content_invalid');
   const library=JSON.parse(readFileSync(this.materialFile,'utf8'));
   let pool=selectMaterialPool(library,id,trip.scene);
   let history=(this.service.store.snapshot().journeys??[]).filter(h=>h.id!==id&&h.plan).slice(-8).map(h=>({id:h.id,stage:'selected_plan',signature:h.plan!.signature}));
@@ -161,7 +168,7 @@ export class StoryEngine {
   }
   const assertActive=()=>nodeCount===1?this.assertShortTrip(trip,signal):this.assertTrip(trip,signal);
   return stagedPlanning({owner,nodeCount,scene:trip.scene,materials:frozen.pool,history:frozen.history,schema:frozen.schema,policy:POLICY,vocabulary:VOCAB,
-   call:(label,prompt,contract)=>this.call(owner,label,prompt,signal,contract),assertActive,phase:phase=>this.service.preparationPhase(trip.id,phase),
+   call:(label,prompt,contract)=>this.call(owner,label,prompt,signal,contract,/^v2-expand-\d+$/.test(label)?{nodeCount,rootGroundingMove:true}:{nodeCount}),assertActive,phase:phase=>this.service.preparationPhase(trip.id,phase),
    validatePlan:(plan,ids,count)=>{validatePlan(plan,ids,count);validateExpressivePlan(plan,count);validateGroundedPlan(plan,count);},
    reviewValid:(review,plan,history)=>{validateStoryReview(review,[plan],history.map(h=>h.id));},
    accepted:(review,plan,history)=>validateStoryReview(review,[plan],history.map(h=>h.id)).includes(plan.id)&&history.every(h=>structureSimilarity(plan.signature,h.signature)<.8),
@@ -178,7 +185,7 @@ export class StoryEngine {
   const saved=this.service.store.snapshot().trips.find(t=>t.id===id)?.shortPlan;
   if(saved){validatePlan(saved,saved.motifIds,1);return saved;}
   if(trip.plannerVersion==='staged-v2'){const plan=await this.planV2(trip,signal,1);this.assertShortTrip(trip,signal);this.service.setShortPlan(id,plan);return plan;}
-  if(trip.plannerVersion)throw new PipelineError('未知短途规划版本；保留原记录，不混用缓存');
+  if(trip.plannerVersion)throw new PipelineError('未知短途规划版本；保留原记录，不混用缓存','content_invalid');
   const library=JSON.parse(readFileSync(this.materialFile,'utf8'));
   let pool=selectMaterialPool(library,id,trip.scene);
   let history=(this.service.store.snapshot().journeys??[]).filter(h=>h.id!==id&&h.plan).slice(-8).map(h=>({id:h.id,stage:'selected_plan',signature:h.plan!.signature}));

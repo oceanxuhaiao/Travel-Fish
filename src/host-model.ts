@@ -7,11 +7,13 @@ import {HostTaskObserver,type TaskTerminal} from './host-task-observer.ts';
 import {atomicJson} from './travel.ts';
 import {PipelineError,type Transport} from './generation.ts';
 import {objectContract,outputFeedback,type OutputContract,type OutputFeedback} from './model-feedback.ts';
-import {recoverOutput,parseBoundedOutput,RECOVERY_VERSION} from './delivery-recovery.ts';
-type Task={id:string;digest:string;tripId:string;label:string;payload:any;createdAt:number;result?:Record<string,unknown>;submissions?:Array<{resultJson:string;feedback:OutputFeedback}>;feedback?:OutputFeedback;recovery?:{version:string;sourceSubmission:number;repairs:string[]};lifecycle?:{activation:number;deliveries:number;reads:number;queuedAt?:number;deliveredAt?:number;readAt?:number;lastProgressAt:number;state:string;responseId?:string;terminalReason?:string;terminals?:TaskTerminal[]}};
+import {decodeAndRecover,parseBoundedOutput,RECOVERY_VERSION,type RepairHints} from './delivery-recovery.ts';
+type Task={id:string;digest:string;tripId:string;label:string;payload:any;createdAt:number;result?:Record<string,unknown>;submissions?:Array<{resultJson:string;feedback:OutputFeedback}>;feedback?:OutputFeedback;recovery?:{version:string;sourceSubmission:number;repairs:string[];selection?:string;textHash?:string;valueHash?:string};lifecycle?:{activation:number;deliveries:number;reads:number;queuedAt?:number;deliveredAt?:number;readAt?:number;lastProgressAt:number;state:string;responseId?:string;terminalReason?:string;terminals?:TaskTerminal[]}};
 export class HostModelBridge {
  private host?:WorldHost;private active=new Map<string,AbortSignal>();private closed=false;
  private contracts=new Map<string,OutputContract>();
+ private hints=new Map<string,RepairHints>();
+ private limits=new Map<string,number>();
  private generations=new Map<string,number>();
  private observer=new HostTaskObserver(event=>queueMicrotask(()=>{
   if(this.generations.get(event.taskId)!==event.activation||!this.active.has(event.taskId))return;
@@ -53,41 +55,52 @@ export class HostModelBridge {
   const meta=payload.__postcardTask as {tripId:string;label:string};if(!meta?.tripId||!meta?.label)throw new PipelineError('宿主任务缺少归属');
   if(route?.outputContract)payload={...payload,__postcardOutputContract:route.outputContract.id};
   const digest=this.digest(payload),id=digest,file=this.file(id);let task:Task;
-  if(route?.cacheOnly&&!existsSync(file))throw new PipelineError('恢复预算已耗尽且没有可复用的宿主结果；已保存进度，暂缓交付');
+  if(route?.cacheOnly&&!existsSync(file))throw new PipelineError('恢复预算已耗尽且没有可复用的宿主结果；已保存进度，暂缓交付','budget_exhausted',meta.label);
   if(existsSync(file))task=this.load(id);else{task={id,digest,tripId:meta.tripId,label:meta.label,payload,createdAt:Date.now()};atomicJson(file,task);}
   const response=(r:Record<string,unknown>)=>({model:'host-model',choices:[{finish_reason:'stop',message:{content:JSON.stringify(r)}}]});
   if(task.result){route?.outputContract?.validate(task.result);return response(task.result);}
-  const last=task.submissions?.at(-1);
-  if(last&&route?.outputContract){
-   try{const recovered=recoverOutput(task.label,parseBoundedOutput(last.resultJson),route.outputContract,task.payload.messages[0].content.filter((x:any)=>x.type==='text').map((x:any)=>x.text).join('\n'));
-    if(recovered.feedback.valid&&recovered.repairs.length){task.result=recovered.value;task.recovery={version:RECOVERY_VERSION,sourceSubmission:task.submissions!.length,repairs:recovered.repairs};atomicJson(file,task);return response(task.result!);}
-   }catch{/* Invalid historical output stays rejected; never spend an extra submission. */}
+  const promptText=(task.payload.messages as any[])?.[0]?.content?.filter?.((x:any)=>x.type==='text').map((x:any)=>x.text).join('\n')??'';
+  if(route?.outputContract){
+   const replay=this.replay(task,route.outputContract,promptText,route.repairHints);
+   if(replay){task.result=replay.value;task.recovery={version:RECOVERY_VERSION,sourceSubmission:replay.sourceSubmission,repairs:replay.repairs,selection:replay.selection};atomicJson(file,task);return response(task.result!);}
   }
-  if(route?.cacheOnly)throw new PipelineError('恢复预算已耗尽，现有结果未通过本地修复校验；已保存进度，暂缓交付');
-  if((task.submissions?.length??0)>=2)throw new PipelineError('本阶段两次结构提交已耗尽；继续准备不会增加次数，请先检查已保存反馈或决定结束原旅程，不会自动重新收费');
-  if(this.active.has(id))throw new PipelineError('同一宿主待办正在处理，请等待');
+  if(route?.cacheOnly)throw new PipelineError('恢复预算已耗尽，现有结果未通过本地修复校验；已保存进度，暂缓交付','budget_exhausted',task.label);
+  const limit=2+(this.limits.get(id)??0);
+  if((task.submissions?.length??0)>=limit)throw new PipelineError('本阶段两次结构提交已耗尽；继续准备不会增加次数，请先检查已保存反馈或决定结束原旅程，不会自动重新收费','budget_exhausted',task.label);
+  if(this.active.has(id))throw new PipelineError('同一宿主待办正在处理，请等待','transient',task.label);
   this.active.set(id,signal);
   const old=task.lifecycle;task.lifecycle={activation:(old?.activation??0)+1,deliveries:(old?.deliveries??0)+1,reads:old?.reads??0,lastProgressAt:Date.now(),state:'queued',terminals:old?.terminals};
   this.generations.set(id,task.lifecycle.activation);atomicJson(file,task);
   if(route?.outputContract)this.contracts.set(id,route.outputContract);
+  if(route?.repairHints)this.hints.set(id,route.repairHints);
+  if(route?.extraAttempts)this.limits.set(id,route.extraAttempts);
   try{
    const content=(payload.messages as any[])[0].content as any[];
    const blobs=content.filter(x=>x.type==='image_url').map((x:any,i:number)=>({bytes:this.preview(x.image_url.url),mime:'image/png',name:'postcard-task-'+i+'.png',fallbackText:'明信片任务图片；无法看图时不要猜测'}));
    await this.host.pushEvent({type:'postcard.host_task',source:'postcard',senderKey:'postcard',origin:'internal',ts:new Date().toISOString(),text:'已获用户明确同意的明信片制作任务（旅行或配置验证）正在处理，请执行本World待办，不要另开旅行或生图。配置验证不产生收藏或旅行；只有postcard_status/read确认后才可说已收到来信。先调用postcard_host_read，taskId='+id+'，按返回任务要求分析附件，再用postcard_host_submit提交JSON。只在工具中提交结果。此事件不是新旅行许可。',blobs},{trigger:'debounce'});
    task=this.load(id);if(task.lifecycle){task.lifecycle.queuedAt=Date.now();task.lifecycle.lastProgressAt=Date.now();atomicJson(file,task);}
    const started=Date.now(),hardEnd=started+this.timeoutMs*2;
-   while(Date.now()<hardEnd){signal.throwIfAborted();if(this.closed)throw new PipelineError('宿主任务已中断，候选已保存，可手动继续');task=this.load(id);if(task.result)return response(task.result);
-    if(task.lifecycle?.terminalReason==='output_truncated')throw new PipelineError((/plan|directions|selection|expand/.test(task.label)?'故事规划':'明信片文字任务')+'输出被截断（输出额度已用尽）；进度已保存，请手动继续，不会自动重画图片');
-    if(task.lifecycle?.terminalReason==='output_filtered')throw new PipelineError('宿主模型未完成当前任务（内容过滤）；进度已保存，不自动重试');
-    if(task.lifecycle?.terminalReason==='model_failed')throw new PipelineError('宿主模型本轮调用失败；进度已保存，请检查服务后手动继续');
-    if(task.lifecycle?.terminalReason==='event_discarded')throw new PipelineError('旅行待办已从宿主队列清除；进度已保存，不自动重投');
-    if((task.submissions?.length??0)>=2)throw new PipelineError('本阶段两次结构提交未通过：'+task.feedback?.errors.map(e=>e.message).join('；'));
+   while(Date.now()<hardEnd){signal.throwIfAborted();if(this.closed)throw new PipelineError('宿主任务已中断，候选已保存，可手动继续','transient',task.label);task=this.load(id);if(task.result)return response(task.result);
+    if(task.lifecycle?.terminalReason==='output_truncated')throw new PipelineError((/plan|directions|selection|expand/.test(task.label)?'故事规划':'明信片文字任务')+'输出被截断（输出额度已用尽）；进度已保存，请手动继续，不会自动重画图片','content_invalid',task.label);
+    if(task.lifecycle?.terminalReason==='output_filtered')throw new PipelineError('宿主模型未完成当前任务（内容过滤）；进度已保存，不自动重试','policy_blocked',task.label);
+    if(task.lifecycle?.terminalReason==='model_failed')throw new PipelineError('宿主模型本轮调用失败；进度已保存，请检查服务后手动继续','transient',task.label);
+    if(task.lifecycle?.terminalReason==='event_discarded')throw new PipelineError('旅行待办已从宿主队列清除；进度已保存，不自动重投','transient',task.label);
+    if((task.submissions?.length??0)>=limit)throw new PipelineError('本阶段两次结构提交未通过：'+task.feedback?.errors.map(e=>e.message).join('；'),'budget_exhausted',task.label);
     if(Date.now()>=(task.lifecycle?.lastProgressAt??started)+this.timeoutMs)break;
     await new Promise<void>(resolve=>setTimeout(resolve,100));}
    task=this.load(id);if(task.lifecycle){task.lifecycle.state='no_result_timeout';task.lifecycle.terminalReason='no_result_timeout';task.lifecycle.lastProgressAt=Date.now();atomicJson(file,task);}
-   throw new PipelineError('宿主模型等待超时；候选和待办已保存，请空闲后手动继续，不会自动重生图片');
-  }finally{this.active.delete(id);this.contracts.delete(id);this.generations.delete(id);this.observer.forget(id);}
+   throw new PipelineError('宿主模型等待超时；候选和待办已保存，请空闲后手动继续，不会自动重生图片','transient',task.label);
+  }finally{this.active.delete(id);this.contracts.delete(id);this.hints.delete(id);this.limits.delete(id);this.generations.delete(id);this.observer.forget(id);}
  };
+ /** Saved submissions are replayed newest-first inside the same frozen task; nothing is merged across tasks. */
+ private replay(task:Task,contract:OutputContract,prompt:string,hints?:RepairHints){
+  const list=task.submissions??[];
+  for(let i=list.length-1;i>=0;i--){
+   const decoded=decodeAndRecover(task.label,list[i]!.resultJson,contract,prompt,hints);
+   if(decoded.feedback.valid)return {value:decoded.value,sourceSubmission:i+1,repairs:decoded.repairs,selection:i===list.length-1?'latest-valid':'earlier-valid'};
+  }
+  return null;
+ }
  /** Recovery hints enumerate live references only; never guess or route a submitted result. */
  private referenceError(code:string,path:string,message:string):never{
   const activeTasks:Array<{taskId:string;stage:string}>=[];
@@ -112,18 +125,20 @@ export class HostModelBridge {
   const t=this.load(id);if(t.digest!==digest)this.referenceError('TASK_DIGEST_MISMATCH','digest','任务摘要不匹配；必须重新read同一taskId并逐字复制digest，不要复用其他任务摘要。');
   const contract=this.contracts.get(id);
   if(contract&&!t.result){
-   if((t.submissions?.length??0)>=2)throw Error('本阶段提交次数已耗尽，请查看反馈');
+   const limit=2+(this.limits.get(id)??0);
+   if((t.submissions?.length??0)>=limit)throw Error('本阶段提交次数已耗尽，请查看反馈');
    let value:unknown;let parseError='';
    try{value=parseBoundedOutput(resultJson);}catch(error){parseError=error instanceof Error?error.message:'JSON格式错误';}
    const check=parseError?objectContract(contract.id,()=>{throw Error(parseError);}):contract;
    const rawFeedback=outputFeedback(t.label,check,parseError?{}:value);
-   const recovered=!parseError?recoverOutput(t.label,value,contract,t.payload.messages[0].content.filter((x:any)=>x.type==='text').map((x:any)=>x.text).join('\n')):null;
-   const feedback=recovered?.feedback??rawFeedback;
+   const promptText=(t.payload.messages as any[])?.[0]?.content?.filter?.((x:any)=>x.type==='text').map((x:any)=>x.text).join('\n')??'';
+   const decoded=decodeAndRecover(t.label,typeof resultJson==='string'?resultJson:'',contract,promptText,this.hints.get(id));
+   const feedback=decoded.feedback;
    t.submissions??=[];t.submissions.push({resultJson:typeof resultJson==='string'?resultJson.slice(0,20000):'',feedback:rawFeedback});t.feedback=feedback;
-   if(feedback.valid){t.result=(recovered?.value??value) as Record<string,unknown>;if(t.lifecycle){t.lifecycle.state='submitted';delete t.lifecycle.terminalReason;t.lifecycle.lastProgressAt=Date.now();}}
-   if(recovered?.repairs.length)t.recovery={version:RECOVERY_VERSION,sourceSubmission:t.submissions.length,repairs:recovered.repairs};
+   if(feedback.valid){t.result=decoded.value as Record<string,unknown>;if(t.lifecycle){t.lifecycle.state='submitted';delete t.lifecycle.terminalReason;t.lifecycle.lastProgressAt=Date.now();}}
+   if(decoded.repairs.length)t.recovery={version:RECOVERY_VERSION,sourceSubmission:t.submissions.length,repairs:decoded.repairs,textHash:decoded.textHash,valueHash:decoded.valueHash};
    atomicJson(this.file(id),t);
-   return {accepted:feedback.valid,feedback,remainingSubmissions:2-t.submissions.length,nextAction:feedback.valid?'等待后续业务评审与交付回执':t.submissions.length<2?'按反馈修正后向同一任务重新提交':'停止提交，保留结果待用户处理'};
+   return {accepted:feedback.valid,feedback,remainingSubmissions:limit-t.submissions.length,nextAction:feedback.valid?'等待后续业务评审与交付回执':t.submissions.length<2?'按反馈修正后向同一任务重新提交':'停止提交，保留结果待用户处理'};
   }
   if(typeof resultJson!=='string'||resultJson.length>20000)throw new Error('结果过大或类型无效');let result:any;try{result=JSON.parse(resultJson);}catch{throw new Error('结果必须为JSON对象');}
   if(!result||typeof result!=='object'||Array.isArray(result))throw new Error('结果必须为JSON对象');
@@ -131,6 +146,6 @@ export class HostModelBridge {
   t.result=result;t.feedback=outputFeedback(t.label,objectContract('json-object-v1'),result);if(t.lifecycle){t.lifecycle.state='submitted';delete t.lifecycle.terminalReason;t.lifecycle.lastProgressAt=Date.now();}atomicJson(this.file(id),t);return {accepted:true,feedback:t.feedback};
  }
  tools():ToolDef[]{const params={type:'object',additionalProperties:false,properties:{taskId:{type:'string'}},required:['taskId']};return [
- {name:'postcard_host_read',description:'读取旅行宿主模型待办及候选图片。只有收到postcard.host_task才处理；编号错误时按回执activeTasks核对并重新read，不推断原任务超时，不开始旅行或生图。',tags:['read'],parameters:params,handler:async a=>{this.assertTaskActive(String(a.taskId));const t=this.load(String(a.taskId)),content=t.payload.messages[0].content;if(t.lifecycle){t.lifecycle.reads++;t.lifecycle.readAt=Date.now();t.lifecycle.lastProgressAt=Date.now();t.lifecycle.state='read';atomicJson(this.file(t.id),t);this.observer.read(t.id,t.lifecycle.activation);}return {text:JSON.stringify({taskId:t.id,digest:t.digest,feedback:t.feedback??null,remainingSubmissions:2-(t.submissions?.length??0),instructions:content.filter((x:any)=>x.type==='text').map((x:any)=>x.text).join('\n'),response:'按instructions要求生成JSON对象，调用postcard_host_submit的resultJson提交。不要只在聊天里回答。submit的accepted仅表示结构校验；若返回accepted=false，依反馈在remainingSubmissions范围内向同一任务修正提交，耗尽即停。'}),blobs:content.filter((x:any)=>x.type==='image_url').map((x:any,i:number)=>({bytes:this.preview(x.image_url.url),mime:'image/png',name:'candidate-'+i+'.png',fallbackText:'看不见图片则不得猜测'}))};}},
+ {name:'postcard_host_read',description:'读取旅行宿主模型待办及候选图片。只有收到postcard.host_task才处理；编号错误时按回执activeTasks核对并重新read，不推断原任务超时，不开始旅行或生图。',tags:['read'],parameters:params,handler:async a=>{this.assertTaskActive(String(a.taskId));const t=this.load(String(a.taskId)),content=t.payload.messages[0].content;if(t.lifecycle){t.lifecycle.reads++;t.lifecycle.readAt=Date.now();t.lifecycle.lastProgressAt=Date.now();t.lifecycle.state='read';atomicJson(this.file(t.id),t);this.observer.read(t.id,t.lifecycle.activation);}return {text:JSON.stringify({taskId:t.id,digest:t.digest,feedback:t.feedback??null,remainingSubmissions:2+(this.limits.get(String(a.taskId))??0)-(t.submissions?.length??0),instructions:content.filter((x:any)=>x.type==='text').map((x:any)=>x.text).join('\n'),response:'按instructions要求生成JSON对象，调用postcard_host_submit的resultJson提交。不要只在聊天里回答。submit的accepted仅表示结构校验；若返回accepted=false，依反馈在remainingSubmissions范围内向同一任务修正提交，耗尽即停。'}),blobs:content.filter((x:any)=>x.type==='image_url').map((x:any,i:number)=>({bytes:this.preview(x.image_url.url),mime:'image/png',name:'candidate-'+i+'.png',fallbackText:'看不见图片则不得猜测'}))};}},
  {name:'postcard_host_submit',description:'提交当前旅行宿主模型任务的JSON结果；非最终收藏回执。编号与digest必须逐字复制read；编号错误回执仅供找回引用，不能把旧结果改投其他任务。',tags:['write'],parameters:{...params,properties:{...params.properties,digest:{type:'string'},resultJson:{type:'string'}},required:['taskId','digest','resultJson']},handler:async a=>JSON.stringify(this.submit(String(a.taskId),String(a.digest),a.resultJson as string))}];}
 }

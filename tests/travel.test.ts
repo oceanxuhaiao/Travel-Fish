@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TravelService, TravelStore, type Artifact } from '../src/travel.ts';
+import { PipelineError } from '../src/generation.ts';
 
 let root: string, time: number;
 const openServices: TravelService[] = [];
@@ -93,4 +94,71 @@ it('预制完成后取消，归来时间后仍不交付',async()=>{
 });
 it('预制缓存损坏不自动重生图或发布',async()=>{
  const gen=vi.fn(async()=>artifact),s=new TravelService(new TravelStore(root),gen,()=>time,true);s.open();openServices.push(s);const trip=s.start('forest',120);await s.tick();writeFileSync(join(root,'prepared',trip.id,'postcard.png'),'corrupt');time=trip.dueAt;await s.tick();expect(s.status()?.status).toBe('failed');expect(gen).toHaveBeenCalledTimes(1);expect(s.store.cards()).toEqual([]);
+});
+
+describe('失败分型与重试阻断',()=>{
+ it('记录结构化失败类别，预算耗尽时在改状态前阻断重试',async()=>{
+  const generator=vi.fn(async()=>{throw new PipelineError('两次尝试上限','budget_exhausted','v2-expand-1');});
+  const s=make(generator),trip=s.start('forest',1);
+  time+=60000;await s.tick();
+  const failed=s.store.snapshot().trips.find(t=>t.id===trip.id)!;
+  expect(failed.status).toBe('failed');expect(failed.error).toBe('两次尝试上限');
+  expect(failed.failure).toMatchObject({kind:'budget_exhausted',stage:'v2-expand-1',message:'两次尝试上限'});
+  expect(()=>s.retry(trip.id)).toThrow('显式追加一次重试授权');
+  const after=s.store.snapshot().trips.find(t=>t.id===trip.id)!;
+  expect(after.status).toBe('failed');expect(after.failure?.kind).toBe('budget_exhausted');expect(after.error).toBe('两次尝试上限');
+  expect(generator).toHaveBeenCalledTimes(1);
+ });
+ it('内容策略拦截不空转；临时故障仍可手动重试并清空失败状态',async()=>{
+  const blocked=vi.fn(async()=>{throw new PipelineError('内容过滤','policy_blocked','plan-1');});
+  const s=make(blocked),t=s.start('forest',1);
+  time+=60000;await s.tick();
+  expect(()=>s.retry(t.id)).toThrow('策略拦截');
+  expect(blocked).toHaveBeenCalledTimes(1);
+  s.cancel(t.id);await s.close();openServices.length=0;
+  let calls=0;const generator=vi.fn(async()=>{if(calls++===0)throw new PipelineError('服务暂时不可用','transient');return artifact;});
+  const s2=make(generator),trip=s2.start('forest',1);
+  time+=60000;await s2.tick();
+  expect(s2.store.snapshot().trips.find(x=>x.id===trip.id)!.failure?.kind).toBe('transient');
+  s2.retry(trip.id);
+  expect(s2.store.snapshot().trips.find(x=>x.id===trip.id)!.failure).toBeUndefined();
+  time+=60000;await s2.tick();expect(s2.store.cards()).toHaveLength(1);
+ });
+});
+
+describe('一次性追加授权',()=>{
+ const spent=()=>vi.fn(async()=>{throw new PipelineError('两次尝试上限','budget_exhausted','v2-expand-1');});
+ it('申请幂等，消费一次后可重试；已消费不能复用，再失败可重新申请',async()=>{
+  const generator=spent(),s=make(generator),trip=s.start('forest',1);time+=60000;await s.tick();
+  expect(()=>s.retry(trip.id)).toThrow('显式追加一次重试授权');
+  const g1=s.grantRetry(trip.id),g2=s.grantRetry(trip.id);
+  expect(g2.grantId).toBe(g1.grantId);expect(g1).toMatchObject({stage:'v2-expand-1',kind:'text'});
+  expect(g1.message).toContain('只追加一次文字调用');
+  s.retry(trip.id,false,g1.grantId);
+  expect(s.store.snapshot().trips.find(t=>t.id===trip.id)!.status).toBe('traveling');
+  expect(s.store.snapshot().trips.find(t=>t.id===trip.id)!.failure).toBeUndefined();
+  time+=60000;await s.tick();
+  const again=s.store.snapshot().trips.find(t=>t.id===trip.id)!;
+  expect(again.status).toBe('failed');expect(again.failure?.kind).toBe('budget_exhausted');
+  expect(()=>s.retry(trip.id,false,g1.grantId)).toThrow('已经用过');
+  const g3=s.grantRetry(trip.id);expect(g3.grantId).not.toBe(g1.grantId);
+  expect(generator).toHaveBeenCalledTimes(2);
+ });
+ it('无效或跨旅行的授权被拒绝且不改变状态',async()=>{
+  const generator=spent(),s=make(generator),trip=s.start('forest',1);time+=60000;await s.tick();
+  writeFileSync(join(root,'retry-grants.json'),JSON.stringify({schema:1,grants:[{id:'other',tripId:'f'.repeat(36),owner:'x',stage:'v2-expand-1',kind:'text',createdAt:1}]}));
+  expect(()=>s.retry(trip.id,false,'other')).toThrow('不属于本次旅行');
+  expect(()=>s.retry(trip.id,false,'missing')).toThrow('无效');
+  expect(s.store.snapshot().trips.find(t=>t.id===trip.id)!.status).toBe('failed');
+  expect(generator).toHaveBeenCalledTimes(1);
+ });
+ it('未消费的授权在重启后仍可使用，取消确认不产生第二个授权',async()=>{
+  const generator=spent(),s=make(generator),trip=s.start('forest',1);time+=60000;await s.tick();
+  const g=s.grantRetry(trip.id);expect(s.grantRetry(trip.id).grantId).toBe(g.grantId);
+  openServices.splice(openServices.indexOf(s),1);await s.close();
+  const s2=make(generator);
+  const g2=s2.grantRetry(trip.id);expect(g2.grantId).toBe(g.grantId);
+  s2.retry(trip.id,false,g.grantId);
+  expect(s2.store.snapshot().trips.find(t=>t.id===trip.id)!.status).toBe('traveling');
+ });
 });

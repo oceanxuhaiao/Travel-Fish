@@ -6,7 +6,7 @@ import type {Journey,SeriesRef,StoryPlan} from './journey-types.ts';
 import {SCENES,chooseScene,freezeScene,type Scene,type Destination,type SceneSnapshot,type VisualVariation} from './scenes.ts';
 export {SCENES,type Scene} from './scenes.ts';
 export type Status = 'traveling' | 'awaiting_service' | 'generating' | 'failed' | 'cancelled' | 'completed';
-export interface Trip { plannerVersion?:'staged-v2';id: string; scene: Scene; series?:SeriesRef;mode?:'short';shortPlan?:StoryPlan;contentId?:string;prepareDuringTravel?:boolean; sceneSnapshot?: SceneSnapshot; startedAt: number; dueAt: number; status: Status; error?: string; completedAt?: number; phase?: string; generation?: Record<string,unknown>; }
+export interface Trip { plannerVersion?:'staged-v2';id: string; scene: Scene; series?:SeriesRef;mode?:'short';shortPlan?:StoryPlan;contentId?:string;prepareDuringTravel?:boolean; sceneSnapshot?: SceneSnapshot; startedAt: number; dueAt: number; status: Status; error?: string; failure?:{kind:string;stage?:string;message:string;at:number}; completedAt?: number; phase?: string; generation?: Record<string,unknown>; }
 export interface Card { tripId: string; scene: Scene; series?:SeriesRef;sceneLabel?: string; title: string; note: string; sha256: string; completedAt: number; generation?: Record<string,unknown>; }
 interface Snapshot { schema: 1; trips: Trip[]; notified: string[]; journeys?:Journey[]; }
 /** Adapter must return an approved complete artifact, never a temporary URL. */
@@ -24,6 +24,20 @@ export interface Generator {
 const active = new Set<Status>(['traveling', 'awaiting_service', 'generating', 'failed']);
 const validId = (id: string) => /^[a-f0-9-]{36}$/.test(id);
 const png = Buffer.from('89504e470d0a1a0a', 'hex');
+/** One explicit, non-renewable user grant per failed stage. Persisted so a restart cannot re-consume it. */
+export interface RetryGrant {id:string;tripId:string;owner:string;stage:string;kind:'text'|'image';createdAt:number;consumedAt?:number;consumedBy?:string;}
+interface GrantFile {schema:1;grants:RetryGrant[];}
+export function loadRetryGrants(root:string):GrantFile {
+ const file=join(root,'retry-grants.json');
+ if(!existsSync(file))return {schema:1,grants:[]};
+ const value=JSON.parse(readFileSync(file,'utf8')) as GrantFile;
+ if(value?.schema!==1||!Array.isArray(value.grants)||value.grants.some(g=>!g||typeof g.id!=='string'||typeof g.tripId!=='string'||typeof g.owner!=='string'||typeof g.stage!=='string'||!['text','image'].includes(g.kind)||!Number.isFinite(g.createdAt)))throw Error('重试授权记录损坏');
+ return value;
+}
+/** Counts only grants already consumed for this exact stage; a cancelled confirmation never adds budget. */
+export function consumedGrantCount(root:string,owner:string,stage:string):number {
+ try{return loadRetryGrants(root).grants.filter(g=>g.owner===owner&&g.stage===stage&&g.consumedAt!==undefined).length;}catch{return 0;}
+}
 
 export function atomicJson(path: string, value: unknown): void {
   const temporary = path + '.' + randomUUID() + '.tmp';
@@ -210,13 +224,38 @@ export class TravelService {
     if (!trip || !active.has(trip.status)) throw new Error('这趟旅行不能取消');
     trip.status = 'cancelled'; this.store.save(state); this.controller?.abort(); return structuredClone(trip);
   }
-  retry(id: string, confirmUnknownOutcome = false): Trip {
+  private grants(){return loadRetryGrants(this.store.root);}
+  private saveGrants(value:GrantFile){atomicJson(join(this.store.root,'retry-grants.json'),value);}
+  /** Creates (or reuses) one pending grant. Creating a grant changes no trip state and spends no model call. */
+  grantRetry(id:string){
+    const trip=this.store.snapshot().trips.find(t=>t.id===id);
+    if(!trip||trip.status!=='failed')throw Error('只有失败的旅行可以申请追加重试');
+    if(trip.failure?.kind!=='budget_exhausted')throw Error('本趟失败不需要追加授权，可以直接重试本阶段');
+    const owner=trip.series?.id??trip.id,stage=trip.failure.stage??'unknown';
+    const kind:'text'|'image'=/^image/i.test(stage)?'image':'text';
+    const grants=this.grants();
+    const pending=grants.grants.find(g=>g.tripId===id&&g.stage===stage&&g.consumedAt===undefined&&g.owner===owner);
+    const grant=pending??{id:randomUUID(),tripId:id,owner,stage,kind,createdAt:this.now()};
+    if(!pending){grants.grants.push(grant);this.saveGrants(grants);}
+    const target=trip.series?'本轮':'本次旅行';
+    return {grantId:grant.id,tripId:id,stage,kind,owner,
+      message:'失败阶段：'+stage+'。'+target+'已交付的卡片、候选图和已通过的文字都会保留；'+(kind==='image'?'本次追加一次图片制作，可能产生图片费用，且仍受本趟图片次数上限约束。':'本次只追加一次文字调用，不会重跑整趟旅行，也不会自动授权后续路段；宿主模型用量可能收费。')};
+  }
+  retry(id: string, confirmUnknownOutcome = false, grantId?: string): Trip {
     const state = this.store.snapshot(), trip = state.trips.find(t => t.id === id);
     if (!trip || trip.status !== 'failed') throw new Error('仅失败旅行可以重试');
+    if (trip.failure?.kind === 'budget_exhausted') {
+      if(!grantId)throw new Error('本阶段调用额度已用完，且没有可复用的结果；需要你显式追加一次重试授权后才能继续，当前不会自动重试，也不会重跑整趟旅行');
+      const grants=this.grants(),grant=grants.grants.find(g=>g.id===grantId);
+      if(!grant||grant.tripId!==id||grant.owner!==(trip.series?.id??trip.id))throw new Error('追加授权无效或不属于本次旅行');
+      if(grant.consumedAt!==undefined)throw new Error('这次追加授权已经用过，不能重复消费；如再次失败，需要重新确认追加');
+      grant.consumedAt=this.now();grant.consumedBy=id;this.saveGrants(grants);
+    }
+    if (trip.failure?.kind === 'policy_blocked') throw new Error('本轮内容被宿主模型策略拦截；重试同一阶段大概率仍会失败，已保留进度，可以结束本次旅行');
     if (this.flight) throw new Error('上次生成尚未退出');
     if (this.store.card(id)) throw new Error('已有收藏，无需重新生成');
     this.generator?.confirmRetry?.(trip, confirmUnknownOutcome);
-    trip.status = 'traveling'; delete trip.error; this.store.save(state); return structuredClone(trip);
+    trip.status = 'traveling'; delete trip.error; delete trip.failure; this.store.save(state); return structuredClone(trip);
   }
   tick(): Promise<void> {
     if (this.stopped) return Promise.resolve();
@@ -247,8 +286,13 @@ export class TravelService {
       const latest = this.store.snapshot(), current = latest.trips.find(t => t.id === trip.id)!;
       if (current.status !== 'cancelled') {
         const card = this.store.card(current.id);
-        if (card) { current.status = 'completed'; current.completedAt = card.completedAt; }
-        else { current.status = 'failed'; current.error = error instanceof Error && error.name === 'PostcardPipelineError' ? error.message : '来信未准备好；可能涉及远端请求或保存失败，请检查后手动重试'; }
+        if (card) { current.status = 'completed'; current.completedAt = card.completedAt; delete current.error; delete current.failure; }
+        else {
+          current.status = 'failed';
+          current.error = error instanceof Error && error.name === 'PostcardPipelineError' ? error.message : '来信未准备好；可能涉及远端请求或保存失败，请检查后手动重试';
+          const known=error as {kind?:unknown;stage?:unknown};
+          current.failure={kind:typeof known?.kind==='string'?known.kind:'unknown',...(typeof known?.stage==='string'?{stage:known.stage}:{}),message:current.error,at:this.now()};
+        }
         this.store.save(latest);
       }
     }

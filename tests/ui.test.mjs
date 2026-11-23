@@ -72,8 +72,8 @@ it('卸载释放图片URL，之后的轮询不会继续请求',async()=>{
 it('结果不确定的重试需要确认，取消确认不会发出重试请求',async()=>{
   const f=fixture();f.setState({trip:{id:'uncertain-trip',scene:'snow',status:'failed',dueAt:0,error:'上次图片结果不确定'},cards:[],minutes:30,generatorConnected:true});
   f.ctx.ui.confirm.mockResolvedValue(false);await mountAlbum(f.ctx);
-  [...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='继续准备').click();await flush();expect(f.ctx.invoke.mock.calls.filter(c=>c[0]==='retry')).toHaveLength(0);
-  f.ctx.ui.confirm.mockResolvedValue(true);[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='继续准备').click();await flush();expect(f.ctx.invoke).toHaveBeenCalledWith('retry',['uncertain-trip',true]);
+  [...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='重试本阶段').click();await flush();expect(f.ctx.invoke.mock.calls.filter(c=>c[0]==='retry')).toHaveLength(0);expect(f.ctx.root.textContent).not.toContain('来信仍在整理');
+  f.ctx.ui.confirm.mockResolvedValue(true);[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='重试本阶段').click();await flush();expect(f.ctx.invoke).toHaveBeenCalledWith('retry',['uncertain-trip',true]);
 });
 
 it('不展示场景目录、分类徽章或目的地控件，未知类别收藏仍可看',async()=>{
@@ -164,3 +164,32 @@ it('trip mode buttons only select; only the separate start button dispatches the
 });
 
 
+
+it('预算耗尽先申请一次性追加授权；取消确认不发重试请求，确认后只带该授权重试一轮',async()=>{
+ const f=fixture();
+ f.setState({trip:{id:'spent-trip',scene:'snow',status:'failed',startedAt:0,dueAt:0,error:'两次尝试上限',failure:{kind:'budget_exhausted',stage:'v2-expand-1',message:'两次尝试上限',at:1}},cards:[],minutes:120,generatorConnected:true});
+ const base=f.ctx.invoke.getMockImplementation();
+ f.ctx.invoke.mockImplementation(async(method,args)=>method==='grantRetry'?{grantId:'grant-1',kind:'text',message:'失败阶段：v2-expand-1。只追加一次文字调用，可能收费。'}:base(method,args));
+ f.ctx.ui.confirm.mockResolvedValue(false);
+ await mountAlbum(f.ctx);await flush();
+ const retryButton=()=>[...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='重试本阶段');
+ expect(retryButton()).toBeDefined();
+ retryButton().click();await flush();await flush();
+ expect(f.ctx.invoke).toHaveBeenCalledWith('grantRetry',['spent-trip']);
+ expect(f.ctx.invoke.mock.calls.filter(c=>c[0]==='retry')).toHaveLength(0);
+ expect(f.ctx.ui.confirm).toHaveBeenCalled();
+ f.ctx.ui.confirm.mockResolvedValue(true);
+ retryButton().click();await flush();await flush();
+ expect(f.ctx.invoke).toHaveBeenCalledWith('retry',['spent-trip',false,'grant-1']);
+ expect(f.ctx.invoke.mock.calls.filter(c=>c[0]==='retry')).toHaveLength(1);
+});
+it('策略拦截的失败给出结束出口而不诱导重试',async()=>{
+ const f=fixture();
+ f.setState({trip:{id:'blocked-trip',scene:'forest',status:'failed',startedAt:0,dueAt:0,error:'内容过滤',failure:{kind:'policy_blocked',stage:'plan-1',message:'内容过滤',at:1}},cards:[],minutes:120,generatorConnected:true});
+ await mountAlbum(f.ctx);await flush();
+ expect(f.ctx.root.textContent).toContain('策略拦截');
+ expect([...f.ctx.root.querySelectorAll('button')].some(b=>b.textContent==='结束本次旅行')).toBe(true);
+ [...f.ctx.root.querySelectorAll('button')].find(b=>b.textContent==='重试本阶段').click();await flush();
+ expect(f.ctx.invoke.mock.calls.filter(c=>c[0]==='retry')).toHaveLength(0);
+ expect(f.ctx.root.textContent).toContain('大概率仍会失败');
+});

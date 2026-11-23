@@ -32,7 +32,8 @@ export class PostcardPanel {
       case 'endJourney':this.service.endJourney(String(args[0]));return this.snapshot();
       case 'retrySummary':if(!this.retrySummary)throw Error('总结服务未接入');this.retrySummary(String(args[0]));return this.snapshot();
       case 'cancel': this.service.cancel(String(args[0]));return this.snapshot();
-      case 'retry': this.service.retry(String(args[0]),args[1]===true);return this.snapshot();
+      case 'grantRetry': return this.service.grantRetry(String(args[0]));
+      case 'retry': this.service.retry(String(args[0]),args[1]===true,typeof args[2]==='string'?args[2]:undefined);return this.snapshot();
       case 'image': case 'thumbnail': case 'png': case 'zip': {
         const id=String(args[0]);const record=this.service.store.card(id);if(!record)throw new Error('找不到这份已完成的来信');
         const image=readFileSync(join(this.service.store.collection,id,'postcard.png'));

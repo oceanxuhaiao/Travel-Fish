@@ -3,7 +3,7 @@ import {STAMP_ART} from './stamp-art.ts';
 import type {WebUiPanelContext} from 'cortico/web/shared/client-panel.ts';
 
 interface Card {tripId:string;scene:string;title:string;note:string;completedAt:number;unread?:boolean;series?:{id:string;mark:string;nodeIndex:number;total:3};}
-interface Trip {id:string;scene:string;status:string;startedAt:number;dueAt:number;error?:string;phase?:string;}
+interface Trip {id:string;scene:string;status:string;startedAt:number;dueAt:number;error?:string;phase?:string;failure?:{kind:string;stage?:string;message:string;at:number};}
 interface Snapshot {journey?:{id:string;mark:string;phase:string;completed:number;nextNode:number|null;summary?:{status:string;error?:string;text?:string}}|null;cost?:{normalImageCost:number|null;maxImageCost:number|null;hostCost:string};readyForTravel?:boolean;trip:Trip|null;cards:Card[];minutes:number;generatorConnected:boolean;mailbox?:{unreadCount:number};mailboxWindow?:{phase:string;detail:string};}
 type SummaryPayload={status:string;error?:string;text?:string};
 type SummaryKind='loading'|'ready'|'running'|'failed'|'empty'|'missing'|'error';
@@ -56,19 +56,36 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
     finally {busy=false;if(!ctx.signal.aborted)renderJourney();}
   }
   async function cancel(){if(!data?.trip)return;if(await ctx.ui.confirm({title:'让它先回家吗？',body:'这趟旅行将结束。已经发出的云端生成请求可能仍会计费。'}))await action('cancel',[data.trip.id]);}
-  async function retry(){if(!data?.trip)return;let confirmed=false;if(data.trip.error?.includes('不确定')){confirmed=await ctx.ui.confirm({title:'确认后继续准备',body:'上次图片请求的结果不确定。请先核对服务记录；确认继续可能再次产生图片费用，且仍受本趟次数限制。'});if(!confirmed)return;}await action('retry',[data.trip.id,confirmed]);}
+  async function retry(){if(!data?.trip)return;const failure=data.trip.failure;
+    if(failure?.kind==='policy_blocked'){tell('本轮内容被宿主模型策略拦截，重试同一阶段大概率仍会失败；已有来信仍可阅读，也可结束本次旅行。',true);return;}
+    let grantId:string|undefined;
+    if(failure?.kind==='budget_exhausted'){
+      let grant:{grantId:string;kind:string;message:string};
+      try{grant=await ctx.invoke<{grantId:string;kind:string;message:string}>('grantRetry',[data.trip.id]);}
+      catch(error){tell(error instanceof Error?error.message:'暂时无法申请追加授权。',true);return;}
+      const ok=await ctx.ui.confirm({title:'追加一次本阶段重试？',body:grant.message+' 确认只追加这一轮；取消不会发出任何生成请求。'});
+      if(!ok)return;
+      grantId=grant.grantId;
+    }
+    let confirmed=false;if(failure?.kind==='remote_unknown'||data.trip.error?.includes('不确定')){confirmed=await ctx.ui.confirm({title:'确认后继续准备',body:'上次请求的结果不确定。请先核对服务记录；确认继续可能再次产生费用，且仍受本趟次数限制。'});if(!confirmed)return;}
+    await action('retry',[data.trip.id,confirmed,...(grantId?[grantId]:[])]);}
   function renderJourney(){
     if(!data)return;journey.replaceChildren();const t=data.trip;
     const text=el('div','pc-journey-copy');const title=el('h2');const sub=el('p','pc-muted');const controls=el('div','pc-journey-actions');
     const inTravel=!!t&&Date.now()<t.dueAt;
     if(active(t)){
-      title.textContent=inTravel&&t!.status!=='failed'?'正在远方旅行':t!.status==='failed'?'这封来信还在整理中':t!.status==='awaiting_service'?'旅途到了，等来信启程':'正在把旅途装进信里';
-      sub.textContent=inTravel&&t!.status!=='failed'?'预计 '+new Date(t!.dueAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})+' 归来，明信片将在旅途中准备。':t!.status==='failed'?'已有成果与旅程进度已保留；会优先复用已有成果，问题未解决时暂缓交付。':t!.status==='awaiting_service'?'请先在扩展配置中连接云端生成服务。':'明信片和短笺准备好后，会自动收进下面的收藏册。';
-      const preparation:Record<string,string>={story_directions:'正在整理旅途方向',story_selection:'正在核对方向与素材',story_expand:'正在展开旅途故事',story_review:'正在核对故事内容'};
-      if(t!.status!=='failed'&&t!.phase&&preparation[t!.phase])sub.textContent+=' '+preparation[t!.phase]+'。';
-      if(t!.status==='failed'&&t!.error?.includes('输出被截断'))sub.textContent='本次文字任务输出被截断，进度已保存；不会自动重试或重画图片。';
-      if(t!.status==='failed')controls.append(button('继续准备',retry,'pc-button pc-primary'));
-      controls.append(button('先回家',cancel));
+      const failed=t!.status==='failed';
+      title.textContent=failed?'这次旅行没走完':inTravel?'正在远方旅行':t!.status==='awaiting_service'?'旅途到了，等来信启程':'正在把旅途装进信里';
+      if(failed){
+        const kind=t!.failure?.kind;
+        sub.textContent='尚未收到这封来信；已保存的进度、候选图和已有收藏都还在。'+(kind==='budget_exhausted'?'本阶段调用额度已用完，本地也没有可用结果；继续需要显式追加一次重试授权。':kind==='policy_blocked'?'本轮内容被宿主模型策略拦截，重试同一阶段大概率仍会失败。':kind==='transient'?'像是临时服务问题，可以稍后再试。':'可以直接再试一次，问题未解决时会保留原进度。');
+      }else{
+        sub.textContent=inTravel?'预计 '+new Date(t!.dueAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})+' 归来，明信片将在旅途中准备。':t!.status==='awaiting_service'?'请先在扩展配置中连接云端生成服务。':'明信片和短笺准备好后，会自动收进下面的收藏册。';
+        const preparation:Record<string,string>={story_directions:'正在整理旅途方向',story_selection:'正在核对方向与素材',story_expand:'正在展开旅途故事',story_review:'正在核对故事内容'};
+        if(t!.phase&&preparation[t!.phase])sub.textContent+=' '+preparation[t!.phase]+'。';
+      }
+      if(failed)controls.append(button('重试本阶段',retry,'pc-button pc-primary'),button('结束本次旅行',cancel));
+      else controls.append(button('先回家',cancel));
       if(t!.error){const info=el('details','pc-error-details');info.append(el('summary','','查看原因'),el('p','',t!.error));text.append(info);}
     }else{
       const continuation=data.journey?.phase==='waiting_continue';
@@ -94,7 +111,7 @@ export async function mountAlbum(ctx:WebUiPanelContext):Promise<void>{
     }
     if(data.journey?.summary?.status==='failed'){text.append(el('p','pc-muted','三张已收好，总结尚未完成：'+(data.journey.summary.error??'可稍后恢复文字。')));controls.append(button('仅重试总结',async()=>{if(await ctx.ui.confirm({title:'恢复总结文字？',body:'只处理总结，不重新生图；仍可能产生宿主模型用量。'}))await action('retrySummary',[data!.journey!.id]);}));}
     if(data.mailboxWindow){const shown=data.mailboxWindow.phase==='running';const mailbox=button(shown?'关闭桌面邮箱':'显示桌面邮箱',()=>action(shown?'closeMailbox':'openMailbox'));mailbox.disabled=busy;controls.append(mailbox);}
-    if(active(t)){
+    if(active(t)&&t!.status!=='failed'){
       const meter=el('div','pc-travel-progress');
       const total=t!.dueAt-t!.startedAt;
       const fraction=Number.isFinite(total)&&total>0?Math.max(0,Math.min(1,(Date.now()-t!.startedAt)/total)):0;
