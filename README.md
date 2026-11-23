@@ -1,10 +1,10 @@
-> 当前发布版 **0.8.12**：Gemini原生错误传递与响应留证修复，JPEG/静态WebP本地转PNG并保留原图；每趟仍等待2小时，真实Gemini及报告者环境仍待复验。
+> 当前发布版 **0.8.13**：修复第三张明信片详情显示其他旅程总结的问题，总结按卡片所属旅程归属并按状态分层显示；每趟仍等待2小时。
 
 <p align="center"><img src="https://raw.githubusercontent.com/oceanxuhaiao/Travel-Fish/main/assets/branding/logo.png" width="180" alt="旅行大肥鱼 Logo"></p>
 
 # 旅行大肥鱼
 
-> 当前发布版 **0.8.12**（Windows / Coopanion）。用户在「远方来信」面板选择：短途 2 小时、一张带完整短叙事的明信片；长途 3×2 小时、三节点连续故事与第三张后的总结。本版加入新的分段旅程规划、更具体的结构反馈与宿主输出终态识别；自然回忆、带已交付见闻的续程邀请、46 条真实游记素材、分级恢复与降级交付、Issue #2/#3 修复，以及长途鲸鱼邮戳与总结引导均保留。
+> 当前发布版 **0.8.13**（Windows / Coopanion）。用户在「远方来信」面板选择：短途 2 小时、一张带完整短叙事的明信片；长途 3×2 小时、三节点连续故事与第三张后的总结。本版加入新的分段旅程规划、更具体的结构反馈与宿主输出终态识别；自然回忆、带已交付见闻的续程邀请、46 条真实游记素材、分级恢复与降级交付、Issue #2/#3 修复，以及长途鲸鱼邮戳与总结引导均保留。本版修复 Issue #5 的第三张明信片总结串到其他旅程的问题。
 
 **让她去远方走走，把想念寄回家。**
 
@@ -22,7 +22,7 @@
 
 不用守着倒计时。等你方便时点一下邮箱，她会跑过去，打开小邮箱，取出那张寄给你的明信片。
 
-![旅行大肥鱼宣传海报](https://raw.githubusercontent.com/oceanxuhaiao/Travel-Fish/main/assets/branding/poster.jpg?v=0.8.11)
+![旅行大肥鱼宣传海报](https://raw.githubusercontent.com/oceanxuhaiao/Travel-Fish/main/assets/branding/poster.jpg?v=0.8.13)
 
 ## 一张风景，一段只属于这趟旅途的短笺
 
